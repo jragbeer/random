@@ -1,17 +1,15 @@
 import pandas as pd
-import pickle
+
 import matplotlib.pyplot as plt
 from matplotlib import style
 style.use('ggplot')
 import numpy as np
 import datetime
-import requests
-import warnings
-import itertools
 import urllib
 import bs4 as bs
 import glob
 import os
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 today= pd.to_datetime(datetime.datetime.now())
 print('{}\nTODAY \tDay: {}, Month: {}, Year: {}\n'.format(today, today.day, today.month, today.year))
@@ -19,6 +17,10 @@ print('{}\nTODAY \tDay: {}, Month: {}, Year: {}\n'.format(today, today.day, toda
 fig = plt.figure()
 ax1 = fig.add_subplot(121)
 ax2 = fig.add_subplot(122)
+
+fig2 = plt.figure()
+ax12 = fig2.add_subplot(121)
+ax22 = fig2.add_subplot(122)
 
 def pull_data():
     graphsource = urllib.request.urlopen('https://weather.com/en-CA/weather/hourbyhour/l/CAXX0504:1:CA').read()
@@ -60,6 +62,7 @@ def make_wdata(p=1):
     return Wdata
 
 def newfunc(lol):
+    minorLocator = MultipleLocator(5)
     data = lol.copy()
     #applying a mask that will show only days where it snowed
     data['Date/Time'] = pd.to_datetime(data['Date/Time'])
@@ -72,10 +75,22 @@ def newfunc(lol):
 
     print('Total number of days it snowed the dataset: ', len(data))  # number of days it snowed
     a = pd.DataFrame(data = data.groupby('Month')['Year'].count())
-    print('\n\nAverage number of days of snowfall per month for each month: \n')
+    print('\n\nAverage number of days of snowfall per year for each month: \n')
+    ax12.bar(range(1,8),[a['Year'].loc[10]/5,a['Year'].loc[11]/5,a['Year'].loc[12]/5,a['Year'].loc[1]/5,a['Year'].loc[2]/5,a['Year'].loc[3]/5,a['Year'].loc[4]/5], color = 'm', alpha = 0.65)
+    ax12.set_title('Average Number of Days of Snowfall per Year')
+    ax12.set_ylabel('Average Number of Days of Snowfall')
+    ax12.set_xlabel('Months')
+    ax12.set_xticklabels([' ','October', 'November', 'December', 'January', 'February', 'March', 'April'])
+    ax12.tick_params(axis='y', which='minor', bottom='off')
     print(a/5)
     b = data.groupby('Month').sum()
     print('\n\nAverage snowfall per year for each month: \n')
+    ax22.bar(range(1,8),[b['Total Snow (cm)'].loc[10]/5,b['Total Snow (cm)'].loc[11]/5,b['Total Snow (cm)'].loc[12]/5,b['Total Snow (cm)'].loc[1]/5,b['Total Snow (cm)'].loc[2]/5,b['Total Snow (cm)'].loc[3]/5,b['Total Snow (cm)'].loc[4]/5],alpha = 0.69,  color = 'c')
+    ax22.set_xlabel('Month')
+    ax22.set_title('Average Snowfall per Year')
+    ax22.set_ylabel('Average Snowfall per Month (cm)')
+    ax22.set_xticklabels([' ','October', 'November', 'December','January','February','March','April'])
+    ax22.tick_params(axis='y', which='minor', bottom='off')
     print(b/5)
 
     print('\nSeasonal Stats (per winter): \n')
@@ -111,8 +126,13 @@ data2 = data[['Date/Time','Total Snow (cm)']]
 print('\nTotal number of days in the dataset: \n',len(data)) #number of entries
 print(data['Total Snow (cm)'].describe())
 
-data2.plot(ax=ax1)
-data2.hist(ax=ax2,bins = [x for x in range(17)], color = 'blue')
+data2.plot(ax=ax1,alpha = 0.9)
+ax1.set_ylabel('Total Snowfall (cm)')
+ax1.set_xlabel('Day Number of study')
+
+data2.hist(ax=ax2,bins = [x for x in range(17)], color = 'blue', width = 0.6, alpha = 0.8)
+ax2.set_xlabel('Centimeters of snow')
+ax2.set_ylabel('Number of Days')
 plt.show()
-data.to_csv('DownsviewSnowData.csv', index = 0)
+# data.to_csv('DownsviewSnowData.csv', index = 0)
 
