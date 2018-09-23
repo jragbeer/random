@@ -5,19 +5,38 @@ import datetime
 import time
 from datetime import timezone
 from bokeh.plotting import figure, show, gmap
-from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, OpenURL, CustomJS, DatetimeTickFormatter, GMapOptions
+from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, OpenURL, CustomJS, DatetimeTickFormatter, GMapOptions, LinearColorMapper
 from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, Range1d, FuncTickFormatter,DataRange1d , Band, SingleIntervalTicker
-from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Button, CheckboxGroup
+from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Button, CheckboxGroup, Div
 from bokeh.layouts import widgetbox, row, column
 from bokeh.io import curdoc
+from bokeh.palettes import Purples, BuPu
 import webbrowser
 from math import pi
 from dateutil import parser
 from os.path import dirname, join
 
 doc = curdoc()
+doc.title = 'NBA Stats'
 #clears the html page and gives the tab a name
 doc.clear()
+def makediv(df, teams):
+    text = '''<br><font color="#113672" size = "3"><b>Player: </b></font><br><br>
+    <font color="#e82751" size = "5"><b>{}</b></font><br><br>
+    <font color="#113672" size = "3"><b>Teams played on: </b></font><br><br>
+    <font color="#e82751" size = "4"><b>{}</b></font><br><br>
+    <font color="#113672" size = "3"><b>Games Played: </b></font>
+    <font color="#e82751" size = "5"><b>{:d}</b></font><br><br>
+    <font color="#113672" size = "3"><b>Years Active: </b></font>
+    <font color="#e82751" size = "5"><b>{:d}</b></font><font color="#e82751" size = "3"><b>  ({:d}-{:d})</b></font><br><br>
+    <font color="#113672" size = "3"><b>Career Average PPG: </b></font>
+    <font color="#e82751" size = "5"><b>{:.1f}</b></font><br><br>
+    <font color="#113672" size = "3"><b>Career Average APG: </b></font>
+    <font color="#e82751" size = "5"><b>{:.1f}</b></font><br><br>
+    <font color="#113672" size = "3"><b>Career Average RPG: </b></font>
+    <font color="#e82751" size = "5"><b>{:.1f}</b></font>'''.format(
+        selectplayer.value, ', '.join(teams), int(df['G'].sum()), int(len(df['G'])),df.index.levels[1].values[0],df.index.levels[1].values[-1], df['ptsavg'].mean(), df['astavg'].mean(), df['rebavg'].mean())
+    return text
 def player_stats(df, name):
     player = df[df['Player'] == str(name)].copy()
     return player
@@ -42,7 +61,7 @@ def add_to_Dict(dicta, key, value):
     # return dicta
 def cleanplayer(df, player):
     aa = player_stats(df, player)
-    cc = pd.DataFrame(aa.groupby(['Player', 'Year']).agg({'TRB':'sum', 'AST':'sum', 'PTS':'sum', 'G':'sum', 'DRB':'sum', 'ORB':'sum', 'PER':'mean'}))
+    cc = pd.DataFrame(aa.groupby(['Player', 'Year']).agg({'TRB':'sum', 'AST':'sum', 'PTS':'sum', 'G':'sum', 'DRB':'sum', 'ORB':'sum','FTA':'sum','FT':'sum','FGA':'sum','FG':'sum','3PA':'sum','3P':'sum', 'PER':'mean'}))
 
     for x in cc.index:
         if cc['G'][x] > 82:
@@ -64,24 +83,44 @@ def cleanplayer(df, player):
     cc['drpg'] = cc['DRB'] / cc['G']
     cc['orpg'] = cc['ORB'] / cc['G']
     cc['apg'] = cc['AST'] / cc['G']
+    cc['rebavg'] = cc['TRB'].sum() / cc['G'].sum()
+    cc['ptsavg'] = cc['PTS'].sum() / cc['G'].sum()
+    cc['astavg'] = cc['AST'].sum() / cc['G'].sum()
+    cc['orbavg'] = cc['ORB'].sum() / cc['G'].sum()
+    cc['drbavg'] = cc['DRB'].sum() / cc['G'].sum()
+
+
     return cc
 def updateplayer(attr, old, new):
+    teamlistp = [teamabbrevdict[str(x)] for x in player_stats(df, str(new))['Tm'].unique()]
+    try:
+        teamlistp.remove('Multiple Teams in a season')
+    except:
+        pass
     aa = cleanplayer(df, str(new))
     xp = [x1[1] for x1 in aa.index.values]
     yp = aa['ppg']
-    sourceppg.data = ColumnDataSource(data=dict(x=xp, y=yp)).data
+
     tp = aa['rpg']
     dp = aa['drpg']
     op = aa['orpg']
     ap = aa['apg']
     perp = aa['PER']
+    astavgp = aa['astavg']
+    rebavgp = aa['rebavg']
+    ptsavgp = aa['ptsavg']
+    orbavgp = aa['orbavg']
+    drbavgp = aa['drbavg']
+    sourceppg.data = ColumnDataSource(data=dict(x=xp, y=yp, avg = ptsavgp)).data
+
     w.y_range.end = tp.max() * 1.4
     i.y_range.start = xp[0]-1
     i.y_range.end = xp[-1]+1
     sourceper.data = ColumnDataSource(data=dict(x=xp, a=perp)).data
-    sourcerpg.data = ColumnDataSource(data=dict(x=xp, o=op, d=dp, t=tp)).data
-    sourceapg.data = ColumnDataSource(data=dict(x=xp, a=ap)).data
+    sourcerpg.data = ColumnDataSource(data=dict(x=xp, o=op, d=dp, t=tp, avgt=rebavgp, avgo = orbavgp, avgd = drbavgp)).data
+    sourceapg.data = ColumnDataSource(data=dict(x=xp, a=ap, avg = astavgp)).data
     source.data = ColumnDataSource(aa).data
+    div.text = makediv(aa, teamlistp)
 def updateteam(attr, old, new):
     if str(new) == 'All':
         selectplayer.options = ['All'] + sorted(sorted(list(df['Player'].unique())))
@@ -116,21 +155,52 @@ def sorting(dict1, tick=1):
         yy = [y for y in yy if y > 0]
     xx = xx[:len(yy)]
     return xx, yy
+def update_plot4(new):
+
+    if checkbox_group4.active ==[0]:
+        avglinep.visible = True
+
+    else:
+        avglinep.visible = False
+def update_plot3(new):
+    if checkbox_group3.active ==[0]:
+        avglinez.visible = True
+
+    else:
+        avglinez.visible = False
+def update_plot1(new):
+    if checkbox_group1.active ==[0]:
+        avglinewo.visible = True
+        avglinewd.visible = True
+        avglinewt.visible = True
+    else:
+        avglinewo.visible = False
+        avglinewd.visible = False
+        avglinewt.visible = False
 
 key = 'xx'
 lat = 40.391975
 lon = -97.685789
 
-df = pd.read_csv('C:/Users/Julien/PycharmProjects/csvsaving/static/Seasons_Stats.csv')
+dir = 'bb'
+
+df = pd.read_csv(dir + 'Seasons_Stats.csv')
 df = cleandf(df)
 
 teams = list(df['Tm'].unique())
 teams.remove(0)
 
 teamsDict = {t: set([y[2] for y in df.itertuples() if y[5]==t]) for t in teams}
-teamNames = pd.read_csv('C:/Users/Julien/PycharmProjects/csvsaving/static/teams.csv', index_col='Abbrev')
+teamNames = pd.read_csv(dir + 'teams.csv', index_col='Abbrev')
+
 newteamsDict = {teamNames.at[t, 'Name'] :teamsDict[t] for t in teamsDict}
 
+teamabbrevdict = {teamNames.index[x]:str(teamNames.values[x][0].strip()) for x in range(len(teamNames))}
+teamlist = [teamabbrevdict[str(x)] for x in player_stats(df, 'Kevin Durant')['Tm'].unique()]
+try:
+    teamlist.remove('Multiple Teams in a season')
+except:
+    pass
 #BOKEH
 
 selectplayer = Select(title='Player:', value='Kevin Durant', options=sorted(list(df['Player'].unique())))
@@ -141,13 +211,8 @@ selectteam.on_change('value', updateteam)
 
 source = ColumnDataSource(player_stats(df, str(selectplayer.value)))
 button = Button(label="Download Data", button_type="success")
-button.callback = CustomJS(args=dict(source=source),
-                           code=open(join(dirname(__file__), "download.js")).read())
+button.callback = CustomJS(args=dict(source=source),code=open(join(dirname(__file__), "download.js")).read())
 
-checkbox_group1 = CheckboxGroup(
-        labels=["Average RPG Line", "Average PER Line"], active=[], width = 150)
-checkbox_group2 = CheckboxGroup(
-        labels=["Average PPG Line", "Average APG Line"], active=[], width = 150)
 
 hoverline = HoverTool(tooltips=[
     ("Year", "@x{0}"),
@@ -164,57 +229,76 @@ hoverbar = HoverTool(tooltips=[
 hoverheatmap = HoverTool(tooltips=[
     ("Area", "@x{0}"),
     ("Shot (%)", "@y{(0.0)}"), ])
-p = figure(plot_width=1000, plot_height=450,
+p = figure(plot_width=950, plot_height=450,
            tools=[hoverline, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="Average Points per Game",
-           x_axis_type=None,
-           y_axis_label="Points (ppg)", toolbar_location="right")
-w = figure(plot_width=1000, plot_height=250,
+           title="Average Points per Game",x_axis_type=None,y_axis_label="Points (ppg)", toolbar_location="right")
+w = figure(plot_width=950, plot_height=250,
            tools=[hoverline2, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="Average Rebounds per Game",
-           x_axis_type=None,
-           y_axis_label="Rebounds (rpg)", toolbar_location="right")
-z = figure(plot_width=1000, plot_height=250,
+           title="Average Rebounds per Game",x_axis_type=None, y_axis_label="Rebounds (rpg)", toolbar_location="right")
+z = figure(plot_width=950, plot_height=250,
            tools=[hoverline3, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="Average Assits per Game",
-           x_axis_type=None,
-           y_axis_label="Assists (apg)", toolbar_location="right")
+           title="Average Assits per Game", x_axis_type=None, y_axis_label="Assists (apg)", toolbar_location="right")
 i = figure(plot_width=300, plot_height=950,
            tools=[hoverbar, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="PER per season", y_axis_type=None,
-           x_axis_label="Player Efficiency Rating", toolbar_location="right")
+           title="PER per season", y_axis_type=None, x_axis_label="Player Efficiency Rating", toolbar_location="right")
 
 heatmap = figure(plot_width=350, plot_height=300,
-           tools=[hoverheatmap],
-           title="Career Shooting Heatmap", x_axis_location=None, y_axis_location=None,toolbar_location="right")
-heatmap.rect(-1,0,6,2, color='green', alpha = 0.5, line_color='green')
-heatmap.ellipse(1,0,7,1.55, color='firebrick', alpha = 0.5, line_color='white')
-heatmap.rect(0,0,2,0.85, color='firebrick', alpha = 0.5, line_color='white')
-heatmap.wedge(x=[-1], y=[0], radius=0.98, start_angle=3*pi/2, end_angle=pi/2,
-        color="red", alpha=0.6, direction="clock",line_color='white')
+           tools=[hoverheatmap],title="Career Shooting Heatmap", x_axis_location=None, y_axis_location=None,toolbar_location="right")
+hmapsq = heatmap.rect(-1,0,6,2, color='green', line_color='green')
+hmapellipse = heatmap.ellipse(1,0,7,1.55, color='firebrick', line_color='white')
+hmaprect = heatmap.rect(0,0,2,0.85, color='firebrick', line_color='white')
+hmapwedge = heatmap.wedge(x=[-1], y=[0], radius=0.98, start_angle=3*pi/2, end_angle=pi/2,
+        color="red",  direction="clock",line_color='white')
 heatmap.x_range.end=1
 heatmap.x_range.start=-5
 heatmap.grid.visible = False
+heatmap.outline_line_color = None
 
-map_options = GMapOptions(lat=lat, lng=lon, map_type="roadmap", zoom=3)
-g = gmap(key, map_options, title="Career Stops", width = 350, height = 350)
+# map_options = GMapOptions(lat=lat, lng=lon, map_type="roadmap", zoom=3)
+# g = gmap(key, map_options, title="Career Stops", width = 350, height = 350)
+g = figure(plot_width=350, plot_height=350,
+           tools=[hoverheatmap],
+           title="Map", x_axis_location=None, y_axis_location=None,toolbar_location="right")
 gsource = ColumnDataSource(data=dict(lat=[ 40.7128,  30.20,  34.0522],lon=[-74.0060, -97.74, -118.2437]))
 g.circle(x="lon", y="lat", size=15, fill_color="#568ce2", fill_alpha=0.5, source=gsource)
 g.axis.visible = False
 
+
+
 a = cleanplayer(df, 'Kevin Durant')
 x = [x[1] for x in a.index.values]
 y = a['ppg']
-sourceppg = ColumnDataSource(data = dict(x=x, y=y))
 t = a['rpg']
 d = a['drpg']
 o = a['orpg']
-astt= a['apg']
+astt = a['apg']
 per = a['PER']
+peravg = [a['PER'].sum()/len(x) for y in range(len(x))]
+rebavg = a['rebavg']
+ptsavg = a['ptsavg']
+astavg = a['astavg']
+orbavg = a['orbavg']
+drbavg = a['drbavg']
+
+htmap3 = a['3P'].sum()/a['3PA'].sum()
+htmapft = a['FT'].sum()/a['FTA'].sum()
+htmapfg = a['FG'].sum()/a['FGA'].sum()
+# heatmapsource = ColumnDataSource(data = dict(three = htmap3, ft = htmapft, fg = htmapfg))
+
+if htmap3 < 20:
+    print("pink")
+elif 20<=htmap3 < 40:
+    print("orange")
+elif htmap3 >= 40:
+    print('blue')
+
+
+color_mapper = LinearColorMapper(palette=Purples[9][::-1][3:], low=min(per), high=max(per))
 i.y_range=Range1d(x[0]-1, x[-1]+1)
-sourceper = ColumnDataSource(data = dict(x=x, a = per))
-sourcerpg= ColumnDataSource(data = dict(x=x, o = o, d = d, t = t))
-sourceapg = ColumnDataSource(data = dict(x=x, a = astt))
+sourceppg = ColumnDataSource(data = dict(x=x, y=y, avg = ptsavg))
+sourceper = ColumnDataSource(data = dict(x=x, a = per, avg = peravg))
+sourcerpg= ColumnDataSource(data = dict(x=x, o = o, d = d, t = t, avgt=rebavg, avgo = orbavg, avgd = drbavg))
+sourceapg = ColumnDataSource(data = dict(x=x, a = astt, avg = astavg))
 p.line('x', 'y', source=sourceppg, line_width=2.5, line_color='#E24A33',alpha = 0.7)
 p.circle('x', 'y', source=sourceppg, size=8, line_color='#E24A33', fill_color = '#568ce2')
 z.line('x', 'a', source=sourceapg, line_width=2.5, line_color='#a30693',alpha = 0.7)
@@ -222,7 +306,33 @@ z.circle('x', 'a', source=sourceapg, size=8, line_color='#a30693', fill_color = 
 w.vbar_stack(stackers=['d','o'], x='x', width=0.5, color=['blue', '#568ce2'], source=sourcerpg,
              legend=['DREB', 'OREB'])
 
-i.hbar(y = 'x', right = 'a', left= 0, height = 0.52, color='#2d0d87', source = sourceper, alpha = 0.7)
+i.hbar(y = 'x', right = 'a', left= 0, height = 0.52, color={'field': 'a', 'transform': color_mapper}, source = sourceper)
+
+avglinep = p.line('x', 'avg', source=sourceppg, line_width=3.5, line_color='#E24A33', alpha = 0.2)
+avglinewt = w.line('x', 'avgt', source=sourcerpg, line_width=3.5, line_color='purple', alpha = 0.2)
+avglinewo = w.line('x', 'avgo', source=sourcerpg, line_width=3.5, line_color='#568ce2', alpha = 0.2)
+avglinewd = w.line('x', 'avgd', source=sourcerpg, line_width=3.5, line_color='blue', alpha = 0.2)
+avglinez = z.line('x', 'avg', source=sourceapg, line_width=3.5, line_color='#a30693', alpha = 0.2)
+
+
+avglinewd.visible = False
+avglinewo.visible = False
+avglinez.visible = False
+avglinewt.visible = False
+avglinep.visible = False
+
+
+checkbox_group1 = CheckboxGroup(labels=["Average RPG Lines"], active=[], width = 150)
+checkbox_group3 = CheckboxGroup(labels=["Average APG Line"], active=[], width = 150)
+checkbox_group4 = CheckboxGroup(labels=["Average PPG Line"], active=[], width = 150)
+checkbox_group1.on_click(update_plot1)
+checkbox_group3.on_click(update_plot3)
+checkbox_group4.on_click(update_plot4)
+
+img = figure(plot_width=300, plot_height=200, x_range=(0, 370), y_range=(0, 834), x_axis_type=None,y_axis_type=None,tools = [])
+img.image_url(url=['csvsaving/static/kevin.png'],x=0, y=0, w=369, h=834,anchor="bottom_left")
+img.grid.visible = False
+img.outline_line_color = None
 
 ticker = SingleIntervalTicker(interval=1, num_minor_ticks=0)
 xaxis = LinearAxis(ticker=ticker)
@@ -243,11 +353,15 @@ z.ygrid.grid_line_alpha = 0.8
 z.ygrid.grid_line_dash = [6, 4]
 i.xgrid.grid_line_alpha = 0.8
 i.xgrid.grid_line_dash = [6, 4]
-checks = row([checkbox_group1,checkbox_group2])
-r = column(selectplayer,selectteam, button,checks, width=350)
-rr = column([r, heatmap, g])
+
+div = Div(width = 300, height = 500, text = makediv(a, teamlist))
+
+print(a.index.levels[1].values[0])
+
+r = column(selectplayer,selectteam, button,checkbox_group4,checkbox_group3,checkbox_group1,img, div, width=300)
+rr = column([heatmap, g])
 cc = column([p,z,w])
-aavv = row([rr, cc, i])
+aavv = row([r, cc, i, rr])
 doc.add_root(aavv)
 show(aavv)
 
