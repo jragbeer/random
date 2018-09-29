@@ -15,6 +15,7 @@ import webbrowser
 from math import pi
 from dateutil import parser
 from os.path import dirname, join
+import re
 
 doc = curdoc()
 doc.title = 'NBA Stats'
@@ -40,25 +41,6 @@ def makediv(df, teams):
 def player_stats(df, name):
     player = df[df['Player'] == str(name)].copy()
     return player
-def add_to_Dict(dicta, key, value):
-    #add to value if key present or create new key
-    if key in dicta:
-        return True
-    else:
-        return False
-
-    # try:
-    #     if dicta[key]:
-    #         try:
-    #             dicta[key] = dicta[key] + value
-    #         except:
-    #             pass
-    #     else:
-    #         dicta[key] = value
-    # except:
-    #     dicta[key] = value
-    #
-    # return dicta
 def cleanplayer(df, player):
     aa = player_stats(df, player)
     cc = pd.DataFrame(aa.groupby(['Player', 'Year']).agg({'TRB':'sum', 'AST':'sum', 'PTS':'sum', 'G':'sum', 'DRB':'sum', 'ORB':'sum','FTA':'sum','FT':'sum','FGA':'sum','FG':'sum','3PA':'sum','3P':'sum', 'PER':'mean'}))
@@ -92,7 +74,8 @@ def cleanplayer(df, player):
 
     return cc
 def updateplayer(attr, old, new):
-    teamlistp = [teamabbrevdict[str(x)] for x in player_stats(df, str(new))['Tm'].unique()]
+    teamlistp = [list(y) for x in player_stats(df, str(new))['Tm'].unique() for y in teamNames.itertuples() if
+                x == y[0] and x != 'TOT']
     try:
         teamlistp.remove('Multiple Teams in a season')
     except:
@@ -116,11 +99,13 @@ def updateplayer(attr, old, new):
     w.y_range.end = tp.max() * 1.4
     i.y_range.start = xp[0]-1
     i.y_range.end = xp[-1]+1
+    gsource.data = ColumnDataSource(
+        data=dict(lat=[x[3] for x in teamlistp], lon=[x[4] for x in teamlistp], city=[x[2] for x in teamlistp])).data
     sourceper.data = ColumnDataSource(data=dict(x=xp, a=perp)).data
     sourcerpg.data = ColumnDataSource(data=dict(x=xp, o=op, d=dp, t=tp, avgt=rebavgp, avgo = orbavgp, avgd = drbavgp)).data
     sourceapg.data = ColumnDataSource(data=dict(x=xp, a=ap, avg = astavgp)).data
     source.data = ColumnDataSource(aa).data
-    div.text = makediv(aa, teamlistp)
+    div.text = makediv(aa, [x[1] for x in teamlistp])
 def updateteam(attr, old, new):
     if str(new) == 'All':
         selectplayer.options = ['All'] + sorted(sorted(list(df['Player'].unique())))
@@ -182,26 +167,24 @@ key = 'xx'
 lat = 40.391975
 lon = -97.685789
 
-dir = 'bb'
+direc = 'xx'
 
-df = pd.read_csv(dir + 'Seasons_Stats.csv')
+df = pd.read_csv(direc + 'Seasons_Stats.csv')
 df = cleandf(df)
 
 teams = list(df['Tm'].unique())
 teams.remove(0)
 
 teamsDict = {t: set([y[2] for y in df.itertuples() if y[5]==t]) for t in teams}
-teamNames = pd.read_csv(dir + 'teams.csv', index_col='Abbrev')
+teamNames = pd.read_csv(direc + 'teams.csv', index_col='Abbrev')
 
 newteamsDict = {teamNames.at[t, 'Name'] :teamsDict[t] for t in teamsDict}
 
 teamabbrevdict = {teamNames.index[x]:str(teamNames.values[x][0].strip()) for x in range(len(teamNames))}
-teamlist = [teamabbrevdict[str(x)] for x in player_stats(df, 'Kevin Durant')['Tm'].unique()]
-try:
-    teamlist.remove('Multiple Teams in a season')
-except:
-    pass
+teamlist = [list(y) for x in player_stats(df, 'Kevin Durant')['Tm'].unique() for y in teamNames.itertuples() if x == y[0] and x != 'TOT']
+
 #BOKEH
+
 
 selectplayer = Select(title='Player:', value='Kevin Durant', options=sorted(list(df['Player'].unique())))
 selectplayer.on_change('value', updateplayer)
@@ -229,6 +212,8 @@ hoverbar = HoverTool(tooltips=[
 hoverheatmap = HoverTool(tooltips=[
     ("Area", "@x{0}"),
     ("Shot (%)", "@y{(0.0)}"), ])
+hovermap = HoverTool(tooltips=[
+    ("City", "@city"),])
 p = figure(plot_width=950, plot_height=450,
            tools=[hoverline, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title="Average Points per Game",x_axis_type=None,y_axis_label="Points (ppg)", toolbar_location="right")
@@ -257,13 +242,12 @@ heatmap.outline_line_color = None
 # map_options = GMapOptions(lat=lat, lng=lon, map_type="roadmap", zoom=3)
 # g = gmap(key, map_options, title="Career Stops", width = 350, height = 350)
 g = figure(plot_width=350, plot_height=350,
-           tools=[hoverheatmap],
+           tools=[hovermap],
            title="Map", x_axis_location=None, y_axis_location=None,toolbar_location="right")
-gsource = ColumnDataSource(data=dict(lat=[ 40.7128,  30.20,  34.0522],lon=[-74.0060, -97.74, -118.2437]))
-g.circle(x="lon", y="lat", size=15, fill_color="#568ce2", fill_alpha=0.5, source=gsource)
+gsource = ColumnDataSource(data=dict(lat=[x[3] for x in teamlist],lon=[x[4] for x in teamlist], city = [x[2] for x in teamlist]))
+g.circle(x="lon", y="lat", size=12, fill_color="#c157f2", fill_alpha=0.8, source=gsource)
 g.axis.visible = False
-
-
+g.add_tools(hovermap)
 
 a = cleanplayer(df, 'Kevin Durant')
 x = [x[1] for x in a.index.values]
@@ -314,13 +298,11 @@ avglinewo = w.line('x', 'avgo', source=sourcerpg, line_width=3.5, line_color='#5
 avglinewd = w.line('x', 'avgd', source=sourcerpg, line_width=3.5, line_color='blue', alpha = 0.2)
 avglinez = z.line('x', 'avg', source=sourceapg, line_width=3.5, line_color='#a30693', alpha = 0.2)
 
-
 avglinewd.visible = False
 avglinewo.visible = False
 avglinez.visible = False
 avglinewt.visible = False
 avglinep.visible = False
-
 
 checkbox_group1 = CheckboxGroup(labels=["Average RPG Lines"], active=[], width = 150)
 checkbox_group3 = CheckboxGroup(labels=["Average APG Line"], active=[], width = 150)
@@ -354,9 +336,7 @@ z.ygrid.grid_line_dash = [6, 4]
 i.xgrid.grid_line_alpha = 0.8
 i.xgrid.grid_line_dash = [6, 4]
 
-div = Div(width = 300, height = 500, text = makediv(a, teamlist))
-
-print(a.index.levels[1].values[0])
+div = Div(width = 300, height = 500, text = makediv(a, [x[1] for x in teamlist]))
 
 r = column(selectplayer,selectteam, button,checkbox_group4,checkbox_group3,checkbox_group1,img, div, width=300)
 rr = column([heatmap, g])
