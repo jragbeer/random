@@ -95,7 +95,10 @@ def updateplayer(attr, old, new):
     orbavgp = aa['orbavg']
     drbavgp = aa['drbavg']
     sourceppg.data = ColumnDataSource(data=dict(x=xp, y=yp, avg = ptsavgp)).data
-
+    htmap3p = a['3P'].sum() / a['3PA'].sum()
+    htmapftp = a['FT'].sum() / a['FTA'].sum()
+    htmapfgp = a['FG'].sum() / a['FGA'].sum()
+    make_heatmap(htmapfgp,htmapftp,htmap3p)
     w.y_range.end = tp.max() * 1.4
     i.y_range.start = xp[0]-1
     i.y_range.end = xp[-1]+1
@@ -162,6 +165,14 @@ def update_plot1(new):
         avglinewo.visible = False
         avglinewd.visible = False
         avglinewt.visible = False
+def make_heatmap(fg, ft, from3):
+    fg = fg*100
+    ft = ft*100
+    from3 = from3*100
+    hmapsqsource.data = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[6], i=[2], color=['blue'], area=['3P'], num = [from3]))).data
+    hmapellipsesource.data = ColumnDataSource(data=(dict(x=[1], y=[0], z=[7], i=[1.55], color=['blue'], area=['2P'], num = [fg]))).data
+    hmaprectsource.data = ColumnDataSource(data=(dict(x=[0], y=[0], z=[2], i=[0.85], color=['yellow'], area=['2P'], num = [fg]))).data
+    hmapwedgesource.data = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[0.98], i=[3 * pi / 2], u=[pi / 2], color=['orange'], area=['FT'], num = [ft]))).data
 
 key = 'xx'
 lat = 40.391975
@@ -183,72 +194,6 @@ newteamsDict = {teamNames.at[t, 'Name'] :teamsDict[t] for t in teamsDict}
 teamabbrevdict = {teamNames.index[x]:str(teamNames.values[x][0].strip()) for x in range(len(teamNames))}
 teamlist = [list(y) for x in player_stats(df, 'Kevin Durant')['Tm'].unique() for y in teamNames.itertuples() if x == y[0] and x != 'TOT']
 
-#BOKEH
-
-
-selectplayer = Select(title='Player:', value='Kevin Durant', options=sorted(list(df['Player'].unique())))
-selectplayer.on_change('value', updateplayer)
-
-selectteam = Select(title='Team:', value='All', options=list(['All'] + sorted(list(newteamsDict.keys())))+['All'])
-selectteam.on_change('value', updateteam)
-
-source = ColumnDataSource(player_stats(df, str(selectplayer.value)))
-button = Button(label="Download Data", button_type="success")
-button.callback = CustomJS(args=dict(source=source),code=open(join(dirname(__file__), "download.js")).read())
-
-
-hoverline = HoverTool(tooltips=[
-    ("Year", "@x{0}"),
-    ("PPG", "@y{(0.0)}"), ])
-hoverline2 = HoverTool(tooltips=[
-    ("Year", "@x{0}"),
-    ("REB", "@t{(0.0)}"),("DREB", "@d{(0.0)}"),("OREB", "@o{(0.0)}")])
-hoverline3 = HoverTool(tooltips=[
-    ("Year", "@x{0}"),
-    ("APG", "@a{(0.0)}"), ])
-hoverbar = HoverTool(tooltips=[
-    ("Year", "@x{0}"),
-    ("PER", "@a{(0.0)}"), ])
-hoverheatmap = HoverTool(tooltips=[
-    ("Area", "@x{0}"),
-    ("Shot (%)", "@y{(0.0)}"), ])
-hovermap = HoverTool(tooltips=[
-    ("City", "@city"),])
-p = figure(plot_width=950, plot_height=450,
-           tools=[hoverline, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="Average Points per Game",x_axis_type=None,y_axis_label="Points (ppg)", toolbar_location="right")
-w = figure(plot_width=950, plot_height=250,
-           tools=[hoverline2, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="Average Rebounds per Game",x_axis_type=None, y_axis_label="Rebounds (rpg)", toolbar_location="right")
-z = figure(plot_width=950, plot_height=250,
-           tools=[hoverline3, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="Average Assits per Game", x_axis_type=None, y_axis_label="Assists (apg)", toolbar_location="right")
-i = figure(plot_width=300, plot_height=950,
-           tools=[hoverbar, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="PER per season", y_axis_type=None, x_axis_label="Player Efficiency Rating", toolbar_location="right")
-
-heatmap = figure(plot_width=350, plot_height=300,
-           tools=[hoverheatmap],title="Career Shooting Heatmap", x_axis_location=None, y_axis_location=None,toolbar_location="right")
-hmapsq = heatmap.rect(-1,0,6,2, color='green', line_color='green')
-hmapellipse = heatmap.ellipse(1,0,7,1.55, color='firebrick', line_color='white')
-hmaprect = heatmap.rect(0,0,2,0.85, color='firebrick', line_color='white')
-hmapwedge = heatmap.wedge(x=[-1], y=[0], radius=0.98, start_angle=3*pi/2, end_angle=pi/2,
-        color="red",  direction="clock",line_color='white')
-heatmap.x_range.end=1
-heatmap.x_range.start=-5
-heatmap.grid.visible = False
-heatmap.outline_line_color = None
-
-# map_options = GMapOptions(lat=lat, lng=lon, map_type="roadmap", zoom=3)
-# g = gmap(key, map_options, title="Career Stops", width = 350, height = 350)
-g = figure(plot_width=350, plot_height=350,
-           tools=[hovermap],
-           title="Map", x_axis_location=None, y_axis_location=None,toolbar_location="right")
-gsource = ColumnDataSource(data=dict(lat=[x[3] for x in teamlist],lon=[x[4] for x in teamlist], city = [x[2] for x in teamlist]))
-g.circle(x="lon", y="lat", size=12, fill_color="#c157f2", fill_alpha=0.8, source=gsource)
-g.axis.visible = False
-g.add_tools(hovermap)
-
 a = cleanplayer(df, 'Kevin Durant')
 x = [x[1] for x in a.index.values]
 y = a['ppg']
@@ -264,18 +209,80 @@ astavg = a['astavg']
 orbavg = a['orbavg']
 drbavg = a['drbavg']
 
+#BOKEH
+
+selectplayer = Select(title='Player:', value='Kevin Durant', options=sorted(list(df['Player'].unique())))
+selectplayer.on_change('value', updateplayer)
+
+selectteam = Select(title='Team:', value='All', options=list(['All'] + sorted(list(newteamsDict.keys())))+['All'])
+selectteam.on_change('value', updateteam)
+
+source = ColumnDataSource(player_stats(df, str(selectplayer.value)))
+button = Button(label="Download Data", button_type="success")
+button.callback = CustomJS(args=dict(source=source),code=open(join(dirname(__file__), "download.js")).read())
+
+hoverline = HoverTool(tooltips=[
+    ("Year", "@x{0}"),
+    ("PPG", "@y{(0.0)}"), ])
+hoverline2 = HoverTool(tooltips=[
+    ("Year", "@x{0}"),
+    ("REB", "@t{(0.0)}"),("DREB", "@d{(0.0)}"),("OREB", "@o{(0.0)}")])
+hoverline3 = HoverTool(tooltips=[
+    ("Year", "@x{0}"),
+    ("APG", "@a{(0.0)}"), ])
+hoverbar = HoverTool(tooltips=[
+    ("Year", "@x{0}"),
+    ("PER", "@a{(0.0)}"), ])
+hoverheatmap = HoverTool(tooltips=[
+    ("Area", "@area"),
+    ("Shot (%)", "@num{(0.0)}"), ])
+hovermap = HoverTool(tooltips=[
+    ("City", "@city"),])
+
+p = figure(plot_width=950, plot_height=450,
+           tools=[hoverline, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           title="Average Points per Game",x_axis_type=None,y_axis_label="Points (ppg)", toolbar_location="right")
+w = figure(plot_width=950, plot_height=250,
+           tools=[hoverline2, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           title="Average Rebounds per Game",x_axis_type=None, y_axis_label="Rebounds (rpg)", toolbar_location="right")
+z = figure(plot_width=950, plot_height=250,
+           tools=[hoverline3, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           title="Average Assits per Game", x_axis_type=None, y_axis_label="Assists (apg)", toolbar_location="right")
+i = figure(plot_width=300, plot_height=950,
+           tools=[hoverbar, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           title="PER per season", y_axis_type=None, x_axis_label="Player Efficiency Rating", toolbar_location="right")
 htmap3 = a['3P'].sum()/a['3PA'].sum()
 htmapft = a['FT'].sum()/a['FTA'].sum()
 htmapfg = a['FG'].sum()/a['FGA'].sum()
-# heatmapsource = ColumnDataSource(data = dict(three = htmap3, ft = htmapft, fg = htmapfg))
 
-if htmap3 < 20:
-    print("pink")
-elif 20<=htmap3 < 40:
-    print("orange")
-elif htmap3 >= 40:
-    print('blue')
 
+hmapsqsource = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[6], i =[2], color=['#0e661e'], area = ['3P'], num = [htmap3*100])))
+hmapellipsesource = ColumnDataSource(data=(dict(x=[1], y=[0], z=[7], i =[1.55], color=['firebrick'], area = ['2P'], num = [htmapfg*100])))
+hmaprectsource = ColumnDataSource(data=(dict(x=[0], y=[0], z=[2], i =[0.85], color=['firebrick'], area = ['2P'], num = [htmapfg*100])))
+hmapwedgesource = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[0.98], i =[3*pi/2], u = [pi/2],color=['red'], area = ['FT'], num = [htmapft*100])))
+
+heatmap = figure(plot_width=350, plot_height=300,
+           tools=[hoverheatmap],title="Career Shooting Heatmap", x_axis_location=None, y_axis_location=None,toolbar_location="right")
+# hmapsq = heatmap.rect(-1,0,6,2, color='green', line_color='green')
+hmapsq = heatmap.rect('x','y','z','i', color='color', line_color='color', source = hmapsqsource)
+hmapellipse = heatmap.ellipse('x','y','z','i', color='color', line_color='white', source = hmapellipsesource)
+hmaprect = heatmap.rect('x','y','z','i', color='color', line_color='white', source = hmaprectsource)
+hmapwedge = heatmap.wedge(x='x', y='y', radius='z', start_angle='i', end_angle='u',
+        color="color",  direction="clock",line_color='white', source = hmapwedgesource)
+heatmap.x_range.end=1
+heatmap.x_range.start=-5
+heatmap.grid.visible = False
+heatmap.outline_line_color = None
+
+# map_options = GMapOptions(lat=lat, lng=lon, map_type="roadmap", zoom=3)
+# g = gmap(key, map_options, title="Career Stops", width = 350, height = 350)
+g = figure(plot_width=350, plot_height=350,
+           tools=[hovermap],
+           title="Map", x_axis_location=None, y_axis_location=None,toolbar_location="right")
+gsource = ColumnDataSource(data=dict(lat=[x[3] for x in teamlist],lon=[x[4] for x in teamlist], city = [x[2] for x in teamlist]))
+g.circle(x="lon", y="lat", size=12, fill_color="#c157f2", fill_alpha=0.8, source=gsource)
+g.axis.visible = False
+g.add_tools(hovermap)
 
 color_mapper = LinearColorMapper(palette=Purples[9][::-1][3:], low=min(per), high=max(per))
 i.y_range=Range1d(x[0]-1, x[-1]+1)
@@ -287,8 +294,7 @@ p.line('x', 'y', source=sourceppg, line_width=2.5, line_color='#E24A33',alpha = 
 p.circle('x', 'y', source=sourceppg, size=8, line_color='#E24A33', fill_color = '#568ce2')
 z.line('x', 'a', source=sourceapg, line_width=2.5, line_color='#a30693',alpha = 0.7)
 z.circle('x', 'a', source=sourceapg, size=8, line_color='#a30693', fill_color = '#568ce2')
-w.vbar_stack(stackers=['d','o'], x='x', width=0.5, color=['blue', '#568ce2'], source=sourcerpg,
-             legend=['DREB', 'OREB'])
+w.vbar_stack(stackers=['d','o'], x='x', width=0.5, color=['blue', '#568ce2'], source=sourcerpg,legend=['DREB', 'OREB'])
 
 i.hbar(y = 'x', right = 'a', left= 0, height = 0.52, color={'field': 'a', 'transform': color_mapper}, source = sourceper)
 
@@ -344,10 +350,6 @@ cc = column([p,z,w])
 aavv = row([r, cc, i, rr])
 doc.add_root(aavv)
 show(aavv)
-
-
-
-
 
 
 
