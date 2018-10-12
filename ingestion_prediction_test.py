@@ -117,7 +117,7 @@ def make_charts(name, a, weath):
     ax2.legend()
     ax2.set_title(str(name) + ' Scatterplot')
 def runAR2(data,cut=10):
-    print('             AR')
+    # print('             AR')
     X = data.values[:-cut]
     train = X
 
@@ -126,7 +126,7 @@ def runAR2(data,cut=10):
     model = AR(train)
     model_fit = model.fit()
     window = model_fit.k_ar
-    print('window: ', window)
+    # print('window: ', window)
     coef = model_fit.params
 
     history = train[len(train) - window:]
@@ -141,7 +141,7 @@ def runAR2(data,cut=10):
         obs = test[t]
         predictions.append(yhat)
         history.append(obs)
-        print('predicted=%f, expected=%f' % (yhat, obs))
+        # print('predicted=%f, expected=%f' % (yhat, obs))
 
     # error = mean_squared_error(test, predictions)
     # print('Test MSE: %.3f' % error)
@@ -151,17 +151,15 @@ def runAR2(data,cut=10):
 
     return predictions, test
 def runAR(data):
-    print('             AR')
+    # print('             AR')
     train = data.values
-
     model = AR(train)
     model_fit = model.fit()
     window = model_fit.k_ar
-    print('window: ', window)
+    # print('window: ', window)
     coef = model_fit.params
     new = model_fit.predict(start = len(train), end = len(train)+1)
-    print('PREDICTION: ',new)
-
+    # print('PREDICTION: ',new)
     return new
 def sorting(dict1, tick=1):
     xx=[]
@@ -197,7 +195,8 @@ def doStuff(newdf, dt,color1, color2):
     plt.plot([pd.to_datetime(x.date()) for x in o][-2:], [np.mean(k) for x in k][-2:], color = color1, alpha = 0.8)
     plt.plot([pd.to_datetime(x.date()) for x in r][-2:], [np.mean(z) for x in z][-2:], color = color2, alpha = 0.3)
 
-path = r'xx'
+
+path = r'C:/Users/J_Ragbeer/PycharmProjects/Metrocentredata/data/'
 all_files = glob.glob(os.path.join(path, "*.xlsx"))
 names = [i.split('\\')[1].split('(')[0].strip() for i in all_files]
 print(names)
@@ -212,14 +211,15 @@ df = df.resample('H').sum()
 df['DIFFS'] = pd.Series([df['SUM_VALUE'][x] - df['SUM_VALUE'][x-1] for x in range(len(df))], index = df.index)
 newdf = pd.merge(df, weather, left_index=True, right_index=True)
 
+
 # pickle_in = open("dict1.pickle","rb")
 # newdf = pickle.load(pickle_in)
 newdf.index = pd.to_datetime([x for x in newdf.index])
 
 def slow_ingest(datee, timestep=3):
     kk = parser.parse(datee) + datetime.timedelta(hours=1)
-    t = newdf.loc[:datee]
-    rr = newdf.loc[kk:]
+    t = newdf.loc[:datee] #train data
+    rr = newdf.loc[kk:] #dataframe containing next values to load in
     standlist = []
     diffslist = []
     standerror = []
@@ -227,15 +227,13 @@ def slow_ingest(datee, timestep=3):
     count = 0
     for x in rr.iterrows():
         count = count+1
-        kk = parser.parse(datee) + datetime.timedelta(hours=count)
+        kk = parser.parse(datee) + datetime.timedelta(hours=count) #look ahead one hour
+        kko = parser.parse(datee) + datetime.timedelta(hours=count+1)
         ww = x[1].to_frame().T
-        t = t.append(ww)
-        # print(t['SUM_VALUE'])
+        t = t.append(ww) # attach next row to train data
 
         preds, obs = runAR2(t.SUM_VALUE, 10)
         preds2, obs2 = runAR2(t.DIFFS, 10)
-        # for x in range(len(obs)):
-        #     print(obs[x], preds[x], np.cumsum([t.SUM_VALUE[-11]+preds2[0]] + preds2[1:])[x])
 
         standard = np.sqrt(mean_squared_error(obs, preds))
         diffs = np.sqrt(mean_squared_error(obs, np.cumsum([t.SUM_VALUE[-11]+preds2[0]] + preds2[1:])))
@@ -251,37 +249,30 @@ def slow_ingest(datee, timestep=3):
         standerr = standard*100 / np.mean(preds)
         diffserr = diffs * 100 / np.mean(np.cumsum([t.SUM_VALUE[-11]+preds2[0]] + preds2[1:]))
         print('-'*15)
+        print(kko)
         standerror.append(standerr)
         diffserror.append(diffserr)
-        print(standerror)
-        print(diffserror)
-        kko = parser.parse(datee) + datetime.timedelta(days=1)
+        # print(standerror)
+        # print(diffserror)
         newpred = runAR(t.SUM_VALUE)[0]
-        print(newpred, t.loc[str(kk)].SUM_VALUE[0])
-        qt = np.abs(t.loc[str(kk)].SUM_VALUE[0] - newpred)
-        print('ERROR: {:.1f}, ERROR PERCENT: {:.1f}'.format(qt, qt * 100 / t.loc[str(kk)].SUM_VALUE[0]))
+        print('PREDICTION: {}, ACTUAL: {}'.format(newpred, newdf.loc[str(kko)].SUM_VALUE))
+        qt = np.abs(newdf.loc[str(kko)].SUM_VALUE - newpred)
+        errorpercent = qt * 100 / newdf.loc[str(kko)].SUM_VALUE
 
+        # print(newpred, t.loc[str(kk)].SUM_VALUE[0])
+        # qt = np.abs(t.loc[str(kk)].SUM_VALUE[0] - newpred)
+        # errorpercent = qt * 100 / t.loc[str(kk)].SUM_VALUE[0]
+        print('ERROR: {:.1f}, ERROR PERCENT: {:.1f}'.format(qt, errorpercent))
+        if errorpercent > 10:
+            print('*' * 15)
+            print("SEND AN EMAIL ALERT")
+            print('*' * 15)
         time.sleep(timestep)
 
         if count == 50:
             break
 
 slow_ingest('2018-07-10',5)
-# datee = '2018-07-10'
-# kk = parser.parse(datee) + datetime.timedelta(days = 1)
-# t = newdf.loc[:datee]
-# print(t)
-# newpred = runAR(t.SUM_VALUE)[0]
-# print(newpred)
-# qt = np.abs(newdf.loc[str(kk)].SUM_VALUE-newpred)
-# print('ERROR: {:.1f}, ERROR PERCENT: {:.1f}'.format(qt, qt*100/newdf.loc[str(kk)].SUM_VALUE))
-
-
-# www = [3.167594180936144, 3.4688459525202666, 3.701989692812242, 3.9516008637598903, 4.703769016079446, 5.450151341913559, 5.997255415523559, 6.495769859658967, 4.60214491793636, 4.797821018482097, 7.366461526272542, 7.028899987015399, 6.68732922281318, 6.803184995301291, 5.839725422939549, 5.19580329990911, 4.805520082610489, 4.498149235271143, 4.221710178643699, 3.883713789592524, 2.2132361311870796, 2.1117706345843015, 2.8859754112311715, 2.5489214211492324, 2.820282213917757, 2.8369015385451264, 2.935987341663594, 3.347793369056444, 3.642261389510107, 3.9529470602181025, 4.229133093643813, 4.522231864010141, 3.266068256041482, 3.907744311169209, 7.287899017996606, 7.073075874363618, 6.847669514975687, 6.429755318698807, 5.863980122271069, 5.380188893370185, 4.95502829870599, 4.6342485629133074, 4.354476828267728, 3.8976472160540396, 1.577238766368743, 1.6763430086706754, 2.5342505583881665, 2.358235566123217, 11.154795946092696, 16.977725311395105]
-# w3 = [4.177509201758081, 4.023812915068361, 4.155223730011145, 4.63685306840986, 5.436037367985447, 6.531957685491851, 8.532386808141668, 9.016108148470629, 8.509119916014825, 5.203122288521603, 6.053016012803671, 5.677100849092855, 7.1657898951483, 6.011762860131744, 8.458815288644422, 4.93368446502484, 5.695473690091332, 6.079579905213805, 5.902328152373569, 9.22770341405061, 2.7847767253475384, 2.283960749032978, 2.9010554831903113, 6.130478438680597, 6.871482066821322, 4.869942594741068, 3.639636050870191, 5.529039928842373, 5.924635619863625, 6.906616345843769, 9.545364361875682, 12.476618769924078, 5.019059751265571, 9.339783467210674, 5.958340054217697, 7.145643274351226, 7.924502417325117, 6.563914691773028, 8.870777589915425, 9.080125517360473, 8.523994841206596, 7.666830993597806, 8.946868142859717, 13.668629016973226, 1.9454160764114976, 3.772361081963662, 2.4251350803492557, 3.2732692543171518, 13.251654558316723, 13.474093821241718]
-#
-# print(len(www), np.mean(www))
-# print(len(w3), np.mean(w3))
 
 # doStuff(newdf, '2018-07-10', 'orange', 'orange')
 # doStuff(newdf, '2018-07-11', 'purple', 'purple')
