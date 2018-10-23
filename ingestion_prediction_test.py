@@ -11,6 +11,8 @@ from matplotlib import style
 from statsmodels.tsa.ar_model import AR
 from sklearn.metrics import mean_squared_error
 import pickle
+import calendar
+
 style.use('ggplot')
 
 def hmdxx(x, y):
@@ -162,6 +164,11 @@ def runAR(data):
     # print('PREDICTION: ',new)
     return new
 def sorting(dict1, tick=1):
+
+    # sorts dictionary (dict1) by key and returns the sorted key, value arrays
+    # tick is a binary variable that only chooses values that are positive
+
+    # unfinished method (xx doesn't always return right keys
     xx=[]
     yy=[]
     aq = sorted(dict1, key = dict1.get, reverse=True)
@@ -177,13 +184,13 @@ def doStuff(newdf, dt,color1, color2):
     print(newdf)
     a = newdf.loc[dt].CDD
     print(newdf.loc[dt])
-
+    #boundaries for threshold
     e_ = 0.05
     e = 1-e_
     ee = 1+e_
 
-    p = {pd.to_datetime(x[0]):[x[-1], x[-9]] for x in newdf.itertuples() if a*e <= x[-1] <= a*ee}
-    qq = {pd.to_datetime(x[0]):x[-9] for x in newdf.itertuples() if a*e <= x[-1] <= a*ee}
+    p = {pd.to_datetime(x[0]):[x[-1], x[-9]] for x in newdf.itertuples() if x[-1]*e <= x[-1] <= x[-1]*ee}
+    qq = {pd.to_datetime(x[0]):x[-9] for x in newdf.itertuples() if x[-1]*e <= x[-1] <= x[-1]*ee}
     print(p)
     k = [x[1] for x in p.values()]
     o = list(p.keys())
@@ -194,29 +201,16 @@ def doStuff(newdf, dt,color1, color2):
     plt.scatter([pd.to_datetime(dt)][-2:], newdf.loc[dt].SUM_VALUE, s = 30, alpha = 0.6)
     plt.plot([pd.to_datetime(x.date()) for x in o][-2:], [np.mean(k) for x in k][-2:], color = color1, alpha = 0.8)
     plt.plot([pd.to_datetime(x.date()) for x in r][-2:], [np.mean(z) for x in z][-2:], color = color2, alpha = 0.3)
-
-
-path = r'C:/Users/J_Ragbeer/PycharmProjects/Metrocentredata/data/'
-all_files = glob.glob(os.path.join(path, "*.xlsx"))
-names = [i.split('\\')[1].split('(')[0].strip() for i in all_files]
-print(names)
-weather = weather1()
-#weather = weather1().resample('D').sum()
-num = 3
-# make_charts(names[num],all_files[num], weather)
-print(names[num])
-df = make_data(all_files[num])
-
-df = df.resample('H').sum()
-df['DIFFS'] = pd.Series([df['SUM_VALUE'][x] - df['SUM_VALUE'][x-1] for x in range(len(df))], index = df.index)
-newdf = pd.merge(df, weather, left_index=True, right_index=True)
-
-
-# pickle_in = open("dict1.pickle","rb")
-# newdf = pickle.load(pickle_in)
-newdf.index = pd.to_datetime([x for x in newdf.index])
-
 def slow_ingest(datee, timestep=3):
+
+    # datee = date looking to split on - before this is the 'data', after this we're ingesting at a rate of every *timestep* seconds
+    # "%Y-%m-%d %H:%M:%S" format
+
+    # timestep = number of seconds to wait to perform 'ingestion'
+
+    # updates the dataframe (newdf) in place. It adds to the existing df 1 row and then performs a AR function, finding the expected value
+    # of the next value in the list. Does this every *timestep* seconds.
+
     kk = parser.parse(datee) + datetime.timedelta(hours=1)
     t = newdf.loc[:datee] #train data
     rr = newdf.loc[kk:] #dataframe containing next values to load in
@@ -227,20 +221,26 @@ def slow_ingest(datee, timestep=3):
     count = 0
     for x in rr.iterrows():
         count = count+1
-        kk = parser.parse(datee) + datetime.timedelta(hours=count) #look ahead one hour
-        kko = parser.parse(datee) + datetime.timedelta(hours=count+1)
-        ww = x[1].to_frame().T
+        kk = parser.parse(datee) + datetime.timedelta(hours=count) #look ahead one hour from split point
+
+        ww = x[1].to_frame().T #get the data from
         t = t.append(ww) # attach next row to train data
 
-        preds, obs = runAR2(t.SUM_VALUE, 10)
-        preds2, obs2 = runAR2(t.DIFFS, 10)
+        ###
+        # before this is the ingestion, after is the prediction part
+        ###
 
-        standard = np.sqrt(mean_squared_error(obs, preds))
-        diffs = np.sqrt(mean_squared_error(obs, np.cumsum([t.SUM_VALUE[-11]+preds2[0]] + preds2[1:])))
+        kko = parser.parse(datee) + datetime.timedelta(hours=count + 1)  # used to check error of AR compared to actual
+
+        preds, obs = runAR2(t.SUM_VALUE, 10) #run AR with a test and validation set (last ten values)
+        preds2, obs2 = runAR2(t.DIFFS, 10) # run AR on the differences between values instead of only the values, split into test/validation
+
+        standard = np.sqrt(mean_squared_error(obs, preds)) #RMSE for the values
+        diffs = np.sqrt(mean_squared_error(obs, np.cumsum([t.SUM_VALUE[-11]+preds2[0]] + preds2[1:])))#RMSE for the differences
         # print('STANDARD: ',standard)
         # print('DIFFS: ',diffs)
 
-        standlist.append(standard)
+        standlist.append(standard) #list of running error values
         diffslist.append(diffs)
 
         # print(standlist)
@@ -255,43 +255,160 @@ def slow_ingest(datee, timestep=3):
         # print(standerror)
         # print(diffserror)
         newpred = runAR(t.SUM_VALUE)[0]
-        print('PREDICTION: {}, ACTUAL: {}'.format(newpred, newdf.loc[str(kko)].SUM_VALUE))
-        qt = np.abs(newdf.loc[str(kko)].SUM_VALUE - newpred)
+        print('PREDICTION: {:.2f}, ACTUAL: {:.2f}'.format(newpred, newdf1.loc[str(kko)].SUM_VALUE))
+        qt = np.abs(newdf1.loc[str(kko)].SUM_VALUE - newpred)
         errorpercent = qt * 100 / newdf.loc[str(kko)].SUM_VALUE
 
         # print(newpred, t.loc[str(kk)].SUM_VALUE[0])
         # qt = np.abs(t.loc[str(kk)].SUM_VALUE[0] - newpred)
         # errorpercent = qt * 100 / t.loc[str(kk)].SUM_VALUE[0]
         print('ERROR: {:.1f}, ERROR PERCENT: {:.1f}'.format(qt, errorpercent))
+        #if errorpercent is more that 10 % off, send an alert
         if errorpercent > 10:
             print('*' * 15)
             print("SEND AN EMAIL ALERT")
             print('*' * 15)
-        time.sleep(timestep)
+        time.sleep(timestep) #sleep for specified time to similate ingestion
 
         if count == 50:
             break
+def doARstuff(orig_df, newdf1, kko, timestep=3):
+    t = newdf1
+    newpred = runAR(t.SUM_VALUE)[0]
+    print('PREDICTION: {:.2f}, ACTUAL: {:.2f}'.format(newpred, orig_df.loc[str(kko)].SUM_VALUE))
+    qt = np.abs(orig_df.loc[str(kko)].SUM_VALUE - newpred)
+    errorpercent = qt * 100 / orig_df.loc[str(kko)].SUM_VALUE
+    print('ERROR: {:.1f}, ERROR PERCENT: {:.1f}'.format(qt, errorpercent))
+    #if errorpercent is more that 10 % off, send an alert
+    if errorpercent > 10:
+        print('*' * 15)
+        print("SEND AN EMAIL ALERT")
+        print('*' * 15)
+    return newpred
+def ingest(newdf1, datee, timestep=3):
+    # datee = date looking to split on - before this is the 'data', after this we're ingesting at a rate of every *timestep* seconds
+    # "%Y-%m-%d %H:%M:%S" format
 
-slow_ingest('2018-07-10',5)
+    # timestep = number of seconds to wait to perform 'ingestion'
 
-# doStuff(newdf, '2018-07-10', 'orange', 'orange')
-# doStuff(newdf, '2018-07-11', 'purple', 'purple')
-# doStuff(newdf, '2018-07-12', 'blue', 'blue')
-# doStuff(newdf, '2018-07-13', 'red', 'red')
-# plt.show()
-# df['DIFFS'] = pd.Series([df['SUM_VALUE'][x] - df['SUM_VALUE'][x-1] for x in range(len(df))], index = df.index)
-#
-# # plt.hist(df['DIFFS'], color='red', alpha=0.8, rwidth=0.75)
-# plt.plot(df['DIFFS'], color = 'red')
-# preds = runAR2(df['DIFFS'])
-#
-# preds2 = runAR2(df['SUM_VALUE'])
-#
-# print('-'*15)
-#
-# for x in range(len(preds)):
-#     print(preds[x], preds2[x], )
-#
-# print(df['DIFFS'].mean())
-#
-# plt.show()
+    # updates the dataframe (newdf) in place. It adds to the existing df 1 row and then performs a AR function, finding the expected value
+    # of the next value in the list. Does this every *timestep* seconds.
+    standlist = []
+    diffslist = []
+    standerror = []
+    diffserror = []
+    kk = parser.parse(datee) + datetime.timedelta(hours=1)
+    t = newdf1.loc[:datee]  # train data
+    rr = newdf1.loc[kk:]  # dataframe containing next values to load in
+    count = 0
+    for x in rr.iterrows():
+        count = count + 1
+        kk = parser.parse(datee) + datetime.timedelta(hours=count)  # look ahead one hour from split point
+        kko = parser.parse(datee) + datetime.timedelta(hours=count+1)
+        ww = x[1].to_frame().T  # get the data from
+        t = t.append(ww)  # attach next row to train data
+        # print(t)
+        pred = doARstuff(newdf1,t,kko)
+        print('PREDICTION: ',pred)
+        expvalue, dates = make_expected(newdf1, str(kk) ,6)
+        print('EXPECTED VALUE: ',expvalue)
+        print('EXPECTED VALUE - Dates: ', dates)
+        print('-'*15)
+        print('-' * 15)
+        time.sleep(timestep)
+def make_expected(origdf, date, tim):
+
+    #makes charts that show for the past *tim* amount of days that are weekdays (or weekends),
+    #the averages for temperature and energy useage.
+
+    #origdf = df you're looking at
+    #date = date that you're looking back from
+    #tim = number of days to look back
+
+    #returns = mean of the list of temperatures matching your query
+
+    df = origdf.copy()
+    temps = []
+    energy = []
+    dates = []
+    print(df.loc[date])
+    def doStuffweekday(df, timp):
+
+        curdate = datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days = timp)
+        a = df.loc[curdate]
+        #checks if the day number is under 6 (6 = sat, 7 = sunday).
+        if (datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days = timp)).isoweekday() < 6:
+            energy.append(a.values[8]) # add 'SUM_VALUE' column value to the list
+            temps.append(a.values[-3]) # add 'Humidex' column value to the list
+            dates.append(curdate) # add the current date being looked at to the list
+        else:
+            pass
+
+
+    def doStuffweekend(df, timp):
+        curdate = datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days = timp)
+        a = df.loc[curdate]
+        if (datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days = timp)).isoweekday() > 5:
+            energy.append(a.values[8])
+            temps.append(a.values[-3])
+            dates.append(curdate)
+        else:
+            pass
+
+    x = 1 # starting one day in the past, find means
+    if datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S").isoweekday() < 6:
+        while True:
+            doStuffweekday(df, x)
+            if len(energy) == tim:
+                break
+            else:
+                x+=1
+    else:
+        while True:
+            doStuffweekend(df, x)
+            if len(energy) == tim:
+                break
+            else:
+                x+=1
+    # print('ENERGY: ', sorted(energy, reverse= True), np.mean(energy))
+    # print('TEMP: ', sorted(temps, reverse= True), np.mean(temps))
+    # print('DATES: ', dates)
+
+    # fig, ax1 = plt.subplots()
+    # ax2 = ax1.twinx()
+    # ax1.plot(dates, energy, color = 'red', label='Energy')
+    # ax1.scatter(dates, energy, color='red', label='Energy')
+    # ax1.scatter([parser.parse(date)], df.loc[date]['SUM_VALUE'], color='blue', label = 'ENERGY actual', alpha = 0.4)
+    # ax1.plot(dates+[parser.parse(date)], [np.mean(energy) for x in range(len(energy)+1)], color='red', alpha=0.4)
+    # ax2.plot(dates, temps, color = 'orange', label = 'Temps')
+    # ax2.plot(dates+[parser.parse(date)], [np.mean(temps) for x in range(len(temps)+1)], color = 'orange', alpha=0.4)
+    # ax2.scatter(dates, temps, color='orange', label='Temps')
+    # ax2.scatter([parser.parse(date)], df.loc[date]['Humidex'], color='cyan', label = 'TEMP actual', alpha = 0.4)
+    # fig.tight_layout()
+    # ax2.set_ylabel('HUMIDEX')
+    # ax1.set_ylabel('ENERGY (KWH)')
+    # ax1.set_xlabel('DATE/TIME')
+    #
+    # ax1.legend(loc = 2)
+    # ax2.legend(loc = 3)
+    # ax2.set_title('{}-{}'.format(calendar.day_name[pd.to_datetime(date).weekday()], str(date)))
+
+    return np.mean(energy), dates
+
+path = r'xx'
+all_files = glob.glob(os.path.join(path, "*.xlsx"))
+names = [i.split('\\')[1].split('(')[0].strip() for i in all_files]
+print(names)
+weather = weather1()
+#weather = weather1().resample('D').sum()
+num = 3
+# make_charts(names[num],all_files[num], weather)
+print(names[num])
+df = make_data(all_files[num])
+
+df = df.resample('H').sum()
+df['DIFFS'] = pd.Series([df['SUM_VALUE'][x] - df['SUM_VALUE'][x-1] for x in range(len(df))], index = df.index)
+newdf = pd.merge(df, weather, left_index=True, right_index=True)
+
+newdf.index = pd.to_datetime([x for x in newdf.index])
+ingest(newdf, '2018-07-10 11:00:00')
