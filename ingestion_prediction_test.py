@@ -275,10 +275,10 @@ def slow_ingest(datee, timestep=3):
 def doARstuff(orig_df, newdf1, kko, timestep=3):
     t = newdf1
     newpred = runAR(t.SUM_VALUE)[0]
-    print('PREDICTION: {:.2f}, ACTUAL: {:.2f}'.format(newpred, orig_df.loc[str(kko)].SUM_VALUE))
+    print('NEXT STEP PREDICTION: {:.2f}, NEXT STEP ACTUAL: {:.2f}'.format(newpred, orig_df.loc[str(kko)].SUM_VALUE))
     qt = np.abs(orig_df.loc[str(kko)].SUM_VALUE - newpred)
     errorpercent = qt * 100 / orig_df.loc[str(kko)].SUM_VALUE
-    print('ERROR: {:.1f}, ERROR PERCENT: {:.1f}'.format(qt, errorpercent))
+    print('ERROR: {:.1f} units, ERROR PERCENT: {:.1f}%'.format(qt, errorpercent))
     #if errorpercent is more that 10 % off, send an alert
     if errorpercent > 10:
         print('*' * 15)
@@ -300,7 +300,7 @@ def ingest(newdf1, datee, timestep=3):
     kk = parser.parse(datee) + datetime.timedelta(hours=1)
     t = newdf1.loc[:datee]  # train data
     rr = newdf1.loc[kk:]  # dataframe containing next values to load in
-    count = 0
+    count = -1
     for x in rr.iterrows():
         count = count + 1
         kk = parser.parse(datee) + datetime.timedelta(hours=count)  # look ahead one hour from split point
@@ -309,12 +309,18 @@ def ingest(newdf1, datee, timestep=3):
         t = t.append(ww)  # attach next row to train data
         # print(t)
         pred = doARstuff(newdf1,t,kko)
-        print('PREDICTION: ',pred)
-        expvalue, dates = make_expected(newdf1, str(kk) ,6)
-        print('EXPECTED VALUE: ',expvalue)
-        print('EXPECTED VALUE - Dates: ', dates)
+        # print('PREDICTION: ',pred)
+        expvalue= make_expected(newdf1, str(kk) ,6)
+        baselinevalue = find_baseline(newdf1.loc[kk].Humidex, kk.year)
+        print('BASELINE VALUE: {:.2f}'.format(baselinevalue))
+        print('EXPECTED VALUE: {:.2f}'.format(expvalue))
+        print('*'*5)
+        print('REAL VALUE: {:.2f}'.format(newdf1.loc[kk].SUM_VALUE))
+        print('TEMP: {:.1f}'.format(newdf1.loc[kk].Humidex))
+        print('DATE: ', str(kk)) #print day trying to *predict*
         print('-'*15)
         print('-' * 15)
+        print('\n')
         time.sleep(timestep)
 def make_expected(origdf, date, tim):
 
@@ -331,7 +337,7 @@ def make_expected(origdf, date, tim):
     temps = []
     energy = []
     dates = []
-    print(df.loc[date])
+    # print(df.loc[date])
     def doStuffweekday(df, timp):
 
         curdate = datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days = timp)
@@ -393,7 +399,21 @@ def make_expected(origdf, date, tim):
     # ax2.legend(loc = 3)
     # ax2.set_title('{}-{}'.format(calendar.day_name[pd.to_datetime(date).weekday()], str(date)))
 
-    return np.mean(energy), dates
+    return np.mean(energy)
+def find_baseline(n, year):
+    if year == 2016:
+        baselineyear = 2016
+    elif year == 2017:
+        baselineyear = 2016
+    elif year == 2018:
+        baselineyear = 2017
+
+    u = set(baselinedict[np.ceil(n)][baselineyear] + baselinedict[np.floor(n)][baselineyear])
+    kpp = pd.Series([newdf.loc[x].SUM_VALUE for x in u], index=[x for x in u])
+    return kpp.mean()
+
+pickle_in1 = open("baselinesdict.pickle","rb")
+baselinedict = pickle.load(pickle_in1)
 
 path = r'xx'
 all_files = glob.glob(os.path.join(path, "*.xlsx"))
@@ -403,7 +423,7 @@ weather = weather1()
 #weather = weather1().resample('D').sum()
 num = 3
 # make_charts(names[num],all_files[num], weather)
-print(names[num])
+print(names[num],'\n')
 df = make_data(all_files[num])
 
 df = df.resample('H').sum()
@@ -411,4 +431,4 @@ df['DIFFS'] = pd.Series([df['SUM_VALUE'][x] - df['SUM_VALUE'][x-1] for x in rang
 newdf = pd.merge(df, weather, left_index=True, right_index=True)
 
 newdf.index = pd.to_datetime([x for x in newdf.index])
-ingest(newdf, '2018-07-10 11:00:00')
+ingest(newdf, '2018-04-7 11:00:00')
