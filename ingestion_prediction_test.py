@@ -14,13 +14,14 @@ from email.mime.text import MIMEText
 import ssl
 import smtplib
 from bokeh.plotting import figure, show
-from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, Label, Button, DatePicker
+from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, Label, Button, DatePicker, CustomJS
 from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, Range1d
-from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Div, inputs, Slider, CheckboxGroup
+from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Div, inputs, Slider, CheckboxGroup, Toggle
 from bokeh.layouts import widgetbox, row, column, gridplot, layout
 from bokeh.io import curdoc
 import glob
 import os
+import statsmodels.api as sm
 
 def hmdxx(x, y):
     return x + (0.5555 * (6.11 * np.exp(5417.7530 * ((1 / 273.16) - (1 / (273.15 + y)))) - 10))
@@ -261,21 +262,21 @@ def slow_ingest(datee, timestep=3):
             break
 def doARstuff(orig_df, newdf1, kko, timestep=3):
     t = newdf1
-    newpred = runAR(t.SUM_VALUE)[0]
-    predictionmessage = 'NEXT STEP PREDICTION: {:.2f}, NEXT STEP ACTUAL: {:.2f}'.format(newpred, orig_df.loc[str(kko)].SUM_VALUE)
-    print(predictionmessage)
-    qt = np.abs(orig_df.loc[str(kko)].SUM_VALUE - newpred)
-    errorpercent = qt * 100 / orig_df.loc[str(kko)].SUM_VALUE
-    errormessage = 'ERROR: {:.1f} units, ERROR PERCENT: {:.1f}%'.format(qt, errorpercent)
-    print(errormessage)
-    #if errorpercent is more that 10 % off, send an alert
-    if errorpercent > 10:
-        print('*' * 15)
-        print("EMAIL ALERT SENT")
-        print('*' * 15)
-        text = 'The percent error is 10% or higher \n' + errormessage + '\n' + predictionmessage
-        html = '<b>The percent error is <i>10%</i> or higher</b><br><br><b>' + errormessage + '</b><br><br><b>' + predictionmessage + '</b>'
-        sendemail(text, html)
+    newpred= runAR(t.SUM_VALUE)[0]
+    # predictionmessage = 'NEXT STEP PREDICTION: {:.2f}, NEXT STEP ACTUAL: {:.2f}'.format(newpred, orig_df.loc[str(kko)].SUM_VALUE)
+    # print(predictionmessage)
+    # qt = np.abs(orig_df.loc[str(kko)].SUM_VALUE - newpred)
+    # errorpercent = qt * 100 / orig_df.loc[str(kko)].SUM_VALUE
+    # errormessage = 'ERROR: {:.1f} units, ERROR PERCENT: {:.1f}%'.format(qt, errorpercent)
+    # print(errormessage)
+    # #if errorpercent is more that 10 % off, send an alert
+    # if errorpercent > 10:
+    #     print('*' * 15)
+    #     print("EMAIL ALERT SENT")
+    #     print('*' * 15)
+    #     text = 'The percent error is 10% or higher \n' + errormessage + '\n' + predictionmessage
+    #     html = '<b>The percent error is <i>10%</i> or higher</b><br><br><b>' + errormessage + '</b><br><br><b>' + predictionmessage + '</b>'
+    #     sendemail(text, html)
     return newpred
 def ingest(newdf1, dateee,timeee, timestep=3):
     # datee = date looking to split on - before this is the 'data', after this we're ingesting at a rate of every *timestep* seconds
@@ -286,10 +287,6 @@ def ingest(newdf1, dateee,timeee, timestep=3):
     # updates the dataframe (newdf) in place. It adds to the existing df 1 row and then performs a AR function, finding the expected value
     # of the next value in the list. Does this every *timestep* seconds.
     datee = '{} {}:00:00'.format(dateee, timeee)
-    standlist = []
-    diffslist = []
-    standerror = []
-    diffserror = []
     kk = parser.parse(datee) + datetime.timedelta(hours=1)
     t = newdf1.loc[:datee]  # train data
     rr = newdf1.loc[kk:]  # dataframe containing next values to load in
@@ -337,7 +334,7 @@ def make_expected(origdf, date, tim):
         a = df.loc[curdate]
         #checks if the day number is under 6 (6 = sat, 7 = sunday).
         if (datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days = timp)).isoweekday() < 6:
-            energy.append(a.values[8]) # add 'SUM_VALUE' column value to the list
+            energy.append(a.SUM_VALUE) # add 'SUM_VALUE' column value to the list
             temps.append(a.values[-3]) # add 'Humidex' column value to the list
             dates.append(curdate) # add the current date being looked at to the list
         else:
@@ -346,7 +343,7 @@ def make_expected(origdf, date, tim):
         curdate = datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days = timp)
         a = df.loc[curdate]
         if (datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S") - datetime.timedelta(days = timp)).isoweekday() > 5:
-            energy.append(a.values[8])
+            energy.append(a.SUM_VALUE)
             temps.append(a.values[-3])
             dates.append(curdate)
         else:
@@ -368,16 +365,23 @@ def make_expected(origdf, date, tim):
             else:
                 x+=1
     return np.mean(energy)
-def find_baseline(n, year):
+def find_baseline(dfforthisprop,nameofTable, n, datestamp,year=2018):
     if year == 2016:
         baselineyear = 2016
     elif year == 2017:
         baselineyear = 2016
     elif year == 2018:
         baselineyear = 2017
+    q = 'weekday'
+    if datestamp.isoweekday() < 6:
+        q = 'weekday'
+    elif datestamp.isoweekday()>5:
+        q = 'weekend'
 
-    u = set(baselinedict[np.ceil(n)][baselineyear] + baselinedict[np.floor(n)][baselineyear])
-    kpp = pd.Series([df.loc[x].SUM_VALUE for x in u], index=[x for x in u])
+    u = set(baselinedict[nameofTable][q][np.ceil(n)][baselineyear] + baselinedict[nameofTable][q][np.floor(n)][baselineyear])
+
+    # print(n,'this is the list of dates', u)
+    kpp = pd.Series([dfforthisprop.loc[x].SUM_VALUE for x in u], index=[x for x in u])
     return kpp.mean()
 def sendemail(text, html):
     # This is a temporary fix. Be careful of malicious links
@@ -420,44 +424,185 @@ def sendemail(text, html):
 def download():
     pass
 def updateenergytype(attr, old, new):
+    global metertype
     global meter
     if str(new) == 'DLCW':
-        selectmeter.options = sorted(dlcw)
-        meter = dlcw[0]
-        selectmeter.value = dlcw[0]
+        if metertype == 'DLCW':
+            pass
+        else:
+            selectmeter.options = sorted(dlcw)
+            metertype = str(new)
+            meter = dlcw[0]
+            selectmeter.value = dlcw[0]
+            updateplots(str(datepicker.value), str(view), str(selecthour.value), str(selectmeter.value))
     elif str(new) == 'Electricity':
-        selectmeter.options = sorted(electricity)
-        meter = electricity[0]
-        selectmeter.value = electricity[0]
+        if metertype == 'Electricity':
+            pass
+        else:
+            selectmeter.options = sorted(electricity)
+            meter = electricity[0]
+            metertype = str(new)
+            selectmeter.value = electricity[0]
+            updateplots(str(datepicker.value), str(view), str(selecthour.value), str(selectmeter.value))
     elif str(new) == 'Gas':
-        selectmeter.options = sorted(gas)
-        meter = gas[0]
-        selectmeter.value = gas[0]
+        if metertype == 'Gas':
+            pass
+        else:
+            selectmeter.options = sorted(gas)
+            meter = gas[0]
+            metertype = str(new)
+            selectmeter.value = gas[0]
+            updateplots(str(datepicker.value), str(view), str(selecthour.value), str(selectmeter.value))
 def updatemeter(attr, old, new):
-    idf = make_data(str(new))
-    source.data = ColumnDataSource(data={'x': idf.index[-169:], 'y': idf.SUM_VALUE[-169:], 'tooltip': idf.tooltip[-169:]}).data
+    updateplots(str(datepicker.value), str(view), str(selecthour.value), str(new))
 def updatehour(attr, old, new):
     global hour
     hour = str(new)
+    updateplots(str(datepicker.value), str(view), str(new), str(selectmeter.value))
 def datechanger(attr, old, new):
     global date
     date = str(new)
+    updateplots(str(new), str(view), str(selecthour.value), str(selectmeter.value))
 def updateslider(attr, old, new):
     global ingesttime
     ingesttime = str(new)
-def update(attr, old, new):
-    layout.children[1] = ingest(df, '2018-04-7 11:00:00')
+def updateview(attr, old, new):
+    global view
+    view = int(str(new).split()[0])
+    updateplots(str(datepicker.value), str(view), str(selecthour.value), str(selectmeter.value))
+def update(newdf1, dateee,timeee, timestep=3):
+    # datee = date looking to split on - before this is the 'data', after this we're ingesting at a rate of every *timestep* seconds
+    # "%Y-%m-%d %H:%M:%S" format
+
+    # timestep = number of seconds to wait to perform 'ingestion'
+
+    # updates the dataframe (newdf) in place. It adds to the existing df 1 row and then performs a AR function, finding the expected value
+    # of the next value in the list. Does this every *timestep* seconds.
+
+    datee = '{} {}:00:00'.format(dateee, timeee)
+    kk = parser.parse(datee) + datetime.timedelta(hours=1)
+    t = newdf1.loc[:datee]  # train data
+    rr = newdf1.loc[kk:]  # dataframe containing next values to load in
+    count = -1
+    # print(t)
+    yy = 0
+    for x in rr.iterrows():
+        print(yy+1)
+        count = count + 1
+        kk = parser.parse(datee) + datetime.timedelta(hours=count)  # look ahead one hour from split point
+        kko = parser.parse(datee) + datetime.timedelta(hours=count+1)
+        ww = x[1].to_frame().T  # get the data from
+        t = t.append(ww)  # attach next row to train data
+        selecthour.value = str(t.index[-1].hour)
+        datepicker.value = str(t.index[-1])
+        yy = yy+1
+        time.sleep(timestep)
+def updateasset(attr, old, new):
+    pass
+def best_fit_line(df):
+    #df should be a series
+    x = range(len(df.index))
+    y = df.values
+    y = np.poly1d(np.polyfit(x, y, 1))
+    qqq = y(x)
+    return qqq, y.c
+def make_statsdiv(dfview, df):
+
+    loadbalance = findLoadFactor(dfview.SUM_VALUE)
+
+    div1 = Div(text = """ <div> 
+            <span style="font-size: 24px; color: #f16913; font-weight: bold; ">Rel. Min: </span>
+            <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span>
+            <span style="font-size: 24px; color: #f16913; font-weight: bold; ">Rel. Max:</span>
+            <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span>
+            <span style="font-size: 24px; color: #f16913; font-weight: bold; ">Rel. Load Balance:</span>
+            <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span> 
+            <span style="font-size: 24px; color: #FFD700; font-weight: bold; ">Mean: </span>
+            <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span>
+            <span style="font-size: 24px; color: #FFD700; font-weight: bold; ">St. Dev.:</span>
+            <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span>
+            <span style="font-size: 24px; color: #FFD700; font-weight: bold; ">Min:</span>
+            <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span>
+            <span style="font-size: 24px; color: #FFD700; font-weight: bold; ">Max:</span>
+            <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f}</span>
+            </div>""".format(dfview.SUM_VALUE.min(), dfview.SUM_VALUE.max(),loadbalance, df.SUM_VALUE.mean(),  df.SUM_VALUE.std(), df.SUM_VALUE.min(), df.SUM_VALUE.max()), width = 1600, height = 50)
+
+    return div1
+def findLoadFactor(dataframe):
+    #dataframe should be a series
+    return dataframe.sum() / ((len(dataframe.index) / 24)*24*dataframe.max())
+
+def updatesources(origdf, df1):
+    nextvalue1 = doARstuff(origdf, origdf.loc[:date_time], origdf.loc[parser.parse(date_time) + datetime.timedelta(hours=1)])
+    source.data = ColumnDataSource(
+        data={'x': df1.index, 'y': df1.SUM_VALUE, 'expected': df1.expected, 'baseline': df1.baseline,
+              'tooltip': df1.tooltip,
+              'temp': ['{:.1f}'.format(x) for x in np.around(df1.Humidex, decimals=1).astype(np.float32)],
+              'bestfitline': df1.bestfitline, 'bflcoeffs': df1.bflcoeffs}).data
+    predsource.data = ColumnDataSource(data={'x': [df1.index[-1], df1.index[-1] + datetime.timedelta(hours=1)],
+                                             'y': [df1.SUM_VALUE[-1], nextvalue1]}).data
+
+    histbartops, bin_edges = np.histogram(origdf.SUM_VALUE.values)
+    bin_edges2 = [bin_edges[x + 1] for x in range(len(bin_edges) - 1)]
+    centre_of_bin_edges = [(bin_edges[x] + bin_edges2[x]) / 2 for x in range(len(bin_edges2))]
+    bin_edge_strings = [str(int(np.round(bin_edges[x]))) + " - " + str(int(np.round(bin_edges2[x]))) for x in
+                        range(min(len(bin_edges), len(bin_edges2)))]
+    histbartopstring = [str(x) + "  (" + str(np.around(100 * x / sum(histbartops), decimals=1)) + "%)" for x in
+                        histbartops]
+    avgtemps = [0 for x in range(len(centre_of_bin_edges))]
+    sourcehist.data = ColumnDataSource(
+        data={'x': centre_of_bin_edges, 'y': histbartops, 'binedges': bin_edge_strings, 'avgtemp': avgtemps,
+              'topstring': histbartopstring}).data
+
+    scattersource.data = ColumnDataSource(data={'2016': origdf['SUM_VALUE'][origdf.index.year == 2016].copy(),
+                                                '2017': origdf['SUM_VALUE'][origdf.index.year == 2017].copy(),
+                                                '2018': origdf['SUM_VALUE'][origdf.index.year == 2018].copy(),
+                                                'x': origdf['Humidex']}).data
+    scattersource2.data = ColumnDataSource(
+        data={'2016': origdf['SUM_VALUE'][origdf.index.year == 2016].copy().resample('D').mean(),
+              '2017': origdf['SUM_VALUE'][origdf.index.year == 2017].copy().resample('D').mean(),
+              '2018': origdf['SUM_VALUE'][origdf.index.year == 2018].copy().resample('D').mean(),
+              'x': origdf['Humidex'].resample('D').mean()}).data
+    histogram.glyph.width = int((bin_edges[1]-bin_edges[0])*0.8)
+
+    infodiv.text = make_statsdiv(df1, origdf).text
+
+
+def updateplots(date, view, hour, meter):
+    current = datetime.datetime.now()
+    print('1')
+    curdf = make_data(str(meter))
+    date_time = date + ' ' + str(hour) + ':00:00'
+    print('2', datetime.datetime.now()-current)
+    dfview = curdf.loc[parser.parse(date + ' ' + str(hour) + ':00:00') - datetime.timedelta(hours=int(view) * 24 + 1):date + ' ' + str(
+                 hour) + ':00:00'].copy()
+    print(3, datetime.datetime.now()-current)
+    dfview['bestfitline'], bflcoeffs = best_fit_line(dfview.SUM_VALUE)
+    print(4, datetime.datetime.now()-current)
+    dfview['bflcoeffs'] = ['Slope: {:.2f}, Intercept: {:.2f}'.format(bflcoeffs[0], bflcoeffs[1]) for x in
+                           range(len(dfview['bestfitline']))]
+    print('5', datetime.datetime.now()-current)
+    dfview['baseline'] = pd.Series([find_baseline(curdf, str(meter), dfview.Humidex[x], dfview.Humidex.index[x],dfview.index[-1].year) for x in range(len(dfview.Humidex.index))],index=dfview.index)
+    print('6', datetime.datetime.now()-current)
+    dfview['expected'] = pd.Series([make_expected(curdf, str(x), 6) for x in dfview.index], index=dfview.index)
+    print('7', datetime.datetime.now()-current)
+    updatesources(curdf, dfview)
+    print('8',datetime.datetime.now()-current)
 
 timee = datetime.datetime.now()
 print(timee,'\n')
-path = r'xx'
-pickle_in1 = open(path+"baselinesdict.pickle","rb")
-baselinedict = pickle.load(pickle_in1)
 
-conn = sqlite3.connect(path + 'xx')
+doc = curdoc()
+#clears the html page and gives the tab a name
+doc.clear()
+doc.title = 'xx'
+
+path = r'xx'
+pickle_in1 = open(path+"hugedict1.pickle","rb")
+baselinedict = pickle.load(pickle_in1)
+conn = sqlite3.connect(path + 'xx.db')
 c = conn.cursor()
-namesReal = ['Concourse Cooling King', 'Concourse Cooling Wellington', 'King Gas', 'King Tower Electricity', 'MCC-KPHA Penthouse', 'MCC-KPHXA Emergency', 'MCC-RCA', 'MCC-RCB', 'MCC-WPHA Penthouse', 'MCC-WPHXA Emergency', 'Mechanical Riser King', 'Mechanical Riser Wellington', 'Power and Light Riser King', 'Power and Light Riser Wellington', 'Retail Bus1', 'Retail Bus2', 'Retail DLCW', 'Retail Electricity', 'Toronto Hydro Main', 'Total DLCW', 'Tower Cooling King', 'Tower Cooling Wellington', 'Towers DLCW', 'Wellington Gas', 'Wellington Tower Electricity']
-otherNames = ['ConcourseCooling(MCk_CSM.t)', 'ConcourseCooling(MCw_CSM.t)', 'KingGas(MCk_GU0.t)', 'KingTowerElectricity(MCk_EVM.mx)', 'MCCKPHAPenthouse(MCk_ESB.mc)', 'MCCKPHXAEmergency(MCk_ESB.mc)', 'MCCRCA(MCr_ESB.mc)', 'MCCRCB(MCr_ESB.mc)', 'MCCWPHAPenthouse(MCw_ESB.mc)', 'MCCWPHXAEmergency(MCw_ESB.mc)', 'MechanicalRiser(MCk_ESB.m)', 'MechanicalRiser(MCw_ESB.m)', 'PowerandLightRiser(MCk_ESM.mx)', 'PowerandLightRiser(MCw_ESM.mx)', 'RetailBus1(MCr_ESM.mx)', 'RetailBus2(MCr_ESM.mx)', 'RetailDLCW(MC_DU0.t)', 'RetailElectricity(MCr_EVM.mx)', 'TorontoHydroMain(MC_EU0.mx)', 'TotalDLCW(MC_DV0.t)', 'TowerCooling(MCk_CSM.t)', 'TowerCooling(MCw_CSM.t)', 'TowersDLCW(MC_DU0.t)', 'WellingtonGas(MCw_GU0.t)', 'WellingtonTowerElectricity(MCw_EVM.mx)']
+
 
 namesDict = {namesReal[x]:otherNames[x] for x in range(len(otherNames))}
 
@@ -465,46 +610,171 @@ weather = weather1()
 num = 3
 print(namesReal[num],'\n')
 df = make_data(namesReal[num])
-
+origdf= df
 # bokeh viz
 
-dlcw = ['Concourse Cooling King', 'Concourse Cooling Wellington', 'Retail DLCW', 'Total DLCW', 'Tower Cooling King', 'Tower Cooling Wellington', 'Towers DLCW']
-electricity = ['King Tower Electricity', 'MCC-KPHA Penthouse', 'MCC-KPHXA Emergency', 'MCC-RCA', 'MCC-RCB', 'MCC-WPHA Penthouse', 'MCC-WPHXA Emergency', 'Mechanical Riser King', 'Mechanical Riser Wellington', 'Power and Light Riser King', 'Power and Light Riser Wellington', 'Retail Bus1', 'Retail Bus2', 'Retail Electricity', 'Toronto Hydro Main', 'Wellington Tower Electricity']
-gas = ['King Gas', 'Wellington Gas']
-energytypes = ['DLCW', 'Electricity', 'Gas']
+
 firsthour = 11
 hour = 11
 firstmeter= electricity[0]
 meter = electricity[0]
+metertype = 'Electricity'
 ingesttime = 5
-date = '2018-04-7'
+date = '2018-06-12'
+view = 7
+date_time =date+' '+str(hour)+':00:00'
 
-source = ColumnDataSource(data={'x': df.loc[parser.parse(date+' '+str(hour)+':00:00') - datetime.timedelta(hours = 169):date+' '+str(hour)+':00:00'].index, 'y': df['SUM_VALUE'].loc[parser.parse(date+' '+str(hour)+':00:00') - datetime.timedelta(hours = 169):date+' '+str(hour)+':00:00'], 'tooltip': df['tooltip'].loc[parser.parse(date+' '+str(hour)+':00:00') - datetime.timedelta(hours = 169):date+' '+str(hour)+':00:00']})
-expvaluesource = ColumnDataSource(data = {})
-predvaluesource = ColumnDataSource(data = {})
-baselinesource = ColumnDataSource(data = {})
+dfview = df.loc[parser.parse(date+' '+str(hour)+':00:00') - datetime.timedelta(hours = view*24+1):date+' '+str(hour)+':00:00'].copy()
+dfview['bestfitline'], bflcoeffs = best_fit_line(dfview.SUM_VALUE)
+dfview['bflcoeffs'] = ['Slope: {:.2f}, Intercept: {:.2f}'.format(bflcoeffs[0], bflcoeffs[1]) for x in range(len(dfview['bestfitline']))]
+dfview['baseline'] = pd.Series([find_baseline(df,namesReal[num],dfview.Humidex[x],dfview.Humidex.index[x] ,dfview.index[-1].year) for x in range(len(dfview.Humidex.index))], index = dfview.index)
+dfview['expected'] = pd.Series([make_expected(df, str(x),6) for x in dfview.index], index = dfview.index)
 
-# print(df.loc[parser.parse(date+' '+str(hour)+':00:00') - datetime.timedelta(hours = 169):date+' '+str(hour)+':00:00'].index)
-# print(parser.parse(date+' '+str(hour)+':00:00'))
+nextvalue = doARstuff(df, df.loc[:date_time], df.loc[parser.parse(date_time)+datetime.timedelta(hours = 1)])
+print('NEXT VALS: ', nextvalue)
+source = ColumnDataSource(data={'x': dfview.index, 'y': dfview.SUM_VALUE,'expected':dfview.expected, 'baseline':dfview.baseline,'tooltip': dfview.tooltip, 'temp': ['{:.1f}'.format(x) for x in np.around(dfview.Humidex, decimals=1).astype(np.float32)], 'bestfitline': dfview.bestfitline, 'bflcoeffs': dfview.bflcoeffs})
+predsource = ColumnDataSource(data = {'x': [dfview.index[-1], dfview.index[-1]+datetime.timedelta(hours = 1)], 'y': [dfview.SUM_VALUE[-1], nextvalue]})
 
-
+hoverlineexpected = HoverTool(tooltips = """ <div> 
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Date/Time: </span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@tooltip</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Expected Value:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@expected</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Humidex:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@temp C</span> </div>""", names = ['expected'])
 hoverline = HoverTool(tooltips = """ <div> 
-             <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Date/Time: </span>
-             <span style="font-size: 12px; color: #966; font-weight: bold; ">@tooltip</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Date/Time: </span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@tooltip</span><br>
             <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Energy Demand:</span>
-            <span style="font-size: 12px; color: #966; font-weight: bold; ">@y</span>
-            </div>""")
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@y</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Humidex:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@temp C</span> </div>""", names = ['actualline'])
+hoverline2 = HoverTool(tooltips = """ <div> 
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Date/Time: </span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@tooltip</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Energy Demand:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@y</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Humidex:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@temp C</span> </div>""", names = ['actualcircle'])
+hoverlinebaseline = HoverTool(tooltips = """ <div> 
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Date/Time: </span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@tooltip</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Baseline:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@baseline</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Humidex:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@temp C</span> </div>""", names = ['baseline'])
 
-# hoverline = HoverTool(tooltips=[
-#     ("Date", "@tooltip"),
-#     ("Energy Demand", "@y{(0.0)} units"), ])
 
-p = figure(x_axis_type='datetime', plot_width=1610, plot_height=650,
-           tools=[hoverline, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+hoverhist = HoverTool(tooltips = """ <div> 
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Count: </span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@topstring</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Bin Edges:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@binedges</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Avg Temp:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@avgtemp</span> </div>""")
+hoverlinebfl = HoverTool(tooltips = """<div><span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Trend Line:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@bflcoeffs</span><br></div>""", names=['bfl'])
+
+
+histbartops, bin_edges = np.histogram(df.SUM_VALUE.values)
+bin_edges2 = [bin_edges[x+1] for x in range(len(bin_edges)-1)]
+centre_of_bin_edges = [(bin_edges[x]+bin_edges2[x])/2 for x in range(len(bin_edges2))]
+bin_edge_strings = [str(int(np.round(bin_edges[x])))+" - "+str(int(np.round(bin_edges2[x]))) for x in range(min(len(bin_edges),len(bin_edges2)))]
+histbartopstring = [str(x) +"  ("+str(np.around(100*x/sum(histbartops), decimals=1))+"%)" for x in histbartops]
+avgtemps = [0 for x in range(len(centre_of_bin_edges))]
+sourcehist = ColumnDataSource(data = {'x':centre_of_bin_edges, 'y': histbartops, 'binedges':bin_edge_strings, 'avgtemp':avgtemps, 'topstring': histbartopstring})
+
+w = figure(plot_width=535, plot_height=265,
+           tools=[hoverhist, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           title='Energy Demand Histogram', y_axis_label='Count', x_axis_label='Range')
+histogram = w.vbar('x', top = 'y', bottom = 0, source=sourcehist, width=int((bin_edges[1]-bin_edges[0])*0.8), color='firebrick', line_color='firebrick',alpha=0.45, line_alpha = 0.8)
+w.background_fill_color = '#2c2230'
+w.axis.minor_tick_line_alpha = 0
+w.axis.axis_line_color = '#E6E6E6'
+w.axis.major_tick_in = -1
+w.axis.axis_label_text_font_style = 'bold'
+w.xaxis.axis_label_text_font_size = '10pt'
+w.yaxis.axis_label_text_font_size = '11pt'
+w.axis.major_label_text_font_size = '9pt'
+w.axis.major_label_text_font_style = 'bold'
+w.title.align = 'center'
+w.title.text_font_size = '11pt'
+w.toolbar.active_scroll = "auto"
+w.ygrid.grid_line_alpha = 0.3
+w.xgrid.grid_line_alpha = 0.3
+
+scattersource = ColumnDataSource(data = {'2016': df['SUM_VALUE'][df.index.year == 2016].copy(), '2017':df['SUM_VALUE'][df.index.year == 2017].copy(), '2018': df['SUM_VALUE'][df.index.year == 2018].copy(), 'x': df['Humidex']})
+scattersource2 = ColumnDataSource(data = {'2016': df['SUM_VALUE'][df.index.year == 2016].copy().resample('D').mean(), '2017':df['SUM_VALUE'][df.index.year == 2017].copy().resample('D').mean(), '2018': df['SUM_VALUE'][df.index.year == 2018].copy().resample('D').mean(), 'x': df['Humidex'].resample('D').mean()})
+
+z = figure(plot_width=535, plot_height=265,
+           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           title='Energy Demand / Temperature Scatter Plot', y_axis_label='Energy Demand', x_axis_label='Temperature (Celsius)')
+
+z.circle('x','2016', source=scattersource, size = 4, color='purple', alpha=0.05)
+z.circle('x','2017',source=scattersource, size = 4, color='green', alpha=0.05)
+z.circle('x','2018',source=scattersource, size = 4, color='blue', alpha=0.05)
+z.background_fill_color = '#2c2230'
+z.axis.minor_tick_line_alpha = 0
+z.axis.axis_line_color = '#E6E6E6'
+z.axis.major_tick_in = -1
+z.axis.axis_label_text_font_style = 'bold'
+z.xaxis.axis_label_text_font_size = '10pt'
+z.yaxis.axis_label_text_font_size = '11pt'
+z.axis.major_label_text_font_size = '9pt'
+z.axis.major_label_text_font_style = 'bold'
+z.title.align = 'center'
+z.title.text_font_size = '11pt'
+z.toolbar.active_scroll = "auto"
+z.ygrid.grid_line_alpha = 0.3
+z.xgrid.grid_line_alpha = 0.3
+
+u = figure(plot_width=535, plot_height=265,
+           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           title='Energy Demand / Temperature Scatter Plot', y_axis_label='Energy Demand', x_axis_label='Temperature (Celsius)')
+
+u.circle('x','2016', source=scattersource2, size = 4, color='purple', alpha=0.5)
+u.circle('x','2017',source=scattersource2, size = 4, color='green', alpha=0.5)
+u.circle('x','2018',source=scattersource2, size = 4, color='blue', alpha=0.5)
+
+u.background_fill_color = '#2c2230'
+u.axis.minor_tick_line_alpha = 0
+u.axis.axis_line_color = '#E6E6E6'
+u.axis.major_tick_in = -1
+u.axis.axis_label_text_font_style = 'bold'
+u.xaxis.axis_label_text_font_size = '10pt'
+u.yaxis.axis_label_text_font_size = '11pt'
+u.axis.major_label_text_font_size = '9pt'
+u.axis.major_label_text_font_style = 'bold'
+u.title.align = 'center'
+u.title.text_font_size = '11pt'
+u.toolbar.active_scroll = "auto"
+u.ygrid.grid_line_alpha = 0.3
+u.xgrid.grid_line_alpha = 0.3
+
+p = figure(x_axis_type='datetime', plot_width=1600, plot_height=600,
+           tools=[hoverline,hoverlinebfl,hoverline2, hoverlinebaseline, hoverlineexpected, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title='Energy Demand', y_axis_label='Energy Demand (units)', x_axis_label='Date/Time')
 
-p.line('x', 'y', source=source, line_width=4, color='gold', legend='Actual', alpha=0.65)
-p.circle('x', 'y', source=source, size=4, color='gold', alpha=0.65)
+predline = p.line('x', 'y', source = predsource, line_width = 4, color = 'firebrick', legend = 'Prediction', alpha = 0.9, name = 'predline')
+predline.visible = False
+
+actualline = p.line('x', 'y', source=source, line_width=4, color='gold', legend='Actual', alpha=0.65,name = 'actualline')
+actualcircle = p.circle('x', 'y', source=source, size=4, color='gold', alpha=0.65, name = 'actualcircle')
+
+trendline = p.line('x', 'bestfitline', source=source, line_width=3.5, color='gold', alpha = 0.25, name = 'bfl')
+trendline.visible = False
+
+baseline = p.line('x', 'baseline', source=source, line_width=3.5, color='cyan', alpha = 0.25, name = 'baseline')
+baseline.visible = False
+
+baseline2 = p.circle('x', 'baseline', source=source, size = 4, color='cyan', alpha = 0.20, name = 'baseline2')
+baseline2.visible = False
+
+expected = p.line('x', 'expected', source=source, line_width=3.5, color='white', alpha = 0.25, name = 'expected')
+expected.visible = False
+
+expected2 = p.circle('x', 'expected', source=source, size = 4, color='white', alpha = 0.25, name = 'expected2')
+expected2.visible = False
 
 p.background_fill_color = '#2c2230'
 p.yaxis.formatter = NumeralTickFormatter(format='0,0')
@@ -524,24 +794,38 @@ p.xgrid.grid_line_alpha = 0.3
 p.legend.location = 'bottom_left'
 p.legend.click_policy = "hide"
 
-baselinecheckbox = CheckboxGroup(
-        labels=["Baseline"], active=[])
-expvaluecheckbox = CheckboxGroup(
-        labels=["Expected Value"], active=[])
-predcheckbox = CheckboxGroup(
-        labels=["Next Step Prediction"], active=[])
+trendlinecallback = CustomJS(code='''object.visible = toggle.active''', args={})
+baselinecallback = CustomJS(code='''object.visible = toggle.active
+                                    object2.visible = toggle2.active''', args={})
+expectedcallback = CustomJS(code='''object.visible = toggle.active
+                                    object2.visible = toggle2.active''', args={})
 
-button = Button(label="Download Data", button_type="success")
-button.on_click(download)
+predcallback = CustomJS(code='''object.visible = toggle.active''', args={})
+
+baselinebutton = Toggle(label="Baseline", button_type="default", callback=baselinecallback)
+expvaluebutton = Toggle(label="Expected Value", button_type="default", callback=expectedcallback)
+predbutton = Toggle(label="Next Step Prediction", button_type="default", callback=predcallback)
+trendlinebutton = Toggle(label="Trend Line", button_type="default", callback=trendlinecallback)
+
+trendlinecallback.args = {'toggle': trendlinebutton, 'object': trendline}
+predcallback.args = {'toggle': predbutton, 'object': predline}
+baselinecallback.args = {'toggle': baselinebutton, 'object': baseline,'toggle2': baselinebutton, 'object2': baseline2}
+expectedcallback.args = {'toggle': expvaluebutton, 'object': expected,'toggle2': expvaluebutton, 'object2': expected2}
+
+dlbutton = Button(label="Download Data", button_type="success")
+dlbutton.callback = CustomJS(args=dict(source=source), code=open(join(dirname(__file__), "download.js")).read())
 
 buttonRun = Button(label="Run Ingestion", button_type="danger")
 buttonRun.on_click(download)
 
-slider = Slider(start=5, end=300, value=5, step=1, title="Ingestion Speed (s)")
+slider = Slider(start=5, end=300, value=5, step=1, title="Ingestion Speed (sec)")
 slider.on_change('value', updateslider)
 
-select = Select(title='Energy Type:', value=energytypes[1], options=sorted(list(energytypes)))
-select.on_change('value', updateenergytype)
+selectasset = Select(title='Asset:', value='MetroCentre', options=['MetroCentre'])
+selectasset.on_change('value', updateasset)
+
+selectenergytype = Select(title='Energy Type:', value=energytypes[1], options=sorted(list(energytypes)))
+selectenergytype.on_change('value', updateenergytype)
 
 selectmeter = Select(title='Meter:', value=electricity[0], options=sorted(electricity))
 selectmeter.on_change('value', updatemeter)
@@ -549,20 +833,27 @@ selectmeter.on_change('value', updatemeter)
 selecthour = Select(title='Hour:', value=str(firsthour), options=[str(e) for e in range(24)])
 selecthour.on_change('value', updatehour)
 
-datepicker = inputs.DatePicker(title = 'Starting Date',max_date='2018-8-31', min_date='2016-1-6', value = date)
+datepicker = inputs.DatePicker(title = 'Starting Date',max_date=str(df.index[-1] + datetime.timedelta(days = 1)), min_date=str(df.index[0]+ datetime.timedelta(days = 1)), value = date)
 datepicker.on_change('value', datechanger)
-div = Div(text = """<p><b>Baseline:</b> Select this if you want to look back at last year and find the average energy comsumption for +/- 1 Degree of the current value (i.e. Avg energy consumption of 27-29 if current is 28)</p><br>
-<p><b>Expected Value:</b> Select this if you want to look back at the last 6 types of days (weekday/weekend) and find average of Top 5 for that hour of the day (i.e. 11am) </p><br>
-<p><b>Next Step Prediction:</b> Select this if you want to use a regression algorithm to see what a future value will most likely look like </p><br>
-<p> <b>Any Questions/Comments?</b><br> Please send a message to the Oxford Data Science / Analytics Team </p>
-                        """)
-div2 = Div(text="<img src='xx'>",width=280, height=100)
-r = widgetbox(select, selectmeter, selecthour, datepicker,baselinecheckbox, expvaluecheckbox, predcheckbox,slider,button,buttonRun,div,div2, width = 280)
 
-pp = row([r, p])
-curdoc().add_root(pp)
+selectview = Select(title='Look Back How Many Days?: ', value='1 Days', options=['{} Days'.format(str(e)) for e in range(1,32)])
+selectview.on_change('value', updateview)
+
+randdiv = Div(text = """<br> """)
+randdiv2 = Div(text = """ """)
+infodiv = make_statsdiv(dfview, df)
+div = Div(text = """<p><b><font color="gold">Baseline: </font></b> Select this if you want to look back at last year and find the average energy comsumption for +/- 1 Degree of the current value (i.e. Average energy consumption of 27-29 if current is 28 Degrees).</p>
+<p><b><font color="gold">Expected Value: </font></b> Select this if you want to look back at the last 6 types of days (weekday/weekend) and find average of Top 5 for that hour of the day (i.e. 11am). </p>
+<p><b><font color="gold">Next Step Prediction: </font></b> Select this if you want to use a regression algorithm to see what a future value will most likely look like.</p>
+<p><b><font color="gold">Ingestion Speed: </font></b> Adjust the speed of the simulated ingestion (in seconds). </p>""")
+#<p><b><font color="gold">Any Questions/Comments? </font></b><br> Please send a message to the Oxford Data Science / Analytics Team </p>""")
+div2 = Div(text="<img src='xx'>",width=280, height=25)
+r = widgetbox(selectasset,selectenergytype, selectmeter, datepicker,selecthour,selectview,slider,baselinebutton, expvaluebutton, predbutton,trendlinebutton,buttonRun,dlbutton,div,div2, width = 280)
+
+ii = row([w,z, u])
+dd = column([p,infodiv,ii])
+pp = row([r, dd])
+doc.add_root(pp)
 show(pp)
-
-# ingest(df, date, hour, ingesttime)
 
 
