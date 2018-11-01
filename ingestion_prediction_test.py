@@ -531,7 +531,11 @@ def make_statsdiv(dfview, df):
 def findLoadFactor(dataframe):
     #dataframe should be a series
     return dataframe.sum() / ((len(dataframe.index) / 24)*24*dataframe.max())
-
+def periodicupdate():
+    if flag:
+        updateplots(str(datepicker.value), str(selectview.value), str(selecthour.value), str(selectmeter.value))
+    else:
+        pass
 def updatesources(origdf, df1):
     nextvalue1 = doARstuff(origdf, origdf.loc[:date_time], origdf.loc[parser.parse(date_time) + datetime.timedelta(hours=1)])
     source.data = ColumnDataSource(
@@ -566,8 +570,6 @@ def updatesources(origdf, df1):
     histogram.glyph.width = int((bin_edges[1]-bin_edges[0])*0.8)
 
     infodiv.text = make_statsdiv(df1, origdf).text
-
-
 def updateplots(date, view, hour, meter):
     current = datetime.datetime.now()
     print('1')
@@ -595,14 +597,13 @@ print(timee,'\n')
 doc = curdoc()
 #clears the html page and gives the tab a name
 doc.clear()
-doc.title = 'xx'
+doc.title = 'xxe Data Lake Use Case'
 
 path = r'xx'
 pickle_in1 = open(path+"hugedict1.pickle","rb")
 baselinedict = pickle.load(pickle_in1)
-conn = sqlite3.connect(path + 'xx.db')
+conn = sqlite3.connect(path + 'x.db')
 c = conn.cursor()
-
 
 namesDict = {namesReal[x]:otherNames[x] for x in range(len(otherNames))}
 
@@ -612,7 +613,6 @@ print(namesReal[num],'\n')
 df = make_data(namesReal[num])
 origdf= df
 # bokeh viz
-
 
 firsthour = 11
 hour = 11
