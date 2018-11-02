@@ -19,6 +19,7 @@ from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool,
 from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Div, inputs, Slider, CheckboxGroup, Toggle
 from bokeh.layouts import widgetbox, row, column, gridplot, layout
 from bokeh.io import curdoc
+from bokeh.events import ButtonClick, SelectionGeometry
 import glob
 import os
 import statsmodels.api as sm
@@ -470,33 +471,6 @@ def updateview(attr, old, new):
     global view
     view = int(str(new).split()[0])
     updateplots(str(datepicker.value), str(view), str(selecthour.value), str(selectmeter.value))
-def update(newdf1, dateee,timeee, timestep=3):
-    # datee = date looking to split on - before this is the 'data', after this we're ingesting at a rate of every *timestep* seconds
-    # "%Y-%m-%d %H:%M:%S" format
-
-    # timestep = number of seconds to wait to perform 'ingestion'
-
-    # updates the dataframe (newdf) in place. It adds to the existing df 1 row and then performs a AR function, finding the expected value
-    # of the next value in the list. Does this every *timestep* seconds.
-
-    datee = '{} {}:00:00'.format(dateee, timeee)
-    kk = parser.parse(datee) + datetime.timedelta(hours=1)
-    t = newdf1.loc[:datee]  # train data
-    rr = newdf1.loc[kk:]  # dataframe containing next values to load in
-    count = -1
-    # print(t)
-    yy = 0
-    for x in rr.iterrows():
-        print(yy+1)
-        count = count + 1
-        kk = parser.parse(datee) + datetime.timedelta(hours=count)  # look ahead one hour from split point
-        kko = parser.parse(datee) + datetime.timedelta(hours=count+1)
-        ww = x[1].to_frame().T  # get the data from
-        t = t.append(ww)  # attach next row to train data
-        selecthour.value = str(t.index[-1].hour)
-        datepicker.value = str(t.index[-1])
-        yy = yy+1
-        time.sleep(timestep)
 def updateasset(attr, old, new):
     pass
 def best_fit_line(df):
@@ -511,11 +485,11 @@ def make_statsdiv(dfview, df):
     loadbalance = findLoadFactor(dfview.SUM_VALUE)
 
     div1 = Div(text = """ <div> 
-            <span style="font-size: 24px; color: #f16913; font-weight: bold; ">Rel. Min: </span>
+            <span style="font-size: 24px; color: #FFD700; font-weight: bold; ">Rel. Min: </span>
             <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span>
-            <span style="font-size: 24px; color: #f16913; font-weight: bold; ">Rel. Max:</span>
+            <span style="font-size: 24px; color: #FFD700; font-weight: bold; ">Rel. Max:</span>
             <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span>
-            <span style="font-size: 24px; color: #f16913; font-weight: bold; ">Rel. Load Balance:</span>
+            <span style="font-size: 24px; color: #FFD700; font-weight: bold; ">Rel. Load Balance:</span>
             <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span> 
             <span style="font-size: 24px; color: #FFD700; font-weight: bold; ">Mean: </span>
             <span style="font-size: 24px; color: #ffffff; font-weight: bold; ">{:.1f} &emsp;&emsp;</span>
@@ -531,11 +505,6 @@ def make_statsdiv(dfview, df):
 def findLoadFactor(dataframe):
     #dataframe should be a series
     return dataframe.sum() / ((len(dataframe.index) / 24)*24*dataframe.max())
-def periodicupdate():
-    if flag:
-        updateplots(str(datepicker.value), str(selectview.value), str(selecthour.value), str(selectmeter.value))
-    else:
-        pass
 def updatesources(origdf, df1):
     nextvalue1 = doARstuff(origdf, origdf.loc[:date_time], origdf.loc[parser.parse(date_time) + datetime.timedelta(hours=1)])
     source.data = ColumnDataSource(
@@ -557,17 +526,21 @@ def updatesources(origdf, df1):
     sourcehist.data = ColumnDataSource(
         data={'x': centre_of_bin_edges, 'y': histbartops, 'binedges': bin_edge_strings, 'avgtemp': avgtemps,
               'topstring': histbartopstring}).data
+    histogram.glyph.width = int((bin_edges[1]-bin_edges[0])*0.8)
 
-    scattersource.data = ColumnDataSource(data={'2016': origdf['SUM_VALUE'][origdf.index.year == 2016].copy(),
-                                                '2017': origdf['SUM_VALUE'][origdf.index.year == 2017].copy(),
-                                                '2018': origdf['SUM_VALUE'][origdf.index.year == 2018].copy(),
-                                                'x': origdf['Humidex']}).data
+    scattersource2016.data = ColumnDataSource(
+        data={'demand': origdf['SUM_VALUE'][origdf.index.year == 2016].copy(), 'temp': origdf['Humidex'][origdf.index.year == 2016].copy()}).data
+    scattersource2017.data = ColumnDataSource(
+        data={'demand': origdf['SUM_VALUE'][origdf.index.year == 2017].copy(), 'temp': origdf['Humidex'][origdf.index.year == 2017].copy()}).data
+    scattersource2018.data = ColumnDataSource(
+        data={'demand': origdf['SUM_VALUE'][origdf.index.year == 2018].copy(), 'temp': origdf['Humidex'][origdf.index.year == 2018].copy()}).data
+
     scattersource2.data = ColumnDataSource(
         data={'2016': origdf['SUM_VALUE'][origdf.index.year == 2016].copy().resample('D').mean(),
               '2017': origdf['SUM_VALUE'][origdf.index.year == 2017].copy().resample('D').mean(),
               '2018': origdf['SUM_VALUE'][origdf.index.year == 2018].copy().resample('D').mean(),
               'x': origdf['Humidex'].resample('D').mean()}).data
-    histogram.glyph.width = int((bin_edges[1]-bin_edges[0])*0.8)
+
 
     infodiv.text = make_statsdiv(df1, origdf).text
 def updateplots(date, view, hour, meter):
@@ -590,6 +563,33 @@ def updateplots(date, view, hour, meter):
     print('7', datetime.datetime.now()-current)
     updatesources(curdf, dfview)
     print('8',datetime.datetime.now()-current)
+def update():
+    global ingestionflag
+    c.execute('SELECT INTERVAL_DTTM FROM {}'.format('"'+str(selectmeter.value)+'"'))
+    data = c.fetchall()
+
+    newhr = [parser.parse(y.split()[0] + ' ' + y.split()[1].split('.')[0] + ':' + y.split()[1].split('.')[1] + ':' +
+                             y.split()[1].split('.')[2] + ' ' + y.split()[2]) for y in data[-1]]
+
+    if ingestionflag == 1:
+        print(newhr, 'should be ingesting')
+        if newhr[-1].minute == 0:
+            selecthour.value = str(newhr[-1].hour)
+            updateplots(str(datepicker.value), int(str(selectview.value).split()[0]), str(selecthour.value), str(selectmeter.value))
+    else:
+        print(newhr, 'no ingest')
+        pass
+def ingestioncallback(event):
+    global ingestionflag
+    if buttonRun.label == 'Stop Ingestion':
+
+        ingestionflag = 0
+        buttonRun.label = 'Run Ingestion'
+        update()
+    elif buttonRun.label == 'Run Ingestion':
+        ingestionflag = 1
+        buttonRun.label = 'Stop Ingestion'
+        update()
 
 timee = datetime.datetime.now()
 print(timee,'\n')
@@ -597,12 +597,12 @@ print(timee,'\n')
 doc = curdoc()
 #clears the html page and gives the tab a name
 doc.clear()
-doc.title = 'xxe Data Lake Use Case'
+doc.title = 'xx'
 
 path = r'xx'
 pickle_in1 = open(path+"hugedict1.pickle","rb")
 baselinedict = pickle.load(pickle_in1)
-conn = sqlite3.connect(path + 'x.db')
+conn = sqlite3.connect(path + 'xxt.db')
 c = conn.cursor()
 
 namesDict = {namesReal[x]:otherNames[x] for x in range(len(otherNames))}
@@ -614,13 +614,16 @@ df = make_data(namesReal[num])
 origdf= df
 # bokeh viz
 
-firsthour = 11
-hour = 11
+ingestionflag = 1
+
+
+firsthour = 3 #test with 11
+hour = firsthour
 firstmeter= electricity[0]
 meter = electricity[0]
-metertype = 'Electricity'
+metertype = energytypes[1]
 ingesttime = 5
-date = '2018-06-12'
+date = '2017-01-01' #test with June 12, 2018
 view = 7
 date_time =date+' '+str(hour)+':00:00'
 
@@ -634,6 +637,8 @@ nextvalue = doARstuff(df, df.loc[:date_time], df.loc[parser.parse(date_time)+dat
 print('NEXT VALS: ', nextvalue)
 source = ColumnDataSource(data={'x': dfview.index, 'y': dfview.SUM_VALUE,'expected':dfview.expected, 'baseline':dfview.baseline,'tooltip': dfview.tooltip, 'temp': ['{:.1f}'.format(x) for x in np.around(dfview.Humidex, decimals=1).astype(np.float32)], 'bestfitline': dfview.bestfitline, 'bflcoeffs': dfview.bflcoeffs})
 predsource = ColumnDataSource(data = {'x': [dfview.index[-1], dfview.index[-1]+datetime.timedelta(hours = 1)], 'y': [dfview.SUM_VALUE[-1], nextvalue]})
+
+print(df.Humidex)
 
 hoverlineexpected = HoverTool(tooltips = """ <div> 
             <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Date/Time: </span>
@@ -663,8 +668,6 @@ hoverlinebaseline = HoverTool(tooltips = """ <div>
             <span style="font-size: 12px; color: #966; font-weight: bold; ">@baseline</span><br>
             <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Humidex:</span>
             <span style="font-size: 12px; color: #966; font-weight: bold; ">@temp C</span> </div>""", names = ['baseline'])
-
-
 hoverhist = HoverTool(tooltips = """ <div> 
             <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Count: </span>
             <span style="font-size: 12px; color: #966; font-weight: bold; ">@topstring</span><br>
@@ -674,7 +677,13 @@ hoverhist = HoverTool(tooltips = """ <div>
             <span style="font-size: 12px; color: #966; font-weight: bold; ">@avgtemp</span> </div>""")
 hoverlinebfl = HoverTool(tooltips = """<div><span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Trend Line:</span>
             <span style="font-size: 12px; color: #966; font-weight: bold; ">@bflcoeffs</span><br></div>""", names=['bfl'])
-
+hoverscatter = HoverTool(tooltips = """ <div> 
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Date/Time: </span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@tooltip</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Energy Demand:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@demand</span><br>
+            <span style="font-size: 12px; color: #2c2230; font-weight: bold; ">Humidex:</span>
+            <span style="font-size: 12px; color: #966; font-weight: bold; ">@temp C</span> </div>""")
 
 histbartops, bin_edges = np.histogram(df.SUM_VALUE.values)
 bin_edges2 = [bin_edges[x+1] for x in range(len(bin_edges)-1)]
@@ -703,16 +712,26 @@ w.toolbar.active_scroll = "auto"
 w.ygrid.grid_line_alpha = 0.3
 w.xgrid.grid_line_alpha = 0.3
 
-scattersource = ColumnDataSource(data = {'2016': df['SUM_VALUE'][df.index.year == 2016].copy(), '2017':df['SUM_VALUE'][df.index.year == 2017].copy(), '2018': df['SUM_VALUE'][df.index.year == 2018].copy(), 'x': df['Humidex']})
-scattersource2 = ColumnDataSource(data = {'2016': df['SUM_VALUE'][df.index.year == 2016].copy().resample('D').mean(), '2017':df['SUM_VALUE'][df.index.year == 2017].copy().resample('D').mean(), '2018': df['SUM_VALUE'][df.index.year == 2018].copy().resample('D').mean(), 'x': df['Humidex'].resample('D').mean()})
+# scattersource = ColumnDataSource(data = {'2016': df['SUM_VALUE'][df.index.year == 2016].copy(), '2017':df['SUM_VALUE'][df.index.year == 2017].copy(), '2018': df['SUM_VALUE'][df.index.year == 2018].copy(), 'x': df['Humidex']})
+# scattersource2 = ColumnDataSource(data = {'2016': df['SUM_VALUE'][df.index.year == 2016].copy().resample('D').mean(), '2017':df['SUM_VALUE'][df.index.year == 2017].copy().resample('D').mean(), '2018': df['SUM_VALUE'][df.index.year == 2018].copy().resample('D').mean(), 'x': df['Humidex'].resample('D').mean()})
+
+scattersource2016 = ColumnDataSource(data = {'demand': df['SUM_VALUE'][df.index.year == 2016].copy(), 'temp': df['Humidex'][df.index.year == 2016].copy(), 'tooltip': df['tooltip'][df.index.year == 2016].copy()})
+scattersource2017 = ColumnDataSource(data={'demand':df['SUM_VALUE'][df.index.year == 2017].copy(),'temp': df['Humidex'][df.index.year == 2017].copy(), 'tooltip': df['tooltip'][df.index.year == 2017].copy()})
+scattersource2018 = ColumnDataSource(data={'demand':df['SUM_VALUE'][df.index.year == 2018].copy(),'temp': df['Humidex'][df.index.year == 2018].copy(), 'tooltip': df['tooltip'][df.index.year == 2018].copy()})
+
+
+scattersource2 = ColumnDataSource(data = {'2016': df['SUM_VALUE'][df.index.year == 2016].copy().resample('D').mean(), '2017':df['SUM_VALUE'][df.index.year == 2017].copy().resample('D').mean(), 'x': df['Humidex'][df.index.year == 2016].copy().resample('D').mean(), 'y': df['Humidex'][df.index.year == 2017].copy().resample('D').mean()})
+
+#Z figure is the bottom middle chart (SCATTER)
 
 z = figure(plot_width=535, plot_height=265,
-           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           tools=[hoverscatter, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title='Energy Demand / Temperature Scatter Plot', y_axis_label='Energy Demand', x_axis_label='Temperature (Celsius)')
 
-z.circle('x','2016', source=scattersource, size = 4, color='purple', alpha=0.05)
-z.circle('x','2017',source=scattersource, size = 4, color='green', alpha=0.05)
-z.circle('x','2018',source=scattersource, size = 4, color='blue', alpha=0.05)
+
+scatter2016 = z.circle('temp','demand', source=scattersource2016, size = 4, color='purple', alpha = 0.09, legend = '2016')
+scatter2017 = z.circle('temp','demand',source=scattersource2017, size = 4, color='green', alpha = 0.09, legend = '2017')
+scatter2018 = z.circle('temp','demand',source=scattersource2018, size = 4, color='blue', alpha=0.09, legend = '2018')
 z.background_fill_color = '#2c2230'
 z.axis.minor_tick_line_alpha = 0
 z.axis.axis_line_color = '#E6E6E6'
@@ -727,15 +746,19 @@ z.title.text_font_size = '11pt'
 z.toolbar.active_scroll = "auto"
 z.ygrid.grid_line_alpha = 0.3
 z.xgrid.grid_line_alpha = 0.3
+z.legend.location = "top_left"
+
+#U figure is the bottom right chart (SCATTER)
 
 u = figure(plot_width=535, plot_height=265,
            tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title='Energy Demand / Temperature Scatter Plot', y_axis_label='Energy Demand', x_axis_label='Temperature (Celsius)')
 
-u.circle('x','2016', source=scattersource2, size = 4, color='purple', alpha=0.5)
-u.circle('x','2017',source=scattersource2, size = 4, color='green', alpha=0.5)
-u.circle('x','2018',source=scattersource2, size = 4, color='blue', alpha=0.5)
-
+# u.circle('x','2016', source=scattersource2, size = 4, color='purple', alpha=0.5)
+# u.circle('x','2017',source=scattersource2, size = 4, color='green', alpha=0.5)
+# u.circle('x','2018',source=scattersource2, size = 4, color='blue', alpha=0.5)
+u.circle('x','2016', source=scattersource2, size = 4, color='purple')
+u.circle('x','2017',source=scattersource2, size = 4, color='green')
 u.background_fill_color = '#2c2230'
 u.axis.minor_tick_line_alpha = 0
 u.axis.axis_line_color = '#E6E6E6'
@@ -753,7 +776,7 @@ u.xgrid.grid_line_alpha = 0.3
 
 p = figure(x_axis_type='datetime', plot_width=1600, plot_height=600,
            tools=[hoverline,hoverlinebfl,hoverline2, hoverlinebaseline, hoverlineexpected, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title='Energy Demand', y_axis_label='Energy Demand (units)', x_axis_label='Date/Time')
+           title='{} Energy Demand'.format(electricity[0]), y_axis_label='Energy Demand (units)', x_axis_label='Date/Time')
 
 predline = p.line('x', 'y', source = predsource, line_width = 4, color = 'firebrick', legend = 'Prediction', alpha = 0.9, name = 'predline')
 predline.visible = False
@@ -775,6 +798,8 @@ expected.visible = False
 
 expected2 = p.circle('x', 'expected', source=source, size = 4, color='white', alpha = 0.25, name = 'expected2')
 expected2.visible = False
+
+#P is the main chart (top) LINE PLOT
 
 p.background_fill_color = '#2c2230'
 p.yaxis.formatter = NumeralTickFormatter(format='0,0')
@@ -815,13 +840,13 @@ expectedcallback.args = {'toggle': expvaluebutton, 'object': expected,'toggle2':
 dlbutton = Button(label="Download Data", button_type="success")
 dlbutton.callback = CustomJS(args=dict(source=source), code=open(join(dirname(__file__), "download.js")).read())
 
-buttonRun = Button(label="Run Ingestion", button_type="danger")
-buttonRun.on_click(download)
+buttonRun = Button(label="Stop Ingestion", button_type="danger")
+buttonRun.on_event(ButtonClick, ingestioncallback)
 
 slider = Slider(start=5, end=300, value=5, step=1, title="Ingestion Speed (sec)")
 slider.on_change('value', updateslider)
 
-selectasset = Select(title='Asset:', value='MetroCentre', options=['MetroCentre'])
+selectasset = Select(title='Asset:', value='Mxe', options=['Mxre'])
 selectasset.on_change('value', updateasset)
 
 selectenergytype = Select(title='Energy Type:', value=energytypes[1], options=sorted(list(energytypes)))
@@ -833,26 +858,30 @@ selectmeter.on_change('value', updatemeter)
 selecthour = Select(title='Hour:', value=str(firsthour), options=[str(e) for e in range(24)])
 selecthour.on_change('value', updatehour)
 
-datepicker = inputs.DatePicker(title = 'Starting Date',max_date=str(df.index[-1] + datetime.timedelta(days = 1)), min_date=str(df.index[0]+ datetime.timedelta(days = 1)), value = date)
+datepicker = inputs.DatePicker(title = 'Starting Date',max_date=str(df.index[-1] + datetime.timedelta(days = 1)), min_date=str(df.index[0]+ datetime.timedelta(days = 1)), value = str(df.index[-1] + datetime.timedelta(days = 1)))
 datepicker.on_change('value', datechanger)
 
-selectview = Select(title='Look Back How Many Days?: ', value='1 Days', options=['{} Days'.format(str(e)) for e in range(1,32)])
+selectview = Select(title='Look Back How Many Days?: ', value='7 Days', options=['{} Days'.format(str(e)) for e in range(1,32)])
 selectview.on_change('value', updateview)
 
-randdiv = Div(text = """<br> """)
-randdiv2 = Div(text = """ """)
+# statistical text in the middle of the page
 infodiv = make_statsdiv(dfview, df)
+# information in bottom left that explains the different functions.
 div = Div(text = """<p><b><font color="gold">Baseline: </font></b> Select this if you want to look back at last year and find the average energy comsumption for +/- 1 Degree of the current value (i.e. Average energy consumption of 27-29 if current is 28 Degrees).</p>
 <p><b><font color="gold">Expected Value: </font></b> Select this if you want to look back at the last 6 types of days (weekday/weekend) and find average of Top 5 for that hour of the day (i.e. 11am). </p>
 <p><b><font color="gold">Next Step Prediction: </font></b> Select this if you want to use a regression algorithm to see what a future value will most likely look like.</p>
 <p><b><font color="gold">Ingestion Speed: </font></b> Adjust the speed of the simulated ingestion (in seconds). </p>""")
 #<p><b><font color="gold">Any Questions/Comments? </font></b><br> Please send a message to the Oxford Data Science / Analytics Team </p>""")
-div2 = Div(text="<img src='xx'>",width=280, height=25)
-r = widgetbox(selectasset,selectenergytype, selectmeter, datepicker,selecthour,selectview,slider,baselinebutton, expvaluebutton, predbutton,trendlinebutton,buttonRun,dlbutton,div,div2, width = 280)
 
-ii = row([w,z, u])
-dd = column([p,infodiv,ii])
+#Oxford Logo
+div2 = Div(text="<img src='xx'>",width=280, height=25)
+
+r = widgetbox(selectasset,selectenergytype, selectmeter, datepicker,selecthour,selectview,slider,baselinebutton, expvaluebutton, predbutton,trendlinebutton,buttonRun,dlbutton,div,div2, width = 280)
+ii = row([w, z, u])
+dd = column([p, infodiv, ii])
 pp = row([r, dd])
+
+doc.add_periodic_callback(update, 30000)
 doc.add_root(pp)
 show(pp)
 
