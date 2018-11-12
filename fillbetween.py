@@ -54,7 +54,7 @@ newy = np.linspace(y[0], y[2], 1000)
 find, _ = find_nearest(newy, ymean[0])
 ymean2 = np.array([ymean[0] for x in range(len(newy))])
 k=list(newy).index(find)
-
+newy = np.array([x for x in np.linspace(newy[0],newy[k], magicnumber)])
 
 theta2 = math.atan(np.abs(y[7]-y[6]) / 1)
 degrees2 = theta2 * 180 / math.pi
@@ -74,18 +74,17 @@ newy3 = np.concatenate((np.linspace(ymean[0], y[7], len(xx[7000-magicnumber2:700
 
 theta4 = math.atan(np.abs(y[9]-y[8]) / 1)
 degrees4 = theta4 * 180 / math.pi
-print(ymean[0]-y[8])
 tri4adj = np.abs(ymean[0]-y[8])*math.tan(math.radians(90-degrees4))
-print(tri4adj)
 cc4, magicnumber4 = find_nearest(xx, 8+tri4adj)
 xx4 = xx[magicnumber3: magicnumber4].copy()
 newy4 = np.concatenate((np.linspace(ymean[0], y[8], len(xx[magicnumber3:8000])), np.linspace(y[8], ymean[0],len(xx[8000:magicnumber4]))), axis = None)
 
-print(magicnumber4)
-xx5 = xx[magicnumber4:].copy()
-newy5 = np.linspace(ymean[0], y[9], len(xx[magicnumber4:]))
 
-data = ColumnDataSource(data = dict(x=xx, y= y, ymean = ymean, x1=xx1, x2 = xx2,x3=xx3,x4=xx4 ,x5 = xx5, newy5 = newy5, newy2 = newy2,newy3 = newy3, newy4 = newy4,newy = np.array([x for x in np.linspace(newy[0],newy[k], magicnumber)]),origx = X, ymean2 = ymean2))
+xx5 = xx[magicnumber4:].copy()
+newy5 = np.linspace(ymean[0], y[9], len(xx5))
+ymean = np.array([ymean[0] for x in range(len(xx))])
+print(xx5)
+data = ColumnDataSource(data = dict(x=xx, y= y, ymean = ymean, x1=xx1, x2 = xx2,x3=xx3,x4=xx4 ,x5 = xx5, newy5 = newy5, newy2 = newy2,newy3 = newy3, newy4 = newy4,newy = newy,origx = X, ymean2 = ymean2))
 
 TOOLS = "pan,wheel_zoom,reset,hover,save"
 
