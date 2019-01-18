@@ -64,23 +64,31 @@ def create_table(nameOfTable):
     c2.execute("CREATE TABLE IF NOT EXISTS {}(DATETIME TEXT, YEAR SMALLINT, MONTH TINYINT, DAY TINYINT, HOUR TINYINT, TEMP REAL, DEW_TEMP REAL, REL_HUM REAL, HUMIDEX REAL)".format('"'+nameOfTable+'"'))
 def data_entry(c2,nameOfTable, DATETIME, YEAR, MONTH, DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX):
     c2.execute('INSERT INTO {} VALUES("{}",{},{},{},{},{},{},{},{})'.format('"'+nameOfTable+'"', DATETIME, YEAR, MONTH, DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX))
-def getnewdata(stationid):
+def getnewdata(stationid, year=None, month = None):
     date = datetime.datetime.now()
-    datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data".format(
+    if year and month:
+        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data".format(
+        stationid, year, month)
+    else:
+        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data".format(
         stationid, date.year, date.month)
     df = pd.read_csv(datastring, encoding='utf-8', skiprows=17, header=None,
-                     names=['Date/Time', 'Year', 'Month', 'Day', 'Time', 'Temp (C)', 'Temp Flag',
-                            'Dew Point Temp (C)', 'Dew Point Temp Flag', 'Rel Hum (%)', 'Rel Hum Flag',
+                     names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
+                            'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
                             'Wind Dir (10s deg)', 'Wind Dir Flag', 'Wind Spd (km/h)', 'Wind Spd Flag',
                             'Visibility (km)', 'Visibility Flag', 'Stn Press (kPa)', 'Stn Press Flag',
                             'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
 
-    Wdata = df[['Year', 'Day', 'Month', 'Date/Time', 'Temp (C)', 'Dew Point Temp (C)', 'Rel Hum (%)']]
+    Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY','TEMP','REL_HUM', 'DEW_TEMP']]
+
     Wdata.fillna(method='ffill', inplace=True)
     Wdata.fillna(method='bfill', inplace=True)
-    Wdata.set_index('Date/Time', inplace=True)
+    Wdata.set_index('DATETIME', inplace=True)
     Wdata.index = pd.to_datetime(Wdata.index)
     Wdata = Wdata.sort_index()
+    Wdata['HOUR'] = Wdata.index.hour
+    Wdata['HUMIDEX'] = pd.Series([hmdxx(x.TEMP, x.DEW_TEMP) for x in Wdata.itertuples()], index=Wdata.index)
+    Wdata['REL_HUM'] = Wdata['REL_HUM'].astype(np.int64)
     return Wdata
 def getpreviousdayweather(city,stationid, tablename):
     try:
@@ -89,15 +97,12 @@ def getpreviousdayweather(city,stationid, tablename):
         c2 = conn.cursor()
         date = datetime.datetime.now()
         Wdata = getnewdata(stationid)
-        Wdata['Hour'] = Wdata.index.hour
-        Wdata['Humidex'] = pd.Series([hmdxx(x[4], x[5]) for x in Wdata.itertuples()], index=Wdata.index)
-
         Wdata2 = Wdata[Wdata['Day'] == date.day-1]
 
         nameofTable = tablename
 
         for x in Wdata2.itertuples():
-            data_entry(c2,nameofTable, DATETIME= x[0], YEAR=x[1], MONTH=x[3], DAY=x[2], HOUR=x[7], TEMP=x[4], DEW_TEMP=x[5], REL_HUM=x[6], HUMIDEX=x[8])
+            data_entry(c2,nameofTable, DATETIME= x.DATETIME, YEAR=x.YEAR, MONTH=x.MONTH, DAY=x.DAY, HOUR=x.HOUR, TEMP=x.TEMP, DEW_TEMP=x.REL_TEMP, REL_HUM=x.REL_HUM, HUMIDEX=x.HUMIDEX)
         conn.commit()
         conn.close()
         print(date, '{} got yesterday\'s data!'.format(city.upper()))
@@ -266,9 +271,6 @@ def gatherweatherforecastupdated(citytimezone, nameofcity, url):
         humidity = [x.split('%')[0] for x in humidity]
         maxxx = np.argmax(temp)
 
-        # for x in range(len(temp)):
-        #     print(temp[x], feels[x], humidity[x], timee[x])
-
         try:
             data_entry2(c2, name, timee, temp, feels, humidity, date)
             conn.commit()
@@ -283,8 +285,14 @@ def gatherweatherforecastupdated(citytimezone, nameofcity, url):
                 print(date, '{} WEATHER FORECAST table updated!'.format(nameofcity.upper()))
             except Exception as i:
                 print(str(i))
-                sendemail(text='Error in {} WEATHER FORECAST script'.format(nameofcity.upper()),
-                          html='Error in {} WEATHER FORECAST script'.format(nameofcity.upper()))
+                time.sleep(150)
+                try:
+                    data_entry2(c2, name, timee, temp, feels, humidity, date)
+                    conn.commit()
+                    print(date, '{} WEATHER FORECAST table updated!'.format(nameofcity.upper()))
+                except:
+                    sendemail(text='Error in {} WEATHER FORECAST script | {}'.format(nameofcity.upper(), str(i)),
+                              html='Error in {} WEATHER FORECAST script | {}'.format(nameofcity.upper(), str(i)))
     except Exception as e:
         print(str(e))
         sendemail(text = 'Error in {} WEATHER FORECAST script'.format(nameofcity.upper()), html = 'Error in {} WEATHER FORECAST script'.format(nameofcity.upper()))
@@ -319,12 +327,49 @@ citydict = {
 'Quebec City':{'stationid': 51457, 'tablename': 'Quebec_INTL_A'},
 'Mississauga':{'stationid': 51459, 'tablename': 'Toronto_INTL_A'}}
 
-print('Running...') #when code is started, display this in the console
-sched = BlockingScheduler() #set up a scheduling object
-
-sched.add_job(gatherpreviousdayweather, 'cron', hour=6) #run the weather ingest every morning at 5am
-sched.add_job(weatherforecastscripts, 'cron', minute=30) #run the weather forecast ingest every half an hour
-
-sched.start() #start the scheduler
-
+# print('Running...') #when code is started, display this in the console
+# sched = BlockingScheduler() #set up a scheduling object
 #
+# sched.add_job(gatherpreviousdayweather, 'cron', hour=6) #run the weather ingest every morning at 5am
+# sched.add_job(weatherforecastscripts, 'cron', minute=30) #run the weather forecast ingest every half an hour
+#
+# sched.start() #start the scheduler
+def load2019data():
+    for z in citydict.keys():
+        today = datetime.datetime.now()
+        bigdf = getnewdata(citydict[z]['stationid'], 2019, 1)
+        bigdf = bigdf[bigdf.index < datetime.datetime(today.year, today.month, today.day-1, 5)]
+        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+        conn = sqlite3.connect(path + '{}weather.db'.format(z.replace(' ', '')))
+        bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='append')
+        print(z, 'done')
+def loadolddataintodb():
+    print(1)
+    for z in citydict.keys():
+        dfs = {}
+        for x in range(2011, 2019):
+            for y in range(1, 13):
+                try:
+                    dfs['{}_{}'.format(x, y)] = getnewdata(citydict[z]['stationid'], x, y)
+                except Exception as e:
+                    print(str(e))
+                    pass
+        bigdf = pd.concat([x for x in dfs.values()])
+        bigdf.drop_duplicates(inplace=True)
+        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+        conn = sqlite3.connect(path + '{}weather.db'.format(z.replace(' ', '')))
+        # bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='replace')
+        print(z, 'done')
+
+# loadolddataintodb()
+
+a = getnewdata(list(citydict.keys())[0])
+
+print(a.to_string())
+today = datetime.datetime.now()
+aa=a[(a['DAY'] == (today.day-1)) | (a['DAY'] == (today.day-2))]
+bb= aa[aa.index > datetime.datetime(today.year, today.month, today.day-2, 4)]
+cc= bb[bb.index < datetime.datetime(today.year, today.month, today.day-1, 5)]
+print(cc.to_string())
+
+
