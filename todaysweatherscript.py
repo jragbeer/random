@@ -164,25 +164,28 @@ def getpreviousdayweather(city,stationid, tablename):
         c2 = conn.cursor()
         date = datetime.datetime.now()
         Wdata = getnewdata(stationid)
-        Wdata2 = Wdata[Wdata['Day'] == date.day - 1]
+        # Wdata2 = Wdata[Wdata['Day'] == date.day - 1]
+        aa = Wdata[(Wdata['DAY'] == (date.day - 1)) | (Wdata['DAY'] == (date.day - 2))]
+        bb = aa[aa.index > datetime.datetime(date.year, date.month, date.day - 2, 4)]
+        cc = bb[bb.index < datetime.datetime(date.year, date.month, date.day - 1, 5)]
         nameofTable = tablename
 
-        for x in Wdata2.itertuples():
-            data_entry(c2, nameofTable, DATETIME=x.DATETIME, YEAR=x.YEAR, MONTH=x.MONTH, DAY=x.DAY, HOUR=x.HOUR,
-                       TEMP=x.TEMP, DEW_TEMP=x.REL_TEMP, REL_HUM=x.REL_HUM, HUMIDEX=x.HUMIDEX)
+        for x in cc.itertuples():
+            data_entry(c2, nameofTable, DATETIME=x.index, YEAR=x.YEAR, MONTH=x.MONTH, DAY=x.DAY, HOUR=x.HOUR,
+                       TEMP=x.TEMP, DEW_TEMP=x.DEW_TEMP, REL_HUM=x.REL_HUM, HUMIDEX=x.HUMIDEX)
         conn.commit()
         conn.close()
-        logging.debug('{} got yesterday\'s data!'.format(city.upper()))
+        logging.info('{} got yesterday\'s data!'.format(city.upper()))
     try:
         getpreviousdayweatherinner()
     except Exception as e:
         try:
-            logging.debug(str(e))
-            logging.debug('retrying in 2 minutes...')
+            logging.info(str(e))
+            logging.info('retrying in 2 minutes...')
             time.sleep(180)
             getpreviousdayweatherinner()
         except Exception as ee:
-            logging.debug(str(ee))
+            logging.info(str(ee))
             sendemail(text='Error in {} WEATHER PREVIOUS script'.format(city.upper()), html='Error in {} WEATHER PREVIOUS script'.format(city.upper()))
 def gatherpreviousdayweather():
     """
@@ -257,10 +260,10 @@ def sendemail(text, html):
 
     try:
         server.sendmail(gmail_sender, TO, msg.as_string())  # send email
-        logging.debug('email sent')  # confirm email is sent, and the time
+        logging.info('email sent')  # confirm email is sent, and the time
     except Exception as e:
-        logging.debug(str(e))  # print error if not sent
-        logging.debug('error sending mail')  # confirm that email wasn't sent
+        logging.info(str(e))  # print error if not sent
+        logging.info('error sending mail')  # confirm that email wasn't sent
 
     server.quit()
 def create_table2(nameOfTable):
@@ -316,29 +319,29 @@ def gatherweatherforecastupdated(citytimezone, nameofcity, url):
         try:
             data_entry2(c2, name, timee, temp, feels, humidity, date)
             conn.commit()
-            logging.debug('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
+            logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
         except Exception as q:
-            logging.debug(str(q))
-            logging.debug('{} WEATHER FORECAST FAILED! Trying again in 5 minutes. Local time: {}'.format(nameofcity.upper(), date))
+            logging.info(str(q))
+            logging.info('{} WEATHER FORECAST FAILED! Trying again in 5 minutes. Local time: {}'.format(nameofcity.upper(), date))
             time.sleep(300)
             try:
                 data_entry2(c2, name, timee, temp, feels, humidity, date)
                 conn.commit()
-                logging.debug('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
+                logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
             except Exception as i:
-                logging.debug(str(i))
-                logging.debug('{} WEATHER FORECAST FAILED! Trying again in 2.5 minutes. Local time: {}'.format(nameofcity.upper(), date))
+                logging.info(str(i))
+                logging.info('{} WEATHER FORECAST FAILED! Trying again in 2.5 minutes. Local time: {}'.format(nameofcity.upper(), date))
                 time.sleep(150)
                 try:
                     data_entry2(c2, name, timee, temp, feels, humidity, date)
                     conn.commit()
-                    logging.debug('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
+                    logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
                 except Exception as ii:
-                    logging.debug(str(ii))
+                    logging.info(str(ii))
                     sendemail(text='Error in {} WEATHER FORECAST script | {}'.format(nameofcity.upper(), str(i)),
                               html='Error in {} WEATHER FORECAST script | {}'.format(nameofcity.upper(), str(i)))
     except Exception as e:
-        logging.debug(str(e))
+        logging.info(str(e))
         sendemail(text = 'Error in {} WEATHER FORECAST script'.format(nameofcity.upper()), html = 'Error in {} WEATHER FORECAST script'.format(nameofcity.upper()))
 def weatherforecastscripts():
     """
@@ -376,7 +379,10 @@ def loadolddataintodb():
         # bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='replace')
         print(z, 'done')
 
-logging.basicConfig(filename = 'weatherlog.txt', level=logging.DEBUG, format = '%(asctime)s,%(message)s')
+logging.basicConfig(level=logging.INFO, format = '%(asctime)s,%(message)s',
+                    handlers=[logging.FileHandler("weatherlog.txt"),
+                              logging.StreamHandler()])
+
 
 #for the weather forecasts
 citiesdict = {'Boston': {'url':'USMA0046:1:US', 'timezone': 'America/Toronto'},
@@ -415,12 +421,13 @@ citydict = {
 
 
 # loadolddataintodb()
-logging.debug(list(citydict.keys())[0])
-a = getnewdata(citydict['Toronto']['stationid'])
-today = datetime.datetime.now()
-aa=a[(a['DAY'] == (today.day-1)) | (a['DAY'] == (today.day-2))]
-bb= aa[aa.index > datetime.datetime(today.year, today.month, today.day-2, 4)]
-cc= bb[bb.index < datetime.datetime(today.year, today.month, today.day-1, 5)]
+# logging.info(list(citydict.keys())[0])
+# a = getnewdata(citydict['Toronto']['stationid'])
+# today = datetime.datetime.now()
+# aa=a[(a['DAY'] == (today.day-1)) | (a['DAY'] == (today.day-2))]
+# bb= aa[aa.index > datetime.datetime(today.year, today.month, today.day-2, 4)]
+# cc= bb[bb.index < datetime.datetime(today.year, today.month, today.day-1, 5)]
 
 
-
+getpreviousdayweather(list(citydict.keys())[0], citydict['Toronto']['stationid'], citydict['Toronto']['tablename'])
+print('done')
