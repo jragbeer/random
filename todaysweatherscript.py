@@ -19,11 +19,25 @@ import bs4 as bs
 import time
 import pytz
 
-def hmdxx(x, y):
-    # x is air temp in Celsius
-    # y is dewpoint in Celsius
-    return x + (0.5555 * (6.11 * np.exp(5417.7530 * ((1 / 273.16) - (1 / (273.15 + y)))) - 10))
+def hmdxx(temp, dew_temp):
+    """
+
+    returns the humidex reading given the air temp and dew temp
+
+    :param x: air temp in Celsius
+    :param y: dewpoint in Celsius
+    :return: humidex reading as a float
+    """
+    return temp + (0.5555 * (6.11 * np.exp(5417.7530 * ((1 / 273.16) - (1 / (273.15 + dew_temp)))) - 10))
 def clean_weather(weather):
+
+    """
+    cleans a raw weather dataframe....
+    Adds cyclical variables such as weekday, hour, month and formats some, to remove degree symbol, drops columns
+
+    :param weather: dataframe with weather data
+    :return: the same dataframe as input, but with more useful columns
+    """
     weather.index = pd.to_datetime(weather.index)
     weather.fillna(method='ffill', inplace=True)
     weather['Humidex'] = pd.Series([hmdxx(x[5], x[7]) for x in weather.itertuples()], index=weather.index)
@@ -44,7 +58,16 @@ def clean_weather(weather):
                   'Wind Chill Flag', 'Weather', 'Temp (°C)', 'Dew Point Temp (°C)'], 1, inplace=True)
     return weather
 def newdegdays(df):
+    """
+
+    takes a temperature from a dataframe and returns two lists that correspond
+    to its heat and cool degree days (from 6 degress C)
+
+    :param df: input dataframe with a temperature column
+    :return: two lists. 1st: heat degree day. 2nd: cool degree day
+    """
     newdata = [i[4] for i in df.itertuples()]
+
     heatdays = [6-x for x in newdata]
     cooldays = [x-6 for x in newdata]
     newheatdays=[]
@@ -60,18 +83,44 @@ def newdegdays(df):
         else:
             newcooldays.append(x)
     return newheatdays,newcooldays
-def create_table(nameOfTable):
-    c2.execute("CREATE TABLE IF NOT EXISTS {}(DATETIME TEXT, YEAR SMALLINT, MONTH TINYINT, DAY TINYINT, HOUR TINYINT, TEMP REAL, DEW_TEMP REAL, REL_HUM REAL, HUMIDEX REAL)".format('"'+nameOfTable+'"'))
-def data_entry(c2,nameOfTable, DATETIME, YEAR, MONTH, DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX):
-    c2.execute('INSERT INTO {} VALUES("{}",{},{},{},{},{},{},{},{})'.format('"'+nameOfTable+'"', DATETIME, YEAR, MONTH, DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX))
+def create_table(c_, nameOfTable):
+    """
+    convenient function to create a table
+
+    :param c_: connection to database
+    :param nameOfTable: name of table in database
+    :return: nothing
+    """
+    c_.execute("CREATE TABLE IF NOT EXISTS {}(DATETIME TEXT, YEAR SMALLINT, MONTH TINYINT, DAY TINYINT, HOUR TINYINT, TEMP REAL, DEW_TEMP REAL, REL_HUM REAL, HUMIDEX REAL)".format('"'+nameOfTable+'"'))
+def data_entry(c_,nameOfTable, DATETIME, YEAR, MONTH, DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX):
+    """
+
+    adding data to the table, the variables are self-explanatory
+
+    :param c_: connection the the database
+    :param nameOfTable: name of the table to add the row
+    :param DATETIME:
+    :param YEAR:
+    :param MONTH:
+    :param DAY:
+    :param HOUR:
+    :param TEMP:
+    :param DEW_TEMP:
+    :param REL_HUM:
+    :param HUMIDEX:
+    :return: nothing
+    """
+    c_.execute('INSERT INTO {} VALUES("{}",{},{},{},{},{},{},{},{})'.format('"'+nameOfTable+'"', DATETIME, YEAR, MONTH, DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX))
 def getnewdata(stationid, year=None, month = None):
     date = datetime.datetime.now()
     if year and month:
-        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data".format(
+        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data.csv".format(
         stationid, year, month)
+        print('0', year, month)
     else:
-        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data".format(
+        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data.csv".format(
         stationid, date.year, date.month)
+        print('1', date.year, date.month)
     df = pd.read_csv(datastring, encoding='utf-8', skiprows=17, header=None,
                      names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
                             'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
@@ -80,7 +129,7 @@ def getnewdata(stationid, year=None, month = None):
                             'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
 
     Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY','TEMP','REL_HUM', 'DEW_TEMP']]
-
+    print(Wdata.to_string())
     Wdata.fillna(method='ffill', inplace=True)
     Wdata.fillna(method='bfill', inplace=True)
     Wdata.set_index('DATETIME', inplace=True)
@@ -362,8 +411,8 @@ def loadolddataintodb():
         print(z, 'done')
 
 # loadolddataintodb()
-
-a = getnewdata(list(citydict.keys())[0])
+print(list(citydict.keys())[0])
+a = getnewdata(citydict['Toronto']['stationid'])
 
 print(a.to_string())
 today = datetime.datetime.now()
