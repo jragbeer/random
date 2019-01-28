@@ -6,6 +6,8 @@ def cleandf(idf):
 
     # idf.drop([('Risk Class', '2024.1')],1,inplace = True)# empty column
     new = []
+
+    idf.drop([("Disposition Debt Activity", 'Disposition Debt Activity 2024.1'),('Risk Class','Risk Class 2024.1'),('Equity  Balances','Equity  Balances 2024.1')],1, inplace = True)
     for col in idf.columns:
         if re.compile('Unnamed:').search(col[0]):
             new.append((col[1], col[1]))
@@ -13,8 +15,11 @@ def cleandf(idf):
             if re.compile('20').search(str(col[1])):
                 z = int(re.search('[0-9]+', col[1])[0])
                 pass
+            elif re.compile('\n').search(str(col[1])):
+                z = str(col[1]).replace('\n', ' ')
             else:
                 z = col[1]
+
             new.append((col[0], z))
     idf.columns = pd.MultiIndex.from_tuples(new)
     return idf
@@ -28,7 +33,10 @@ def part1(idf):
     :return: dataframe with just the columns that don't require pivoting
     """
     dataframe = pd.concat([pd.DataFrame(idf['Investment']), idf['Investment Name'], idf['EXT'], idf['Region'], idf['Asset Class'], idf['Country'], idf['City'],idf['Currency'],
-                    idf['Risk Class', 'O/B'], idf['Risk Class', 'IPP Date']], 1)
+                    idf['Risk Class', 'O/B'], idf['Risk Class', 'IPP Date'],
+                           idf['Equity  Balances', 'Managed (Y/N)'],
+                           idf['Step Up / Down', 'Dispo YR'],idf['Step Up / Down', 'Recap Y/N'],idf['Step Up / Down', 'AUM % Post Dispo'],
+                           ], 1)
     # renames a few of the columns, so that they aren't tuples  (more clarity, matches output file)
     listofcolumns = []
     for x in dataframe.columns:
@@ -39,39 +47,30 @@ def part1(idf):
     dataframe.columns = listofcolumns
     return dataframe
 
-path = 'C:/Users/J_Ragbeer/PycharmProjects/other/data/finance/' #path on the CPU
+path = 'C:/Users/Julien/PycharmProjects/random/' #path on the CPU
 df = pd.read_excel(path+"Staging Database Q1'19.xlsm", sheet_name = 'OXF Database', skiprows = 4, usecols="C:GD", header = [0,2], skipfooter = 21)
-print(df.head(20).to_string())
 df = cleandf(df)
-# df.drop([x for x in list(df.columns) if x.startswith('Unnamed') ],1,inplace = True)
-print(df.head(20).to_string())
-unpivotcolumns = ['Managed (Y/N)','Dispo YR','IPP Date','O/B','Asset Class','EXT','Country', 'Investment', 'Investment Name', 'City', 'Currency', 'Region'] #list of columns that don't need pivoting
-
-df.drop(unpivotcolumns,1,inplace = True)
-print(df.head(20).to_string())
-# for x in df.columns:
-#     try:
-#         print(str(x), re.search('[0-9]+', x)[0], re.search('\D+', x)[0])
-#     except:
-#         pass
-xdf = part1(df) #unpivoted table
+unpivotcolumns = ['O/B','IPP Date','Managed (Y/N)','Dispo YR','AUM % Post Dispo','Recap Y/N','Asset Class','EXT','Country', 'Investment', 'Investment Name', 'City', 'Currency', 'Region'] #list of columns that don't need pivoting
+xdf = part1(df).replace('-', 0) #unpivoted table
 df = df.stack() #pivot the table
-print(df.head(20).to_string())
-# unpivotcolumns = ['IPP Date','O/B','Asset Class','EXT','Country', 'Investment', 'Investment Name', 'City', 'Currency', 'Region'] #list of columns that don't need pivoting
-# df.drop(unpivotcolumns, 0, level = 1, inplace = True) #remove columns that don't need pivoting
-# print(df.head().to_string())
-# for y in unpivotcolumns:
-#     a = []
-#     for x in df.itertuples():
-#         a.append(xdf.loc[x.Index[0], y])
-#     df[str(y)] = pd.Series(a, index = df.index)
-# b = [x.Index[1] for x in df.itertuples()]
+df.drop([' '],1,inplace = True)
+df.drop(unpivotcolumns, 0, level = 1, inplace = True) #remove columns that don't need pivoting
+for y in unpivotcolumns:
+    a = []
+    for x in df.itertuples():
+        a.append(xdf.loc[x.Index[0], y])
+    df[str(y)] = pd.Series(a, index = df.index)
+b = [x.Index[1] for x in df.itertuples()]
 # df['Year'] = pd.Series(b, index = df.index) # add a 'year' column
-# df.fillna(0, inplace = True) # fill all NULLS with 0
-# # save to a CSV
-# df.to_csv(path+'stuff1.csv',index_label = ['SPARTA Code', 'Year'], columns = ['Investment', 'EXT', 'Region', 'Asset Class', 'Country', 'City','Currency', 'O/B','IPP Date',
-#                                                   'Risk Class','Invested Capital Balances', 'Asset MTM Activity','Capex Activity', 'Acquisition Activity', 'Development Activity',
-#                                                   'Disposition Activity', 'Development Profit','Debt Balances','Refinancing Activity',
-#                                                   'Acquisition Activity (debt)','Development Activity (debt)','Disposition Activity (debt)', 'Equity  Balances'])
-#
-#
+df.fillna(0, inplace = True) # fill all NULLS with 0
+df.drop(['Step Up / Down'],1,inplace = True)
+print(df.head(20).to_string())
+
+# save to a CSV
+df.to_csv(path+'stuff.csv',index_label = ['SPARTA Code', 'Year'],
+ # columns = ['Investment', 'EXT', 'Region', 'Asset Class', 'Country', 'City','Currency', 'O/B','IPP Date',
+ #                                                  'Risk Class','Invested Capital Balances', 'Asset MTM Activity','Capex Activity', 'Acquisition Activity', 'Development Activity',
+ #                                                  'Disposition Activity', 'Development Profit','Debt Balances','Refinancing Activity',
+ #                                                  'Acquisition Activity (debt)','Development Activity (debt)','Disposition Activity (debt)', 'Equity  Balances']
+)
+
