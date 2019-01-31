@@ -19,6 +19,7 @@ import bs4 as bs
 import time
 import logging
 import pytz
+from shutil import copyfile, copy2
 
 # augment a dataframe of weather data
 def hmdxx(temp, dew_temp):
@@ -246,7 +247,7 @@ def get_previous_day_weather_daily(city, stationid, tablename):
         conn = sqlite3.connect(path + '{}weather.db'.format(city.replace(' ', '')))
         c2 = conn.cursor()
         date = datetime.datetime.now()
-        Wdata = getnewdatahourly(stationid)
+        Wdata = get_new_data_hourly(stationid)
         # Wdata2 = Wdata[Wdata['Day'] == date.day - 1]
         aa = Wdata[(Wdata['DAY'] == (date.day - 1)) | (Wdata['DAY'] == (date.day - 2))]
         bb = aa[aa.index > datetime.datetime(date.year, date.month, date.day - 2, 4)]
