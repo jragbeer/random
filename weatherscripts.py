@@ -99,7 +99,7 @@ def load_2019_data_hourly():
 
 
     """
-    for z in citydict.keys():
+    for z in list(citydict.keys()):
         today = datetime.datetime.now()
         bigdf = get_new_data_hourly(citydict[z]['stationid'], 2019, 1)
         bigdf = bigdf[bigdf.index < datetime.datetime(today.year, today.month, today.day-1, 5)]
@@ -113,13 +113,13 @@ def load_old_data_into_db_hourly():
     replaces database for weather with all data from 2011 - 2018 that is available. Hourly
     :return: nothing
     """
-    for z in citydict.keys():
+    for z in list(citydict.keys()):
         dfs = {}
         for x in range(2011, 2019):
             for y in range(1, 13):
                 try:
                     dfs['{}_{}'.format(x, y)] = get_new_data_hourly(citydict[z]['stationid'], x, y)
-                    print('ok', x, y)
+                    print(z, x, y)
                 except Exception as e:
                     print(str(e))
                     pass
@@ -129,6 +129,29 @@ def load_old_data_into_db_hourly():
         db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
         conn = sqlite3.connect(path + db)
         bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='replace')
+        print(z, 'done')
+def load_old_data_into_db_daily():
+    """
+    replaces database for weather with all data from 2011 - 2018 that is available. Hourly
+    :return: nothing
+    """
+    for z in list(citydict.keys()):
+        dfs = {}
+        for x in range(2011, 2020):
+            try:
+                dfs['{}'.format(x)] = get_new_data_daily(citydict[z]['stationid'], x)
+                print(z, x)
+            except Exception as e:
+                print(str(e))
+                pass
+        bigdf = pd.concat([x for x in dfs.values()])
+        bigdf.drop_duplicates(inplace=True)
+        today = datetime.datetime.now()
+        bigdf = bigdf[bigdf.index < datetime.datetime(today.year, today.month, today.day)]
+        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+        db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
+        conn = sqlite3.connect(path + db)
+        bigdf.to_sql(citydict[z]['tablename']+'_Daily', conn, index=True, if_exists='replace')
         print(z, 'done')
 def get_new_data_daily(stationid, year=None):
     """
@@ -157,12 +180,14 @@ def get_new_data_daily(stationid, year=None):
     df.columns = df.columns.str.upper()
     cols = ['Date/Time', 'Year', 'Month','Day','Max Temp','Min Temp','Mean Temp','Total Precip (mm)']
     Wdata = df[[x.upper() for x in cols]]
-    Wdata.rename({'DATE/TIME': 'DATETIME'},axis = 'columns', inplace = True)
+    Wdata.rename({'DATE/TIME': 'DATETIME', 'MAX TEMP':'MAX_TEMP','MIN TEMP':'MIN_TEMP','MEAN TEMP':'MEAN_TEMP', 'TOTAL PRECIP (MM)':'TOTAL_PRECIP_MM'},axis = 'columns', inplace = True)
+    Wdata.dropna(thresh=4, inplace=True)
     Wdata.fillna(method='ffill', inplace=True)
     Wdata.fillna(method='bfill', inplace=True)
     Wdata.set_index('DATETIME', inplace=True)
     Wdata.index = pd.to_datetime(Wdata.index)
     Wdata = Wdata.sort_index()
+
     return Wdata
 def get_new_data_hourly(stationid, year=None, month = None):
     """
@@ -200,7 +225,7 @@ def get_new_data_hourly(stationid, year=None, month = None):
     return Wdata
 
 # previous day's hourly weather scripts
-def create_table_previous_daily(c_, nameOfTable):
+def create_table_previous_hourly(c_, nameOfTable):
     """
     convenient function to create a table
 
@@ -211,7 +236,7 @@ def create_table_previous_daily(c_, nameOfTable):
     c_.execute(
         "CREATE TABLE IF NOT EXISTS {}(DATETIME TEXT, YEAR SMALLINT, MONTH TINYINT, DAY TINYINT, HOUR TINYINT, TEMP REAL, DEW_TEMP REAL, REL_HUM REAL, HUMIDEX REAL)".format(
             '"' + nameOfTable + '"'))
-def data_entry_previous_daily(c_, nameOfTable, DATETIME, YEAR, MONTH, DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX):
+def data_entry_previous_hourly(c_, nameOfTable, DATETIME, YEAR, MONTH, DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX):
     """
 
     adding data to the table, the variables are self-explanatory
@@ -232,7 +257,7 @@ def data_entry_previous_daily(c_, nameOfTable, DATETIME, YEAR, MONTH, DAY, HOUR,
     c_.execute(
         'INSERT INTO {} VALUES("{}",{},{},{},{},{},{},{},{})'.format('"' + nameOfTable + '"', DATETIME, YEAR, MONTH,
                                                                      DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX))
-def get_previous_day_weather_daily(city, stationid, tablename):
+def get_previous_day_weather_hourly(city, stationid, tablename):
     """
 
     Automates adding new data to each of the database tables. if process cannot complete, tries again in 2 minutes, if still not complete, sends an email
@@ -258,7 +283,7 @@ def get_previous_day_weather_daily(city, stationid, tablename):
         nameofTable = tablename
 
         for x in cc.itertuples():
-            data_entry_previous_daily(c2, nameofTable, DATETIME=x.Index, YEAR=x.YEAR, MONTH=x.MONTH, DAY=x.DAY,
+            data_entry_previous_hourly(c2, nameofTable, DATETIME=x.Index, YEAR=x.YEAR, MONTH=x.MONTH, DAY=x.DAY,
                                       HOUR=x.HOUR,
                                       TEMP=x.TEMP, DEW_TEMP=x.DEW_TEMP, REL_HUM=x.REL_HUM, HUMIDEX=x.HUMIDEX)
         conn.commit()
@@ -279,13 +304,96 @@ def get_previous_day_weather_daily(city, stationid, tablename):
             logging.info(str(ee))
             send_email(text='Error in {} WEATHER PREVIOUS script'.format(city.upper()),
                        html='Error in {} WEATHER PREVIOUS script'.format(city.upper()))
+def gather_previous_day_weather_hourly():
+    """
+    function to run 'getpreviousdayweather' for each city in the citydict
+    :return: nothing
+    """
+    for x in citydict.keys():
+        get_previous_day_weather_hourly(x, citydict[x]['stationid'], citydict[x]['tablename'])
+
+# previous day's daily weather scripts
+def create_table_previous_daily(c_, nameOfTable):
+    """
+    convenient function to create a table
+
+    :param c_: connection to database
+    :param nameOfTable: name of table in database
+    :return: nothing
+    """
+    c_.execute(
+        "CREATE TABLE IF NOT EXISTS {}(DATETIME TEXT, YEAR SMALLINT, MONTH TINYINT, DAY TINYINT, MAX_TEMP REAL, MIN_TEMP REAL, MEAN_TEMP REAL, TOTAL_PRECIP REAL)".format(
+            '"' + nameOfTable + '"'))
+def data_entry_previous_daily(c_, nameOfTable, DATETIME, YEAR, MONTH, DAY, MAX_TEMP, MIN_TEMP, MEAN_TEMP, TOTAL_PRECIP):
+    """
+
+    adding data to the table, the variables are self-explanatory
+
+    :param c_: connection the the database
+    :param nameOfTable: name of the table to add the row
+    :param DATETIME:
+    :param YEAR:
+    :param MONTH:
+    :param DAY:
+    :param MAX_TEMP:
+    :param MIN_TEMP:
+    :param MEAN_TEMP:
+    :param TOTAL_PRECIP:
+    :return: nothing
+    """
+    c_.execute(
+        'INSERT INTO {} VALUES("{}",{},{},{},{},{},{},{})'.format('"' + nameOfTable + '"', DATETIME, YEAR, MONTH,
+                                                                     DAY, MAX_TEMP, MIN_TEMP, MEAN_TEMP, TOTAL_PRECIP))
+def get_previous_day_weather_daily(city, stationid, tablename):
+    """
+
+    Automates adding new data to each of the database tables. if process cannot complete, tries again in 2 minutes, if still not complete, sends an email
+    to work address.
+
+    :param city: city to work on
+    :param stationid: station id of said city
+    :param tablename: table name for the city
+    :return: nothing
+    """
+
+    def getpreviousdayweatherinner():
+        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+        db = '{}WeatherHistorical.db'.format(city.replace(' ', ''))
+        conn = sqlite3.connect(path + db)
+        c2 = conn.cursor()
+        date = datetime.datetime.now()
+        Wdata = get_new_data_hourly(stationid)
+        Wdata = Wdata[Wdata.index == datetime.datetime(date.year, date.month, date.day - 1)]
+        nameofTable = tablename
+
+        for x in Wdata.itertuples():
+            data_entry_previous_daily(c2, nameofTable, DATETIME=x.Index, YEAR=x.YEAR, MONTH=x.MONTH, DAY=x.DAY,
+                                       MAX_TEMP=x.MAX_TEMP, MIN_TEMP=x.MIN_TEMP, MEAN_TEMP=x.MEAN_TEMP, TOTAL_PRECIP = x.TOTAL_PRECIP)
+        conn.commit()
+        conn.close()
+        copy2(path + db,'H:/python/weatherdata/' + db)
+        logging.info("{} (Daily) database copied to shared folder!".format(city.upper()))
+        logging.info("{} (Daily) got yesterday's data!".format(city.upper()))
+
+    try:
+        getpreviousdayweatherinner()
+    except Exception as e:
+        try:
+            logging.info(str(e))
+            logging.info('retrying in 2 minutes...')
+            time.sleep(180)
+            getpreviousdayweatherinner()
+        except Exception as ee:
+            logging.info(str(ee))
+            send_email(text='Error in {} WEATHER PREVIOUS DAILY script'.format(city.upper()),
+                       html='Error in {} WEATHER PREVIOUS DAILY script'.format(city.upper()))
 def gather_previous_day_weather_daily():
     """
     function to run 'getpreviousdayweather' for each city in the citydict
     :return: nothing
     """
     for x in citydict.keys():
-        get_previous_day_weather_daily(x, citydict[x]['stationid'], citydict[x]['tablename'])
+        get_previous_day_weather_daily(x, citydict[x]['stationid'], citydict[x]['tablename']+ '_Daily')
 
 # forecast scripts
 def data_entry_forecast(c_, nameOfTable, timee, temp, feels, humidity, date):
