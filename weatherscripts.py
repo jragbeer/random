@@ -91,7 +91,7 @@ def new_deg_days(df):
     return newheatdays,newcooldays
 
 # download data from Weather Canada and put into databases
-def load2019data():
+def load_2019_data_hourly():
     """
 
     appends to database hourly weather data from jan 1, 2019 onward
@@ -104,10 +104,11 @@ def load2019data():
         bigdf = get_new_data_hourly(citydict[z]['stationid'], 2019, 1)
         bigdf = bigdf[bigdf.index < datetime.datetime(today.year, today.month, today.day-1, 5)]
         path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
-        conn = sqlite3.connect(path + '{}weather.db'.format(z.replace(' ', '')))
+        db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
+        conn = sqlite3.connect(path + db)
         bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='append')
         print(z, 'done')
-def loadolddataintodb():
+def load_old_data_into_db_hourly():
     """
     replaces database for weather with all data from 2011 - 2018 that is available. Hourly
     :return: nothing
@@ -125,7 +126,8 @@ def loadolddataintodb():
         bigdf = pd.concat([x for x in dfs.values()])
         bigdf.drop_duplicates(inplace=True)
         path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
-        conn = sqlite3.connect(path + '{}weather.db'.format(z.replace(' ', '')))
+        db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
+        conn = sqlite3.connect(path + db)
         bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='replace')
         print(z, 'done')
 def get_new_data_daily(stationid, year=None):
@@ -244,7 +246,8 @@ def get_previous_day_weather_daily(city, stationid, tablename):
 
     def getpreviousdayweatherinner():
         path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
-        conn = sqlite3.connect(path + '{}weather.db'.format(city.replace(' ', '')))
+        db = '{}WeatherHistorical.db'.format(city.replace(' ', ''))
+        conn = sqlite3.connect(path + db)
         c2 = conn.cursor()
         date = datetime.datetime.now()
         Wdata = get_new_data_hourly(stationid)
@@ -260,8 +263,7 @@ def get_previous_day_weather_daily(city, stationid, tablename):
                                       TEMP=x.TEMP, DEW_TEMP=x.DEW_TEMP, REL_HUM=x.REL_HUM, HUMIDEX=x.HUMIDEX)
         conn.commit()
         conn.close()
-        copy2(path + '{}weather.db'.format(city.replace(' ', '')),
-              'H:/python/weatherdata/' + '{}weather.db'.format(city.replace(' ', '')))
+        copy2(path + db,'H:/python/weatherdata/' + db)
         logging.info("{} database copied to shared folder!".format(city.upper()))
         logging.info("{} got yesterday's data!".format(city.upper()))
 
