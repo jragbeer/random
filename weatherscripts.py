@@ -20,6 +20,7 @@ import time
 import logging
 import pytz
 
+# augment a dataframe of weather data
 def hmdxx(temp, dew_temp):
     """
 
@@ -61,7 +62,7 @@ def clean_weather(weather):
     except Exception as e:
         pass
     return weather
-def newdegdays(df):
+def new_deg_days(df):
     """
 
     takes a temperature from a dataframe and returns two lists that correspond
@@ -87,7 +88,80 @@ def newdegdays(df):
         else:
             newcooldays.append(x)
     return newheatdays,newcooldays
-def getnewdatahourly(stationid, year=None, month = None):
+
+# download data from Weather Canada and put into databases
+def load2019data():
+    """
+
+    appends to database hourly weather data from jan 1, 2019 onward
+    :return: nothing
+
+
+    """
+    for z in citydict.keys():
+        today = datetime.datetime.now()
+        bigdf = get_new_data_hourly(citydict[z]['stationid'], 2019, 1)
+        bigdf = bigdf[bigdf.index < datetime.datetime(today.year, today.month, today.day-1, 5)]
+        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+        conn = sqlite3.connect(path + '{}weather.db'.format(z.replace(' ', '')))
+        bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='append')
+        print(z, 'done')
+def loadolddataintodb():
+    """
+    replaces database for weather with all data from 2011 - 2018 that is available. Hourly
+    :return: nothing
+    """
+    for z in citydict.keys():
+        dfs = {}
+        for x in range(2011, 2019):
+            for y in range(1, 13):
+                try:
+                    dfs['{}_{}'.format(x, y)] = get_new_data_hourly(citydict[z]['stationid'], x, y)
+                    print('ok', x, y)
+                except Exception as e:
+                    print(str(e))
+                    pass
+        bigdf = pd.concat([x for x in dfs.values()])
+        bigdf.drop_duplicates(inplace=True)
+        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+        conn = sqlite3.connect(path + '{}weather.db'.format(z.replace(' ', '')))
+        bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='replace')
+        print(z, 'done')
+def get_new_data_daily(stationid, year=None):
+    """
+    grab most recent data (this year) from Weather Canada in csv form. The dataframe is sorted, column datatypes assigned
+    and many columns are dropped.
+
+    :param stationid: station ID to grab from
+    :param year: year
+    :return: returns a dataframe that's cleaned
+    """
+
+    date = datetime.datetime.now()
+    if year:
+        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month=1&Day=14&timeframe=2&submit=Download+Data.csv".format(
+        stationid, year)
+    else:
+        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month=1&Day=14&timeframe=2&submit=Download+Data.csv".format(
+        stationid, date.year)
+    try:
+        df = pd.read_csv(datastring, skiprows = 25)
+        df['Month'] = df['Month'].astype(np.int64)
+    except:
+        df = pd.read_csv(datastring, skiprows=24)
+    df.columns = df.columns.str.replace('\(°C\)', '')
+    df.columns = df.columns.str.strip()
+    df.columns = df.columns.str.upper()
+    cols = ['Date/Time', 'Year', 'Month','Day','Max Temp','Min Temp','Mean Temp','Total Precip (mm)']
+    Wdata = df[[x.upper() for x in cols]]
+    Wdata.rename({'DATE/TIME': 'DATETIME'},axis = 'columns', inplace = True)
+    Wdata.fillna(method='ffill', inplace=True)
+    Wdata.fillna(method='bfill', inplace=True)
+    Wdata.set_index('DATETIME', inplace=True)
+    Wdata.index = pd.to_datetime(Wdata.index)
+    Wdata = Wdata.sort_index()
+    return Wdata
+def get_new_data_hourly(stationid, year=None, month = None):
     """
     grab most recent data (this month) from Weather Canada in csv form. The dataframe is sorted, column datatypes assigned
     and extra columns HOUR and HUMIDEX are added, while many are dropped
@@ -121,76 +195,283 @@ def getnewdatahourly(stationid, year=None, month = None):
     Wdata['HUMIDEX'] = pd.Series([hmdxx(x.TEMP, x.DEW_TEMP) for x in Wdata.itertuples()], index=Wdata.index)
     Wdata['REL_HUM'] = Wdata['REL_HUM'].astype(np.int64)
     return Wdata
-def load2019data():
-    """
 
-    appends to database hourly weather data from jan 1, 2019 onward
-    :return: nothing
-
-
+# previous day's hourly weather scripts
+def create_table_previous_daily(c_, nameOfTable):
     """
-    for z in citydict.keys():
-        today = datetime.datetime.now()
-        bigdf = getnewdatahourly(citydict[z]['stationid'], 2019, 1)
-        bigdf = bigdf[bigdf.index < datetime.datetime(today.year, today.month, today.day-1, 5)]
-        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
-        conn = sqlite3.connect(path + '{}weather.db'.format(z.replace(' ', '')))
-        bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='append')
-        print(z, 'done')
-def loadolddataintodb():
-    """
-    replaces database for weather with all data from 2011 - 2018 that is available. Hourly
+    convenient function to create a table
+
+    :param c_: connection to database
+    :param nameOfTable: name of table in database
     :return: nothing
     """
-    for z in citydict.keys():
-        dfs = {}
-        for x in range(2011, 2019):
-            for y in range(1, 13):
-                try:
-                    dfs['{}_{}'.format(x, y)] = getnewdatahourly(citydict[z]['stationid'], x, y)
-                    print('ok', x, y)
-                except Exception as e:
-                    print(str(e))
-                    pass
-        bigdf = pd.concat([x for x in dfs.values()])
-        bigdf.drop_duplicates(inplace=True)
-        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
-        conn = sqlite3.connect(path + '{}weather.db'.format(z.replace(' ', '')))
-        bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='replace')
-        print(z, 'done')
-def getnewdatadaily(stationid, year=None):
+    c_.execute(
+        "CREATE TABLE IF NOT EXISTS {}(DATETIME TEXT, YEAR SMALLINT, MONTH TINYINT, DAY TINYINT, HOUR TINYINT, TEMP REAL, DEW_TEMP REAL, REL_HUM REAL, HUMIDEX REAL)".format(
+            '"' + nameOfTable + '"'))
+def data_entry_previous_daily(c_, nameOfTable, DATETIME, YEAR, MONTH, DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX):
     """
-    grab most recent data (this year) from Weather Canada in csv form. The dataframe is sorted, column datatypes assigned
-    and many columns are dropped.
 
-    :param stationid: station ID to grab from
-    :param year: year
-    :return: returns a dataframe that's cleaned
+    adding data to the table, the variables are self-explanatory
+
+    :param c_: connection the the database
+    :param nameOfTable: name of the table to add the row
+    :param DATETIME:
+    :param YEAR:
+    :param MONTH:
+    :param DAY:
+    :param HOUR:
+    :param TEMP:
+    :param DEW_TEMP:
+    :param REL_HUM:
+    :param HUMIDEX:
+    :return: nothing
     """
-    date = datetime.datetime.now()
-    if year:
-        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month=1&Day=14&timeframe=2&submit=Download+Data.csv".format(
-        stationid, year)
-    else:
-        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month=1&Day=14&timeframe=2&submit=Download+Data.csv".format(
-        stationid, date.year)
+    c_.execute(
+        'INSERT INTO {} VALUES("{}",{},{},{},{},{},{},{},{})'.format('"' + nameOfTable + '"', DATETIME, YEAR, MONTH,
+                                                                     DAY, HOUR, TEMP, DEW_TEMP, REL_HUM, HUMIDEX))
+def get_previous_day_weather_daily(city, stationid, tablename):
+    """
+
+    Automates adding new data to each of the database tables. if process cannot complete, tries again in 2 minutes, if still not complete, sends an email
+    to work address.
+
+    :param city: city to work on
+    :param stationid: station id of said city
+    :param tablename: table name for the city
+    :return: nothing
+    """
+
+    def getpreviousdayweatherinner():
+        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+        conn = sqlite3.connect(path + '{}weather.db'.format(city.replace(' ', '')))
+        c2 = conn.cursor()
+        date = datetime.datetime.now()
+        Wdata = getnewdatahourly(stationid)
+        # Wdata2 = Wdata[Wdata['Day'] == date.day - 1]
+        aa = Wdata[(Wdata['DAY'] == (date.day - 1)) | (Wdata['DAY'] == (date.day - 2))]
+        bb = aa[aa.index > datetime.datetime(date.year, date.month, date.day - 2, 4)]
+        cc = bb[bb.index < datetime.datetime(date.year, date.month, date.day - 1, 5)]
+        nameofTable = tablename
+
+        for x in cc.itertuples():
+            data_entry_previous_daily(c2, nameofTable, DATETIME=x.Index, YEAR=x.YEAR, MONTH=x.MONTH, DAY=x.DAY,
+                                      HOUR=x.HOUR,
+                                      TEMP=x.TEMP, DEW_TEMP=x.DEW_TEMP, REL_HUM=x.REL_HUM, HUMIDEX=x.HUMIDEX)
+        conn.commit()
+        conn.close()
+        copy2(path + '{}weather.db'.format(city.replace(' ', '')),
+              'H:/python/weatherdata/' + '{}weather.db'.format(city.replace(' ', '')))
+        logging.info("{} database copied to shared folder!".format(city.upper()))
+        logging.info("{} got yesterday's data!".format(city.upper()))
+
     try:
-        df = pd.read_csv(datastring, skiprows = 25)
-        df['Month'] = df['Month'].astype(np.int64)
-    except:
-        df = pd.read_csv(datastring, skiprows=24)
-    df.columns = df.columns.str.replace('\(°C\)', '')
-    df.columns = df.columns.str.strip()
-    df.columns = df.columns.str.upper()
-    cols = ['Date/Time', 'Year', 'Month','Day','Max Temp','Min Temp','Mean Temp','Total Precip (mm)']
-    Wdata = df[[x.upper() for x in cols]]
-    Wdata.rename({'DATE/TIME': 'DATETIME'},axis = 'columns', inplace = True)
-    Wdata.fillna(method='ffill', inplace=True)
-    Wdata.fillna(method='bfill', inplace=True)
-    Wdata.set_index('DATETIME', inplace=True)
-    Wdata.index = pd.to_datetime(Wdata.index)
-    Wdata = Wdata.sort_index()
-    return Wdata
+        getpreviousdayweatherinner()
+    except Exception as e:
+        try:
+            logging.info(str(e))
+            logging.info('retrying in 2 minutes...')
+            time.sleep(180)
+            getpreviousdayweatherinner()
+        except Exception as ee:
+            logging.info(str(ee))
+            send_email(text='Error in {} WEATHER PREVIOUS script'.format(city.upper()),
+                       html='Error in {} WEATHER PREVIOUS script'.format(city.upper()))
+def gather_previous_day_weather_daily():
+    """
+    function to run 'getpreviousdayweather' for each city in the citydict
+    :return: nothing
+    """
+    for x in citydict.keys():
+        get_previous_day_weather_daily(x, citydict[x]['stationid'], citydict[x]['tablename'])
+
+# forecast scripts
+def data_entry_forecast(c_, nameOfTable, timee, temp, feels, humidity, date):
+    """
+
+    inserts into table specified all of the values corresponding to the forecast
+
+    :param c_: database connection
+    :param nameOfTable: name of table to update
+    :param timee: time of forcasted temp
+    :param temp: temp in celsius
+    :param feels: feels like (humidex temp)
+    :param humidity: relative humidity level
+    :param date: date of the forecast
+    :return: nothing
+    """
+
+    c_.execute(
+        'INSERT INTO {} VALUES("{}",{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{})'.format(
+            '"' + nameOfTable + '"', str(date).split('.')[0],
+            timee[0], temp[0], feels[0], humidity[0],
+            timee[1], temp[1], feels[1], humidity[1],
+            timee[2], temp[2], feels[2], humidity[2],
+            timee[3], temp[3], feels[3], humidity[3],
+            timee[4], temp[4], feels[4], humidity[4],
+            timee[5], temp[5], feels[5], humidity[5],
+            timee[6], temp[6], feels[6], humidity[6],
+            timee[7], temp[7], feels[7], humidity[7],
+            timee[8], temp[8], feels[8], humidity[8],
+            timee[9], temp[9], feels[9], humidity[9],
+            timee[10], temp[10], feels[10], humidity[10],
+            timee[11], temp[11], feels[11], humidity[11],
+            timee[12], temp[12], feels[12], humidity[12],
+            timee[13], temp[13], feels[13], humidity[13],
+            timee[14], temp[14], feels[14], humidity[14],
+            timee[15], temp[15], feels[15], humidity[15]))
+def create_table_forecast(nameOfTable):
+    c2.execute("""CREATE TABLE IF NOT EXISTS {} (CURRENTTIME TEXT, 
+                CURRENTHOUR SMALLINT, CURRENTHOURTEMP SMALLINT, CURRENTHOURFEELS SMALLINT, CURRENTHOURHUMIDITY SMALLINT,
+                SECONDHOUR SMALLINT, SECONDHOURTEMP SMALLINT, SECONDHOURFEELS SMALLINT, SECONDHOURHUMIDITY SMALLINT,
+                THIRDHOUR SMALLINT, THIRDHOURTEMP SMALLINT, THIRDHOURFEELS SMALLINT, THIRDHOURHUMIDITY SMALLINT,
+                FOURTHHOUR SMALLINT, FOURTHHOURTEMP SMALLINT, FOURTHHOURFEELS SMALLINT, FOURTHHOURHUMIDITY SMALLINT,
+                FIFTHHOUR SMALLINT, FIFTHHOURTEMP SMALLINT, FIFTHHOURFEELS SMALLINT, FIFTHHOURHUMIDITY SMALLINT,
+                SIXTHHOUR SMALLINT, SIXTHHOURTEMP SMALLINT, SIXTHHOURFEELS SMALLINT, SIXTHHOURHUMIDITY SMALLINT,
+                SEVENTHHOUR SMALLINT, SEVENTHHOURTEMP SMALLINT, SEVENTHHOURFEELS SMALLINT, SEVENTHHOURHUMIDITY SMALLINT,
+                EIGHTHHOUR SMALLINT, EIGHTHHOURTEMP SMALLINT, EIGHTHHOURFEELS SMALLINT, EIGHTHHOURHUMIDITY SMALLINT,
+                NINTHHOUR SMALLINT, NINTHHOURTEMP SMALLINT, NINTHHOURFEELS SMALLINT, NINTHHOURHUMIDITY SMALLINT,
+                TENTHHOUR SMALLINT, TENTHHOURTEMP SMALLINT, TENTHHOURFEELS SMALLINT, TENTHHOURHUMIDITY SMALLINT,
+                ELEVENTHHOUR SMALLINT, ELEVENTHHOURTEMP SMALLINT, ELEVENTHHOURFEELS SMALLINT, ELEVENTHHOURHUMIDITY SMALLINT,
+                TWELFTHHOUR SMALLINT, TWELFTHHOURTEMP SMALLINT, TWELFTHHOURFEELS SMALLINT, TWELFTHHOURHUMIDITY SMALLINT,
+                THIRTEENTHHOUR SMALLINT, THIRTEENTHHOURTEMP SMALLINT, THIRTEENTHHOURFEELS SMALLINT, THIRTEENTHHOURHUMIDITY SMALLINT,
+                FOURTEENTHHOUR SMALLINT, FOURTEENTHHOURTEMP SMALLINT, FOURTEENTHHOURFEELS SMALLINT, FOURTEENTHHOURHUMIDITY SMALLINT,
+                FIFTEENTHHOUR SMALLINT, FIFTEENTHHOURTEMP SMALLINT, FIFTEENTHHOURFEELS SMALLINT, FIFTEENTHHOURHUMIDITY SMALLINT,
+                SIXTEENTHHOUR SMALLINT, SIXTEENTHHOURTEMP SMALLINT, SIXTEENTHHOURFEELS SMALLINT, SIXTEENTHHOURHUMIDITY SMALLINT)""".format(
+        '"' + nameOfTable + '"'))
+def gather_weather_forecast_hourly(citytimezone, nameofcity, url):
+    """
+
+    Go to weather.com's website and scrape the forecast - should be 16 values of each. Tries for 5 minutes
+    initially, then 2.5 minutes, then sends an email stating that there was an error.
+
+    :param citytimezone: timezone of the city
+    :param nameofcity: name of the city
+    :param url: partial url of the site to scrape from
+    :return: nothing
+    """
+
+    try:
+        date = datetime.datetime.now().astimezone(pytz.timezone(citytimezone))
+        name = '{}_Weather_Forecast'.format(nameofcity.replace(' ', '_'))
+        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+        conn = sqlite3.connect(path + '{}weather.db'.format(nameofcity.replace(' ', '')))
+        c2 = conn.cursor()
+        # parse the Weather Channel's webpage and pulls forecasted weather data
+        graphsource = urllib.request.urlopen('https://weather.com/en-CA/weather/hourbyhour/l/{}'.format(url)).read()
+        soup = bs.BeautifulSoup(graphsource, 'html.parser')  # actual and predicted data
+        timee = []
+        temp = []
+        feels = []
+        humidity = []
+        table = soup.find_all('tr')
+        for x in table:
+            for y in x.find_all('td'):
+                if y.get('headers') == ['time']:
+                    timee.append(y.text)
+                if y.get('headers') == ['temp']:
+                    temp.append(y.text)
+                if y.get('headers') == ['feels']:
+                    feels.append(y.text)
+                if y.get('headers') == ['humidity']:
+                    humidity.append(y.text)
+        # these variables are for the weather data
+        timee = [int(x.replace('\n', '').split(':')[0]) for x in timee]
+        temp = [int(x.split('°')[0]) for x in temp]
+        feels = [int(x.split('°')[0]) for x in feels]
+        humidity = [x.split('%')[0] for x in humidity]
+        maxxx = np.argmax(temp)
+
+        try:
+            data_entry_forecast(c2, name, timee, temp, feels, humidity, date)
+            conn.commit()
+            logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
+        except Exception as q:
+            logging.info(str(q))
+            logging.info(
+                '{} WEATHER FORECAST FAILED! Trying again in 5 minutes. Local time: {}'.format(nameofcity.upper(),
+                                                                                               date))
+            time.sleep(300)
+            try:
+                data_entry_forecast(c2, name, timee, temp, feels, humidity, date)
+                conn.commit()
+                logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
+            except Exception as i:
+                logging.info(str(i))
+                logging.info(
+                    '{} WEATHER FORECAST FAILED! Trying again in 2.5 minutes. Local time: {}'.format(nameofcity.upper(),
+                                                                                                     date))
+                time.sleep(150)
+                try:
+                    data_entry_forecast(c2, name, timee, temp, feels, humidity, date)
+                    conn.commit()
+                    logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
+                except Exception as ii:
+                    logging.info(str(ii))
+                    send_email(text='Error in {} WEATHER FORECAST script | {}'.format(nameofcity.upper(), str(i)),
+                               html='Error in {} WEATHER FORECAST script | {}'.format(nameofcity.upper(), str(i)))
+    except Exception as e:
+        logging.info(str(e))
+        send_email(text='Error in {} WEATHER FORECAST script'.format(nameofcity.upper()),
+                   html='Error in {} WEATHER FORECAST script'.format(nameofcity.upper()))
+def gather_weather_forecasts():
+    """
+
+    runs 'gatherweatherforecastupdated' for each city
+
+    :return: nothing
+    """
+    for x in citiesdict.keys():
+        gather_weather_forecast_hourly(citiesdict[str(x)]['timezone'], x, citiesdict[str(x)]['url'])
+
+# send an email
+def send_email(text, html):
+    """
+
+    Logs on to gmail via smtp and sends an email containing the html verison along with the subject to the senders in the function
+
+    if hmtl version doesn't send for some reason, reverts to the text version.
+
+    :param text: body or message of the email in natural text
+    :param html: body or message of the email in html formatting
+    :return: nothing
+    """
+    # This is a temporary fix. Be careful of malicious links
+    context = ssl._create_unverified_context()
+
+    curtime = datetime.datetime.now()  # current time and date
+
+    # list of who to send the email to
+    TO = ['jragbeer@oxfordproperties.com']
+    SUBJECT = 'Error in a Weather script'  # subject line of the email
+
+    TEXT = text
+    HTML = html
+
+    # Gmail Sign In
+    gmail_sender = 'julienwork789@gmail.com'  # senders email
+    gmail_passwd = '12fork34'  # senders password
+
+    msg = MIMEMultipart('alternative')  # tell the package we'd prefer HTML emails
+    msg['Subject'] = SUBJECT  # set the SUBJECT of the email
+    msg['From'] = gmail_sender  # set the FROM field of the email
+    msg['To'] = ', '.join(TO)  # set the TO field of the email
+
+    part1 = MIMEText(TEXT, 'plain')  # add the 2 parts of the email (one plain text, one html)
+    part2 = MIMEText(HTML, 'html')
+    msg.attach(part1)  # It will default to the plain text verison if the HTML doesn't work, plain must go first
+    msg.attach(part2)
+
+    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)  # connect to the GMAIL server
+    server.login(gmail_sender, gmail_passwd)  # login to the GMAIL server
+
+    try:
+        server.sendmail(gmail_sender, TO, msg.as_string())  # send email
+        logging.info('email sent')  # confirm email is sent, and the time
+    except Exception as e:
+        logging.info(str(e))  # print error if not sent
+        logging.info('error sending mail')  # confirm that email wasn't sent
+
+    server.quit()
 
 #for the weather forecasts
 citiesdict = {'Boston': {'url':'USMA0046:1:US', 'timezone': 'America/Toronto'},
