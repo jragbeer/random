@@ -89,6 +89,23 @@ def new_deg_days(df):
         else:
             newcooldays.append(x)
     return newheatdays,newcooldays
+def fill_missing(idf, freq= 'D'):
+    if freq == 'D':
+        pass
+    elif freq == 'H':
+        pass
+def pull_historical_data(city = 'Toronto', year = 2014, freq = None):
+    weatherpath = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+    weatherdb = '{}WeatherHistorical.db'.format(city.replace(' ', ''))
+    conn2 = sqlite3.connect(weatherpath + weatherdb)
+    if freq == 'D':
+        weather = pd.read_sql('Select * from {} where YEAR >= {}'.format(citydict[city]['tablename']+ '_Daily', year), conn2,
+                              index_col='DATETIME')
+    else:
+        weather = pd.read_sql('Select * from {} where YEAR >= {}'.format(citydict[city]['tablename'], year), conn2,
+                              index_col='DATETIME')
+    weather.index = pd.to_datetime(weather.index)
+    return weather
 
 # download data from Weather Canada and put into databases
 def load_2019_data_hourly():
@@ -206,18 +223,31 @@ def get_new_data_hourly(stationid, year=None, month = None):
     else:
         datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data.csv".format(
         stationid, date.year, date.month)
-    df = pd.read_csv(datastring, encoding='utf-8', skiprows=17, header=None,
-                     names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
-                            'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
-                            'Wind Dir (10s deg)', 'Wind Dir Flag', 'Wind Spd (km/h)', 'Wind Spd Flag',
-                            'Visibility (km)', 'Visibility Flag', 'Stn Press (kPa)', 'Stn Press Flag',
-                            'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
+    try:
+        df = pd.read_csv(datastring, encoding='utf-8', skiprows=16, header=None,
+                         names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
+                                'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
+                                'Wind Dir (10s deg)', 'Wind Dir Flag', 'Wind Spd (km/h)', 'Wind Spd Flag',
+                                'Visibility (km)', 'Visibility Flag', 'Stn Press (kPa)', 'Stn Press Flag',
+                                'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
+        Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY', 'TEMP', 'REL_HUM', 'DEW_TEMP']]
+        Wdata.fillna(method='ffill', inplace=True)
+        Wdata.fillna(method='bfill', inplace=True)
+        Wdata.set_index('DATETIME', inplace=True)
+        Wdata.index = pd.to_datetime(Wdata.index)
+    except Exception as i:
+        df = pd.read_csv(datastring, encoding='utf-8', skiprows=17, header=None,
+                         names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
+                                'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
+                                'Wind Dir (10s deg)', 'Wind Dir Flag', 'Wind Spd (km/h)', 'Wind Spd Flag',
+                                'Visibility (km)', 'Visibility Flag', 'Stn Press (kPa)', 'Stn Press Flag',
+                                'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
+        Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY', 'TEMP', 'REL_HUM', 'DEW_TEMP']]
+        Wdata.fillna(method='ffill', inplace=True)
+        Wdata.fillna(method='bfill', inplace=True)
+        Wdata.set_index('DATETIME', inplace=True)
+        Wdata.index = pd.to_datetime(Wdata.index)
 
-    Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY','TEMP','REL_HUM', 'DEW_TEMP']]
-    Wdata.fillna(method='ffill', inplace=True)
-    Wdata.fillna(method='bfill', inplace=True)
-    Wdata.set_index('DATETIME', inplace=True)
-    Wdata.index = pd.to_datetime(Wdata.index)
     Wdata = Wdata.sort_index()
     Wdata['HOUR'] = Wdata.index.hour
     Wdata['HUMIDEX'] = pd.Series([hmdxx(x.TEMP, x.DEW_TEMP) for x in Wdata.itertuples()], index=Wdata.index)
