@@ -15,7 +15,10 @@ import webbrowser
 from math import pi
 from dateutil import parser
 from os.path import dirname, join
+import os
 import re
+from bokeh.models.glyphs import ImageURL
+from bokeh.models.renderers import GlyphRenderer
 
 doc = curdoc()
 doc.title = 'NBA Stats'
@@ -74,6 +77,7 @@ def cleanplayer(df, player):
 
     return cc
 def updateplayer(attr, old, new):
+    global imageglyph
     teamlistp = [list(y) for x in player_stats(df, str(new))['Tm'].unique() for y in teamNames.itertuples() if
                 x == y[0] and x != 'TOT']
     try:
@@ -108,6 +112,16 @@ def updateplayer(attr, old, new):
     sourcerpg.data = ColumnDataSource(data=dict(x=xp, o=op, d=dp, t=tp, avgt=rebavgp, avgo = orbavgp, avgd = drbavgp)).data
     sourceapg.data = ColumnDataSource(data=dict(x=xp, a=ap, avg = astavgp)).data
     source.data = ColumnDataSource(aa).data
+    imageglyph.visible = False
+    try:
+        name = "{}.png".format(new.lower().replace(' ', '_'))
+        if name in list_of_images:
+            imageglyph = img.image_url(url=['nba/static/images/{}.png'.format(new.lower().replace(' ', '_'))], x=0, y=0, w=369, h=834, anchor="bottom_left")
+        else:
+            imageglyph = img.image_url(url=['nba/static/images/nbalogo.png'.format(new.lower().replace(' ', '_'))], x=100,
+                                       y=0, w=180, h=700, anchor="bottom_left")
+    except:
+        imageglyph = img.image_url(url=['nba/static/images/nbalogo.png'.format(new.lower().replace(' ', '_'))], x=0, y=0, w=369, h=834, anchor="bottom_left")
     div.text = makediv(aa, [x[1] for x in teamlistp])
 def updateteam(attr, old, new):
     if str(new) == 'All':
@@ -178,10 +192,11 @@ key = 'xx'
 lat = 40.391975
 lon = -97.685789
 
-direc = 'xx'
+direc = 'C:/Users/Julien/PycharmProjects/nba/static/'
 
 df = pd.read_csv(direc + 'Seasons_Stats.csv')
 df = cleandf(df)
+list_of_images = os.listdir(direc + '/images/')
 
 teams = list(df['Tm'].unique())
 teams.remove(0)
@@ -317,10 +332,23 @@ checkbox_group1.on_click(update_plot1)
 checkbox_group3.on_click(update_plot3)
 checkbox_group4.on_click(update_plot4)
 
+imagesource = ColumnDataSource(data = dict(url = ['nba\\static\\images\\lebron_james.png'], x = [0], y = [0], w = [50], h = [50], anchor = ['bottom_left']))
+
 img = figure(plot_width=300, plot_height=200, x_range=(0, 370), y_range=(0, 834), x_axis_type=None,y_axis_type=None,tools = [])
-img.image_url(url=['csvsaving/static/kevin.png'],x=0, y=0, w=369, h=834,anchor="bottom_left")
+# imagee= ImageURL(url='url',x='x', y='y', w='w', h='h',anchor='bottom_left')
+# img.add_glyph(imagesource, imagee)
+# # img.grid.visible = False
+# # img.outline_line_color = None
+imageglyph = img.image_url(url=['nba/static/images/kevin_durant.png'],x=0, y=0, w=369, h=834,anchor="bottom_left")
 img.grid.visible = False
 img.outline_line_color = None
+
+def remove_glyphs(figure, glyph_name_list):
+    renderers = figure.select(dict(type=GlyphRenderer))
+    for r in renderers:
+        if r.name in glyph_name_list:
+            col = r.glyph.y
+            r.data_source.data[col] = [np.nan] * len(r.data_source.data[col])
 
 ticker = SingleIntervalTicker(interval=1, num_minor_ticks=0)
 xaxis = LinearAxis(ticker=ticker)
