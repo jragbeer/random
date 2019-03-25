@@ -12,7 +12,6 @@ from bokeh.layouts import widgetbox, row, column, gridplot, layout
 from bokeh.io import curdoc
 from bokeh.palettes import Purples, BuPu, OrRd
 import webbrowser
-from math import pi
 from dateutil import parser
 from os.path import dirname, join
 import os
@@ -86,53 +85,62 @@ def cleanplayer(df, player):
     return cc
 def updateplayer(attr, old, new):
     global imageglyph
-    teamlistp = [list(y) for x in player_stats(df, str(new))['Tm'].unique() for y in teamNames.itertuples() if
+    teamlistp = [list(y) for x in player_stats(data, str(new))['Tm'].unique() for y in teamNames.itertuples() if
                 x == y[0] and x != 'TOT']
     try:
         teamlistp.remove('Multiple Teams in a season')
     except:
         pass
-    aa = cleanplayer(df, str(new))
-    xp = [x1[1] for x1 in aa.index.values]
-    yp = aa['ppg']
+    new_selected_player_df = cleanplayer(data, str(new))
+    xp = [x1[1] for x1 in new_selected_player_df.index.values]
+    yp = new_selected_player_df['ppg']
 
-    tp = aa['rpg']
-    dp = aa['drpg']
-    op = aa['orpg']
-    ap = aa['apg']
-    perp = aa['PER']
-    astavgp = aa['astavg']
-    rebavgp = aa['rebavg']
-    ptsavgp = aa['ptsavg']
-    orbavgp = aa['orbavg']
-    drbavgp = aa['drbavg']
+    tp = new_selected_player_df['rpg']
+    dp = new_selected_player_df['drpg']
+    op = new_selected_player_df['orpg']
+    ap = new_selected_player_df['apg']
+    astavgp = new_selected_player_df['astavg']
+    rebavgp = new_selected_player_df['rebavg']
+    ptsavgp = new_selected_player_df['ptsavg']
+    orbavgp = new_selected_player_df['orbavg']
+    drbavgp = new_selected_player_df['drbavg']
+    stlavgp = new_selected_player_df['STL'].sum() / new_selected_player_df['G'].sum()
+    blkavgp = new_selected_player_df['BLK'].sum() / new_selected_player_df['G'].sum()
+    perp = new_selected_player_df['PER']
+    peravgp = [new_selected_player_df['PER'].sum() / len(xp) for y in range(len(xp))]
 
-    # player_ftap = aa['FTA'].sum()
-    # player_ftp = aa['FT'].sum()
+    # player_ftap = new_selected_player_df['FTA'].sum()
+    # player_ftp = new_selected_player_df['FT'].sum()
     # player_career_ftavgp = player_ftp / player_ftap
     #
-    # player_3pap = aa['3PA'].sum()
-    # player_3pp = aa['3P'].sum()
+    # player_3pap = new_selected_player_df['3PA'].sum()
+    # player_3pp = new_selected_player_df['3P'].sum()
     # player_career_3pavgp = player_3pp / player_3pap
     #
-    # player_2pap = aa['2PA'].sum()
-    # player_2pp = aa['2P'].sum()
+    # player_2pap = new_selected_player_df['2PA'].sum()
+    # player_2pp = new_selected_player_df['2P'].sum()
     # player_career_2pavgp = player_2pp / player_2pap
 
+    all_blockp, all_stealp = defense_scatter_all(data, new_selected_player_df.index.levels[1].min(),
+                                               new_selected_player_df.index.levels[1].max())
+    defenseallsource.data = ColumnDataSource(data=dict(stl=all_stealp, blk=all_blockp, color=['blue'] * len(all_blockp))).data
+    defenseplayersource.data = ColumnDataSource(data=dict(stl=[stlavgp], blk=[blkavgp], color=['firebrick'])).data
+
     sourceppg.data = ColumnDataSource(data=dict(x=xp, y=yp, avg = ptsavgp)).data
-    htmap3p = a['3P'].sum() / a['3PA'].sum()
-    htmapftp = a['FT'].sum() / a['FTA'].sum()
-    htmapfgp = a['FG'].sum() / a['FGA'].sum()
+    htmap3p = new_selected_player_df['3P'].sum() / new_selected_player_df['3PA'].sum()
+    htmapftp = new_selected_player_df['FT'].sum() / new_selected_player_df['FTA'].sum()
+    htmapfgp = new_selected_player_df['FG'].sum() / new_selected_player_df['FGA'].sum()
     make_heatmap(htmapfgp,htmapftp,htmap3p)
     w.y_range.end = tp.max() * 1.4
+    z.y_range.end = (op.max()+dp.max()) * 1.4
     i.y_range.start = xp[0]-1
     i.y_range.end = xp[-1]+1
     gsource.data = ColumnDataSource(
         data=dict(lat=[x[3] for x in teamlistp], lon=[x[4] for x in teamlistp], city=[x[2] for x in teamlistp])).data
-    sourceper.data = ColumnDataSource(data=dict(x=xp, a=perp)).data
+    sourceper.data = ColumnDataSource(data=dict(x=xp, a=perp, avg = peravgp)).data
     sourcerpg.data = ColumnDataSource(data=dict(x=xp, o=op, d=dp, t=tp, avgt=rebavgp, avgo = orbavgp, avgd = drbavgp)).data
     sourceapg.data = ColumnDataSource(data=dict(x=xp, a=ap, avg = astavgp)).data
-    source.data = ColumnDataSource(aa).data
+    source.data = ColumnDataSource(new_selected_player_df).data
     imageglyph.visible = False
     name = "{}.png".format(new.lower().replace(' ', '_'))
     if name in list_of_images:
@@ -140,7 +148,7 @@ def updateplayer(attr, old, new):
     else:
         imageglyph = img.image_url(url=['nba/static/images/nbalogo.png'.format(new.lower().replace(' ', '_'))], x=100,
                                    y=0, w=180, h=700, anchor="bottom_left")
-    div.text = makediv(aa, [x[1] for x in teamlistp])
+    div.text = makediv(new_selected_player_df, [x[1] for x in teamlistp])
 def updateteam(attr, old, new):
     if str(new) == 'All':
         selectplayer.options = ['All'] + sorted(sorted(list(df['Player'].unique())))
@@ -211,7 +219,23 @@ def make_heatmap(fg, ft, from3):
     hmapsqsource.data = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[6], i=[2], color=['red'], area=['3P'], num = [from3]))).data
     hmapellipsesource.data = ColumnDataSource(data=(dict(x=[1], y=[0], z=[7], i=[1.55], color=['red'], area=['2P'], num = [fg]))).data
     hmaprectsource.data = ColumnDataSource(data=(dict(x=[0], y=[0], z=[2], i=[0.85], color=['red'], area=['2P'], num = [fg]))).data
-    hmapwedgesource.data = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[0.98], i=[3 * pi / 2], u=[pi / 2], color=['red'], area=['FT'], num = [ft]))).data
+    hmapwedgesource.data = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[0.98], i=[3 * np.pi / 2], u=[np.pi / 2], color=['red'], area=['FT'], num = [ft]))).data
+def defense_scatter_all(inputdf, year1, year2):
+    df = inputdf.copy()
+    df = df[(df['Year'] >= year1) & (df['Year'] <= year2)]
+
+    each_player_stl = df.groupby(['Player'])['STL'].sum()
+    each_player_blk = df.groupby(['Player'])['BLK'].sum()
+    each_player_g = df.groupby(['Player'])['G'].sum()
+
+
+    all_blks = []
+    all_stls = []
+    for x in each_player_blk.index:
+        all_blks.append(each_player_blk[x]/each_player_g[x])
+        all_stls.append(each_player_stl[x]/each_player_g[x])
+
+    return all_blks, all_stls
 
 lat = 40.391975
 lon = -97.685789
@@ -337,22 +361,22 @@ export class Surface3d extends LayoutDOM
 
 direc = 'C:/Users/Julien/PycharmProjects/nba/static/'
 
-df = pd.read_csv(direc + 'Seasons_Stats.csv')
-df = cleandf(df)
+data = pd.read_csv(direc + 'Seasons_Stats.csv')
+data = cleandf(data)
 list_of_images = os.listdir(direc + '/images/')
 
-teams = list(df['Tm'].unique())
+teams = list(data['Tm'].unique())
 teams.remove(0)
 
-teamsDict = {t: set([y[2] for y in df.itertuples() if y[5]==t]) for t in teams}
+teamsDict = {t: set([y[2] for y in data.itertuples() if y[5]==t]) for t in teams}
 teamNames = pd.read_csv(direc + 'teams.csv', index_col='Abbrev')
 
 newteamsDict = {teamNames.at[t, 'Name'] :teamsDict[t] for t in teamsDict}
 
 teamabbrevdict = {teamNames.index[x]:str(teamNames.values[x][0].strip()) for x in range(len(teamNames))}
-teamlist = [list(y) for x in player_stats(df, 'Kevin Durant')['Tm'].unique() for y in teamNames.itertuples() if x == y[0] and x != 'TOT']
+teamlist = [list(y) for x in player_stats(data, 'Kevin Durant')['Tm'].unique() for y in teamNames.itertuples() if x == y[0] and x != 'TOT']
 
-selected_player_df = cleanplayer(df, 'Kevin Durant')
+selected_player_df = cleanplayer(data, 'Kevin Durant')
 x = [x[1] for x in selected_player_df.index.values]
 y = selected_player_df['ppg']
 t = selected_player_df['rpg']
@@ -369,9 +393,7 @@ drbavg = selected_player_df['drbavg']
 stlavg = selected_player_df['STL'].sum()/selected_player_df['G'].sum()
 blkavg = selected_player_df['BLK'].sum()/selected_player_df['G'].sum()
 
-print(stlavg, blkavg)
 
-defenseplayersource = ColumnDataSource(data = dict(stl=[stlavg] , blk=[blkavg], color = ['firebrick']))
 
 # player_fta = a['FTA'].sum()
 # player_ft = a['FT'].sum()
@@ -427,13 +449,13 @@ defenseplayersource = ColumnDataSource(data = dict(stl=[stlavg] , blk=[blkavg], 
 # source200 = ColumnDataSource(data=dict(x=X_data, y=Y_data, z=Z_data, color = color, extra=extra))
 # surface = Surface3d(x="x", y="y", z="z", extra="extra", color="color", data_source=source200)
 
-selectplayer = Select(title='Player:', value='Kevin Durant', options=sorted(list(df['Player'].unique())))
+selectplayer = Select(title='Player:', value='Kevin Durant', options=sorted(list(data['Player'].unique())))
 selectplayer.on_change('value', updateplayer)
 
 selectteam = Select(title='Team:', value='All', options=list(['All'] + sorted(list(newteamsDict.keys())))+['All'])
 selectteam.on_change('value', updateteam)
 
-source = ColumnDataSource(player_stats(df, str(selectplayer.value)))
+source = ColumnDataSource(player_stats(data, str(selectplayer.value)))
 
 button = Button(label="Download Data", button_type="success")
 button.callback = CustomJS(args=dict(source=source),code=open(join(dirname(__file__), "download.js")).read())
@@ -481,7 +503,7 @@ htmapfg = selected_player_df['FG'].sum()/selected_player_df['FGA'].sum()
 hmapsqsource = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[6], i =[2], color=['red'], area = ['3P'], num = [htmap3*100])))
 hmapellipsesource = ColumnDataSource(data=(dict(x=[1], y=[0], z=[7], i =[1.55], color=['firebrick'], area = ['2P'], num = [htmapfg*100])))
 hmaprectsource = ColumnDataSource(data=(dict(x=[0], y=[0], z=[2], i =[0.85], color=['firebrick'], area = ['2P'], num = [htmapfg*100])))
-hmapwedgesource = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[0.98], i =[3*pi/2], u = [pi/2],color=['red'], area = ['FT'], num = [htmapft*100])))
+hmapwedgesource = ColumnDataSource(data=(dict(x=[-1], y=[0], z=[0.98], i =[3*np.pi/2], u = [np.pi/2],color=['red'], area = ['FT'], num = [htmapft*100])))
 
 heatmap = figure(plot_width=350, plot_height=300,
            tools=[hoverheatmap],title="Career Shooting Heatmap", x_axis_location=None, y_axis_location=None,toolbar_location="right")
@@ -508,10 +530,14 @@ g.add_tools(hovermap)
 
 h = figure(plot_width=350, plot_height=350,
            tools=[hoverdefense, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="Career Defensive Averages",toolbar_location="right", y_axis_label="Rebounds (rpg)", x_axis_label="Rebounds (rpg)")
+           title="Career Defensive Averages",toolbar_location="right", y_axis_label="Blocks (bpg)", x_axis_label="Steals (spg)")
 
-# h.circle(x='stl', y='blk', fill_color = 'color', size = 8, source = defenseallsource)
-h.circle(x='stl', y='blk', fill_color = 'color', size = 12, source = defenseplayersource)
+all_block, all_steal = defense_scatter_all(data, selected_player_df.index.levels[1].min(), selected_player_df.index.levels[1].max())
+defenseallsource = ColumnDataSource(data = dict(stl=all_steal , blk=all_block, color = ['blue']*len(all_block)))
+defenseplayersource = ColumnDataSource(data = dict(stl=[stlavg] , blk=[blkavg], color = ['firebrick']))
+
+h.circle(x='stl', y='blk', fill_color = 'color', size = 4, source = defenseallsource, alpha = 0.3)
+h.circle(x='stl', y='blk', fill_color = 'color', size = 10, source = defenseplayersource)
 
 
 
@@ -596,4 +622,4 @@ cc = column([p,z,w, i])
 rr = column([heatmap, g, h])
 aavv = row([r, cc, rr])
 doc.add_root(aavv)
-show(aavv)
+# show(aavv)
