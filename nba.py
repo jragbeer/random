@@ -5,15 +5,15 @@ import datetime
 import time
 from datetime import timezone
 from bokeh.plotting import figure, show, gmap
-from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, OpenURL, CustomJS, \
-    DatetimeTickFormatter, GMapOptions, LinearColorMapper, LabelSet
+from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, OpenURL, \
+    FixedTicker, CustomJS, DatetimeTickFormatter, GMapOptions, LinearColorMapper, LabelSet
 from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, Range1d, \
     FuncTickFormatter, DataRange1d, Band, SingleIntervalTicker
 from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Button, \
     CheckboxGroup, Div, LayoutDOM, CheckboxButtonGroup
 from bokeh.layouts import widgetbox, row, column, gridplot, layout
 from bokeh.io import curdoc
-from bokeh.palettes import Purples, BuPu, OrRd
+from bokeh.palettes import Purples, BuPu, OrRd, viridis
 import webbrowser
 from dateutil import parser
 from os.path import dirname, join
@@ -28,7 +28,6 @@ doc = curdoc()
 doc.title = 'NBA Stats'
 # clears the html page and gives the tab a name
 doc.clear()
-
 
 def makediv(df, teams):
     text = '''<br><font color="#113672" size = "2"><b>Player: </b></font><br><br>
@@ -48,13 +47,9 @@ def makediv(df, teams):
         selectplayer.value, ', '.join(teams), int(df['G'].sum()), int(len(df['G'])), df.index.levels[1].values[0],
         df.index.levels[1].values[-1], df['ptsavg'].mean(), df['astavg'].mean(), df['rebavg'].mean())
     return text
-
-
 def player_stats(df, name):
     player = df[df['Player'] == str(name)].copy()
     return player
-
-
 def cleanplayer(df, player):
     aa = player_stats(df, player)
     cc = pd.DataFrame(
@@ -93,8 +88,6 @@ def cleanplayer(df, player):
     cc['drbavg'] = cc['DRB'].sum() / cc['G'].sum()
 
     return cc
-
-
 def updateplayer(attr, old, new):
     global imageglyph
     teamlistp = [list(y) for x in player_stats(data, str(new))['Tm'].unique() for y in teamNames.itertuples() if
@@ -186,15 +179,11 @@ def updateplayer(attr, old, new):
         imageglyph = img.image_url(url=['nba/static/images/nbalogo.png'.format(new.lower().replace(' ', '_'))], x=100,
                                    y=0, w=180, h=700, anchor="bottom_left")
     div.text = makediv(new_selected_player_df, [x[1] for x in teamlistp])
-
-
 def updateteam(attr, old, new):
     if str(new) == 'All':
-        selectplayer.options = ['All'] + sorted(sorted(list(df['Player'].unique())))
+        selectplayer.options = ['All'] + sorted(sorted(list(data['Player'].unique())))
     else:
         selectplayer.options = ['All'] + sorted(newteamsDict[str(new)])
-
-
 def cleandf(df):
     df.fillna(0, inplace=True)
     df.drop_duplicates(inplace=True)
@@ -212,8 +201,6 @@ def cleandf(df):
 
     df['Player'] = pd.Series([str(x).replace('*', '') for x in df['Player']], index=df.index)
     return df
-
-
 def sorting(dict1, tick=1):
     xx = []
     yy = []
@@ -225,8 +212,6 @@ def sorting(dict1, tick=1):
         yy = [y for y in yy if y > 0]
     xx = xx[:len(yy)]
     return xx, yy
-
-
 def update_avg_line(new):
     # Points avg lines
     if 0 in button_group.active:
@@ -267,8 +252,6 @@ def update_avg_line(new):
         avglinei.visible = False
         labels_per.visible = False
         nba_avglinei.visible = False
-
-
 def make_heatmap(fg, ft, from3):
     fg = fg * 100
     ft = ft * 100
@@ -281,8 +264,6 @@ def make_heatmap(fg, ft, from3):
         data=(dict(x=[0], y=[0], z=[2], i=[0.85], color=['red'], area=['2P'], num=[fg]))).data
     hmapwedgesource.data = ColumnDataSource(data=(
         dict(x=[-1], y=[0], z=[0.98], i=[3 * np.pi / 2], u=[np.pi / 2], color=['red'], area=['FT'], num=[ft]))).data
-
-
 def defense_scatter_all(inputdf, year1, year2):
     df = inputdf.copy()
     df = df[(df['Year'] >= year1) & (df['Year'] <= year2)]
@@ -298,8 +279,6 @@ def defense_scatter_all(inputdf, year1, year2):
         all_stls.append(each_player_stl[x] / each_player_g[x])
 
     return all_blks, all_stls
-
-
 def all_nba_avg_lines(inputdf, year1, year2):
     df = inputdf.copy()
     df = df[(df['Year'] >= year1) & (df['Year'] <= year2)]
@@ -315,7 +294,36 @@ def all_nba_avg_lines(inputdf, year1, year2):
     all_asts = [each_player_assists[x] / each_player_g[x] for x in each_player_assists.index]
     all_rebs = [each_player_rebounds[x] / each_player_g[x] for x in each_player_assists.index]
     return all_pts, all_asts, all_rebs, all_per
+def win_shares_all(inputdf, year1, year2):
+    df = inputdf.copy()
+    df = df[(df['Year'] >= year1) & (df['Year'] <= year2)]
 
+    each_player_stl = df.groupby(['Player'])['STL'].sum()
+    each_player_blk = df.groupby(['Player'])['BLK'].sum()
+    each_player_g = df.groupby(['Player'])['G'].sum()
+
+    all_blks = []
+    all_stls = []
+    for x in each_player_blk.index:
+        all_blks.append(each_player_blk[x] / each_player_g[x])
+        all_stls.append(each_player_stl[x] / each_player_g[x])
+
+    return all_blks, all_stls
+def true_shooting(player_name, inputdf, year1, year2):
+    df = inputdf.copy()
+    df = df[(df['Year'] >= year1) & (df['Year'] <= year2)]
+    each_player = pd.DataFrame(df.groupby(['Player']).agg({'FGA': 'sum', 'PTS': 'sum', "FTA": 'sum'}))
+    each_player = each_player[(each_player['FGA'] > 20) & (each_player['FTA'] > 20)]
+
+    def formula(pts, fga, fta):
+        try:
+            return 100 * pts / (2 * (fga + (0.44 * fta)))
+        except:
+            return 0.1
+
+    ts = [formula(x.PTS, x.FGA, x.FTA) for x in each_player.itertuples()]
+    return formula(each_player.at[player_name, 'PTS'], each_player.at[player_name, 'FGA'],
+                   each_player.at[player_name, 'FTA']), each_player, ts
 
 lat = 40.391975
 lon = -97.685789
@@ -439,25 +447,27 @@ export class Surface3d extends LayoutDOM
   }
 """
 
-direc = 'C:/Users/Julien/PycharmProjects/nba/static/'
+path = 'C:/Users/Julien/PycharmProjects/nba/static/'
 
-data = pd.read_csv(direc + 'Seasons_Stats.csv')
+data = pd.read_csv(path + 'Seasons_Stats.csv')
 data = cleandf(data)
-list_of_images = os.listdir(direc + '/images/')
+list_of_images = os.listdir(path + '/images/')
 
 teams = list(data['Tm'].unique())
 teams.remove(0)
 
 teamsDict = {t: set([y[2] for y in data.itertuples() if y[5] == t]) for t in teams}
-teamNames = pd.read_csv(direc + 'teams.csv', index_col='Abbrev')
+teamNames = pd.read_csv(path + 'teams.csv', index_col='Abbrev')
 
 newteamsDict = {teamNames.at[t, 'Name']: teamsDict[t] for t in teamsDict}
 
+first_player = 'Kevin Durant'
+
 teamabbrevdict = {teamNames.index[x]: str(teamNames.values[x][0].strip()) for x in range(len(teamNames))}
-teamlist = [list(y) for x in player_stats(data, 'Kevin Durant')['Tm'].unique() for y in teamNames.itertuples() if
+teamlist = [list(y) for x in player_stats(data, first_player)['Tm'].unique() for y in teamNames.itertuples() if
             x == y[0] and x != 'TOT']
 
-selected_player_df = cleanplayer(data, 'Kevin Durant')
+selected_player_df = cleanplayer(data, first_player)
 player_first_year = selected_player_df.index.levels[1].min()
 player_last_year = selected_player_df.index.levels[1].max()
 player_years = [x[1] for x in selected_player_df.index.values]
@@ -565,17 +575,19 @@ hovermap = HoverTool(tooltips=[
 hoverdefense = HoverTool(tooltips=[
     ("Steals", "@stl"),
     ("Blocks", "@blk")])
+hoverws = HoverTool(tooltips=[
+    ("Win Shares", "@ws"), ('Player', "@player")])
 
-p = figure(plot_width=950, plot_height=250,
+p = figure(plot_width=930, plot_height=250,
            tools=[hoverline, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title="Average Points per Game", x_axis_type=None, y_axis_label="Points (ppg)", toolbar_location="right")
-w = figure(plot_width=950, plot_height=250,
+w = figure(plot_width=930, plot_height=250,
            tools=[hoverline2, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title="Average Rebounds per Game", x_axis_type=None, y_axis_label="Rebounds (rpg)", toolbar_location="right")
-z = figure(plot_width=950, plot_height=250,
+z = figure(plot_width=930, plot_height=250,
            tools=[hoverstackedbar, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title="Average Assits per Game", x_axis_type=None, y_axis_label="Assists (apg)", toolbar_location="right")
-i = figure(plot_width=950, plot_height=200,
+i = figure(plot_width=930, plot_height=200,
            tools=[hoverbar, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title="PER per season", x_axis_type=None, y_axis_label="Player Efficiency Rating", toolbar_location="right")
 htmap3 = selected_player_df['3P'].sum() / selected_player_df['3PA'].sum()
@@ -611,7 +623,7 @@ heatmap.outline_line_color = None
 
 # map_options = GMapOptions(lat=lat, lng=lon, map_type="roadmap", zoom=3)
 # g = gmap(key, map_options, title="Career Stops", width = 350, height = 350)
-map_figure = figure(plot_width=350, plot_height=350,
+map_figure = figure(plot_width=470, plot_height=350,
                     tools=[hovermap],
                     title="Map", x_axis_location=None, y_axis_location=None, toolbar_location="right")
 map_figure_source = ColumnDataSource(
@@ -620,11 +632,35 @@ map_figure.circle(x="lon", y="lat", size=12, fill_color="#c157f2", fill_alpha=0.
 map_figure.axis.visible = False
 map_figure.add_tools(hovermap)
 
-defense_scatter = figure(plot_width=350, plot_height=300,
+defense_scatter = figure(plot_width=300, plot_height=300,
                          tools=[hoverdefense, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(),
                                 PanTool()],
                          title="Career Defensive Averages", toolbar_location="right", y_axis_label="Blocks (bpg)",
                          x_axis_label="Steals (spg)")
+
+win_shares = figure(plot_width=610, plot_height=300,
+                    tools=[hoverws, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(),
+                           PanTool()],
+                    title="Career Win Shares", toolbar_location="right", y_axis_label="Career Win Shares (WS)",
+                    x_axis_type=None)
+
+aaa, wins_shares_df = win_shares_all(data, player_first_year, player_last_year)
+win_shares_source = ColumnDataSource(data=dict(ws=wins_shares_df, player=aaa, color=['blue'] * len(wins_shares_df)))
+
+current_player_ts, ts_players, ts_percent = true_shooting(first_player, data, player_first_year, player_last_year)
+ts_max = max(ts_percent) * 0.01
+true_shooting_source = ColumnDataSource(data=dict(x=[0.25], y=[0], cur_player=[current_player_ts], players=ts_players,
+                                                  ts=[np.linspace(0, ts_max, 100).reshape(100, 1)], dw=[0.5],
+                                                  dh=[ts_max - 0]))
+ts = figure(plot_width=150, plot_height=350, x_range=[0, 1], y_range=[0, ts_max], min_border_right=10)
+ts.image(image='ts', x='x', y='y', dw='dw', dh='dh', palette=viridis(100)[:75], source=true_shooting_source)
+ts_span = Span(location=current_player_ts * 0.01, dimension='width', line_color='#f16913', line_dash='solid',
+               line_width=5, line_alpha=0.7, )
+ts.add_layout(ts_span)
+ts.xaxis.major_label_text_color = None
+ts.xaxis.major_tick_line_color = None
+ts.xaxis.minor_tick_line_color = None
+ts.yaxis[0].ticker = FixedTicker(ticks=np.linspace(0, ts_max, 11))  # 11 ticks
 
 all_block, all_steal = defense_scatter_all(data, player_first_year, player_last_year)
 defenseallsource = ColumnDataSource(data=dict(stl=all_steal, blk=all_block, color=['blue'] * len(all_block)))
@@ -765,7 +801,7 @@ i.xgrid.grid_line_dash = [6, 4]
 div = Div(width=300, height=400, text=makediv(selected_player_df, [x[1] for x in teamlist]))
 widgets = column(selectplayer, selectteam, free_throws_button, button, button_group, img, div, width=300)
 year_charts = column([p, z, w, i])
-square_charts = column([heatmap, map_figure, defense_scatter])
+square_charts = column([row(defense_scatter, heatmap), row(ts, map_figure), win_shares])
 display = row([widgets, year_charts, square_charts])
 doc.add_root(display)
-# show(display)
+show(display)
