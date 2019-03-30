@@ -140,6 +140,7 @@ def update(data_, new_, teamlistp):
     z.y_range.end = rpgp.max() + 1
     i.y_range.start = yearsp[0] - 1
     i.y_range.end = yearsp[-1] + 1
+    win_shares_source.data= win_shares_all(data_, first_year, last_year, new_).data
     global ts_span
     ts_span.visible = False
     current_player_tsp, ts_playersp, ts_percentp = true_shooting(str(new_), data, first_year, last_year)
@@ -333,22 +334,36 @@ def all_nba_avg_lines(inputdf, year1, year2):
     all_asts = [each_player_assists[x]/each_player_g[x] for x in each_player_assists.index]
     all_rebs = [each_player_rebounds[x]/each_player_g[x] for x in each_player_assists.index]
     return all_pts, all_asts, all_rebs, all_per
-def win_shares_all(inputdf, year1, year2):
+def win_shares_all(inputdf, year1, year2, player):
     df = inputdf.copy()
     df = df[(df['Year'] >= year1) & (df['Year'] <= year2)]
 
-    each_player_stl = df.groupby(['Player'])['STL'].sum()
-    each_player_blk = df.groupby(['Player'])['BLK'].sum()
-    each_player_g = df.groupby(['Player'])['G'].sum()
+    each_player_ws = df.groupby(['Player']).agg({'OWS':'sum', 'DWS':'sum', 'WS':'sum'})
 
+    q1 = each_player_ws.quantile(q=0.25)
+    q2 = each_player_ws.quantile(q=0.5)
+    q3 = each_player_ws.quantile(q=0.75)
+    iqr = q3 - q1
+    upper = q3 + 1.5 * iqr
+    lower = q1 - 1.5 * iqr
 
-    all_blks = []
-    all_stls = []
-    for x in each_player_blk.index:
-        all_blks.append(each_player_blk[x]/each_player_g[x])
-        all_stls.append(each_player_stl[x]/each_player_g[x])
+    def outliers(group):
+        cat = group.index
+        return group[(group.WS > pd.DataFrame(upper.loc[cat])['WS']) | (group.WS < pd.DataFrame(lower.loc[cat])['WS'])]
 
-    return all_blks, all_stls
+    print(upper)
+    print(lower)
+    outx = [1,2,3]
+    outy = [1,2,3]
+
+    player_ws_span = each_player_ws.loc[str(player)]
+
+    print(upper.values)
+    win_shares_source_all = ColumnDataSource(data=(
+        dict(cats=['OWS','WS','DWS'],x0=[0.15,1.15,2.15], y0 =[player_ws_span.OWS, player_ws_span.WS, player_ws_span.DWS] ,upper=[upper.OWS, upper.WS, upper.DWS], lower=[lower.OWS, lower.WS, lower.DWS], q1=[q1.OWS, q1.WS, q1.DWS], q2=[q2.OWS, q2.WS, q2.DWS], color = ['black']*3,q3=[q3.OWS, q3.WS, q3.DWS],
+             outlier_x=outx, outlier_y=outy,length = [15]*3,y1 = [player_ws_span.OWS, player_ws_span.WS, player_ws_span.DWS] ,x1 = [0.85,1.85,2.85],ray_color = ["#f16913"]*3, ray_angles= ['deg']*3,top=[0.7, 0.7, 0.7], width = [0.2, 0.2, 0.2], height = [0.01, 0.01, 0.01])))
+
+    return win_shares_source_all
 def true_shooting(player_name, inputdf, year1, year2):
     df = inputdf.copy()
     df = df[(df['Year'] >= year1) & (df['Year'] <= year2)]
@@ -671,12 +686,26 @@ defense_scatter = figure(plot_width=300, plot_height=300,
            tools=[hoverdefense, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title="Career Defensive Averages",toolbar_location="right", y_axis_label="Blocks (bpg)", x_axis_label="Steals (spg)")
 
-win_shares = figure(plot_width=610, plot_height=300,
+win_shares = figure(plot_width=610, plot_height=300,x_range=['OWS','WS','DWS'],
            tools=[hoverws, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           title="Career Win Shares",toolbar_location="right", y_axis_label="Career Win Shares (WS)",x_axis_type=None )
+           title="Career Win Shares",toolbar_location="right", y_axis_label="Career Win Shares (WS)")
+win_shares_source= win_shares_all(data, player_first_year, player_last_year, first_player)
 
-win_share_players, wins_shares_df = win_shares_all(data, player_first_year, player_last_year)
-win_shares_source = ColumnDataSource(data = dict(ws=wins_shares_df , player=win_share_players, color = ['blue']*len(wins_shares_df)))
+# stems
+win_shares.segment("cats", "upper", "cats", "q3", line_color="color", source = win_shares_source)
+win_shares.segment("cats", "lower", "cats", "q1", line_color="color", source = win_shares_source)
+
+# boxes
+win_shares.vbar("cats", "top", "q2", "q3", line_color="color", source = win_shares_source, fill_color = '#a30693', alpha = 0.4)
+win_shares.vbar("cats", "top", "q1", "q2", line_color="color", source = win_shares_source, fill_color= '#568ce2')
+
+
+# whiskers (almost-0 height rects simpler than segments)
+win_shares.rect("cats", "lower", "width", "height", line_color="color", source = win_shares_source)
+win_shares.rect("cats", "upper", "width", "height", line_color="color", source = win_shares_source)
+
+win_shares.segment(x0='x0', y0='y0',y1='y1', x1='x1', color="ray_color", line_width=5, line_alpha = 0.7, source = win_shares_source)
+
 
 current_player_ts, ts_players, ts_percent = true_shooting(first_player, data, player_first_year, player_last_year)
 ts_max = max(ts_percent)*0.01
@@ -694,7 +723,7 @@ ts.outline_line_color = None
 
 all_block, all_steal = defense_scatter_all(data, player_first_year, player_last_year)
 defenseallsource = ColumnDataSource(data = dict(stl=all_steal , blk=all_block, color = ['blue']*len(all_block)))
-defenseplayersource = ColumnDataSource(data = dict(stl=[stlavg] , blk=[blkavg], color = ['firebrick']))
+defenseplayersource = ColumnDataSource(data = dict(stl=[stlavg] , blk=[blkavg], color = ['#a30693']))
 defense_scatter.circle(x='stl', y='blk', fill_color = 'color', size = 4, source = defenseallsource, alpha = 0.15)
 defense_scatter.circle(x='stl', y='blk', fill_color = 'color', size = 10, source = defenseplayersource)
 
@@ -797,6 +826,7 @@ z.ygrid.grid_line_alpha = 0.8
 z.ygrid.grid_line_dash = [6, 4]
 i.xgrid.grid_line_alpha = 0.8
 i.xgrid.grid_line_dash = [6, 4]
+win_shares.xgrid.visible = False
 
 div = Div(width = 300, height = 400, text = makediv(selected_player_df, [x[1] for x in teamlist]))
 widgets = column(selectplayer,selectteam,free_throws_button, button,button_group, img, div, width=300)
