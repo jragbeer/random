@@ -33,7 +33,6 @@ def remove_glyphs(figure, glyph_name_list):
         if r.name in glyph_name_list:
             col = r.glyph.y
             r.data_source.data[col] = [np.nan] * len(r.data_source.data[col])
-
 def makediv(df, teams):
     text = '''<br><font color="#113672" size = "2"><b>Player: </b></font><br><br>
     <font color="#e82751" size = "4"><b>{}</b></font><br><br>
@@ -103,9 +102,9 @@ def updateplayer(attr, old, new):
 def update(data_, new_, teamlistp):
     global imageglyph
     new_selected_player_df = cleanplayer(data_, str(new_))
+
     yearsp = [x1[1] for x1 in new_selected_player_df.index.values]
     ppgp = new_selected_player_df['ppg']
-
     rpgp = new_selected_player_df['rpg']
     drpgp = new_selected_player_df['drpg']
     orpgp = new_selected_player_df['orpg']
@@ -137,7 +136,7 @@ def update(data_, new_, teamlistp):
     htmapftp = new_selected_player_df['FT'].sum() / new_selected_player_df['FTA'].sum()
     htmapfgp = new_selected_player_df['FG'].sum() / new_selected_player_df['FGA'].sum()
     make_heatmap(htmapfgp, htmapftp, htmap3p)
-    z.y_range.end = rpgp.max() + 1
+    z.y_range.end = apgp.max() + 1
     i.y_range.start = yearsp[0] - 1
     i.y_range.end = yearsp[-1] + 1
     win_shares_source.data= win_shares_all(data_, first_year, last_year, new_).data
@@ -337,32 +336,23 @@ def all_nba_avg_lines(inputdf, year1, year2):
 def win_shares_all(inputdf, year1, year2, player):
     df = inputdf.copy()
     df = df[(df['Year'] >= year1) & (df['Year'] <= year2)]
-
     each_player_ws = df.groupby(['Player']).agg({'OWS':'sum', 'DWS':'sum', 'WS':'sum'})
-
     q1 = each_player_ws.quantile(q=0.25)
     q2 = each_player_ws.quantile(q=0.5)
     q3 = each_player_ws.quantile(q=0.75)
     iqr = q3 - q1
     upper = q3 + 1.5 * iqr
     lower = q1 - 1.5 * iqr
-
     def outliers(group):
         cat = group.index
         return group[(group.WS > pd.DataFrame(upper.loc[cat])['WS']) | (group.WS < pd.DataFrame(lower.loc[cat])['WS'])]
-
-    print(upper)
-    print(lower)
     outx = [1,2,3]
     outy = [1,2,3]
-
     player_ws_span = each_player_ws.loc[str(player)]
 
-    print(upper.values)
     win_shares_source_all = ColumnDataSource(data=(
-        dict(cats=['OWS','WS','DWS'],x0=[0.15,1.15,2.15], y0 =[player_ws_span.OWS, player_ws_span.WS, player_ws_span.DWS] ,upper=[upper.OWS, upper.WS, upper.DWS], lower=[lower.OWS, lower.WS, lower.DWS], q1=[q1.OWS, q1.WS, q1.DWS], q2=[q2.OWS, q2.WS, q2.DWS], color = ['black']*3,q3=[q3.OWS, q3.WS, q3.DWS],
+        dict(cats=['OWS','WS','DWS'],x0=[0.15,1.15,2.15], y0 =[player_ws_span.OWS, player_ws_span.WS, player_ws_span.DWS] ,upper=np.round([upper.OWS, upper.WS, upper.DWS],1), lower=np.round([lower.OWS, lower.WS, lower.DWS],1), q1=np.round([q1.OWS, q1.WS, q1.DWS],1), q2=np.round([q2.OWS, q2.WS, q2.DWS],1), color = ['black']*3,q3=np.round([q3.OWS, q3.WS, q3.DWS],1),
              outlier_x=outx, outlier_y=outy,length = [15]*3,y1 = [player_ws_span.OWS, player_ws_span.WS, player_ws_span.DWS] ,x1 = [0.85,1.85,2.85],ray_color = ["#f16913"]*3, ray_angles= ['deg']*3,top=[0.7, 0.7, 0.7], width = [0.2, 0.2, 0.2], height = [0.01, 0.01, 0.01])))
-
     return win_shares_source_all
 def true_shooting(player_name, inputdf, year1, year2):
     df = inputdf.copy()
@@ -594,7 +584,7 @@ blkavg = selected_player_df['BLK'].sum()/selected_player_df['G'].sum()
 selectplayer = Select(title='Player:', value='Kevin Durant', options=sorted(list(data['Player'].unique())))
 selectplayer.on_change('value', updateplayer)
 
-selectteam = Select(title='Team:', value='All', options=list(['All'] + sorted(list(newteamsDict.keys())))+['All'])
+selectteam = Select(title='Use This To Filter *Player* By Team:', value='All', options=list(['All'] + sorted(list(newteamsDict.keys())))+['All'])
 selectteam.on_change('value', updateteam)
 
 download_source = ColumnDataSource(player_stats(data, str(selectplayer.value)))
@@ -625,9 +615,10 @@ hovermap = HoverTool(tooltips=[
 hoverdefense = HoverTool(tooltips=[
     ("Steals", "@stl"),
 ("Blocks", "@blk")])
-hoverws = HoverTool(tooltips=[
-    ("Win Shares", "@ws"), ('Player', "@player")])
-
+hoverws = HoverTool(names = ["q1_q2_block", "q2_q3_block"],tooltips=[
+    ("Maximum", "@upper"), ('Q3', "@q3"), ('Q1', "@q1"),('Minimum', "@lower")])
+hoverws_player = HoverTool(names = ["win_share_lines"], tooltips=[
+    ("WS", "@y1")])
 
 p = figure(plot_width=930, plot_height=250,
            tools=[hoverline, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
@@ -674,7 +665,7 @@ heatmap.outline_line_color = None
 
 # map_options = GMapOptions(lat=lat, lng=lon, map_type="roadmap", zoom=3)
 # g = gmap(key, map_options, title="Career Stops", width = 350, height = 350)
-map_figure = figure(plot_width=470, plot_height=350,
+map_figure = figure(plot_width=475, plot_height=350,
            tools=[hovermap],
            title="Map", x_axis_location=None, y_axis_location=None,toolbar_location="right")
 map_figure_source = ColumnDataSource(data=dict(lat=[x[3] for x in teamlist],lon=[x[4] for x in teamlist], city = [x[2] for x in teamlist]))
@@ -686,32 +677,26 @@ defense_scatter = figure(plot_width=300, plot_height=300,
            tools=[hoverdefense, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title="Career Defensive Averages",toolbar_location="right", y_axis_label="Blocks (bpg)", x_axis_label="Steals (spg)")
 
-win_shares = figure(plot_width=610, plot_height=300,x_range=['OWS','WS','DWS'],
-           tools=[hoverws, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+win_shares = figure(plot_width=620, plot_height=300,x_range=['OWS','WS','DWS'],
+           tools=[hoverws,hoverws_player, BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            title="Career Win Shares",toolbar_location="right", y_axis_label="Career Win Shares (WS)")
 win_shares_source= win_shares_all(data, player_first_year, player_last_year, first_player)
-
 # stems
-win_shares.segment("cats", "upper", "cats", "q3", line_color="color", source = win_shares_source)
-win_shares.segment("cats", "lower", "cats", "q1", line_color="color", source = win_shares_source)
-
+q3_upper_segment = win_shares.segment("cats", "upper", "cats", "q3", line_color="color", source = win_shares_source, name = 'q3_upper_segment')
+q1_lower_segment = win_shares.segment("cats", "lower", "cats", "q1", line_color="color", source = win_shares_source, name = 'q1_lower_segment')
 # boxes
-win_shares.vbar("cats", "top", "q2", "q3", line_color="color", source = win_shares_source, fill_color = '#a30693', alpha = 0.4)
-win_shares.vbar("cats", "top", "q1", "q2", line_color="color", source = win_shares_source, fill_color= '#568ce2')
-
-
+q2_q3_block = win_shares.vbar("cats", "top", "q2", "q3", line_color="color", source = win_shares_source, fill_color = '#a30693', alpha = 0.4, name = 'q2_q3_block')
+q1_q2_block = win_shares.vbar("cats", "top", "q1", "q2", line_color="color", source = win_shares_source, fill_color= '#568ce2', name = 'q1_q2_block')
 # whiskers (almost-0 height rects simpler than segments)
-win_shares.rect("cats", "lower", "width", "height", line_color="color", source = win_shares_source)
-win_shares.rect("cats", "upper", "width", "height", line_color="color", source = win_shares_source)
-
-win_shares.segment(x0='x0', y0='y0',y1='y1', x1='x1', color="ray_color", line_width=5, line_alpha = 0.7, source = win_shares_source)
-
+bottom_whisker = win_shares.rect("cats", "lower", "width", "height", line_color="color", source = win_shares_source, name = 'bottom_whisker')
+top_whisker = win_shares.rect("cats", "upper", "width", "height", line_color="color", source = win_shares_source, name = 'top_whisker')
+win_share_lines = win_shares.segment(x0='x0', y0='y0',y1='y1', x1='x1', color="ray_color", line_width=5, line_alpha = 0.7, source = win_shares_source, name = 'win_share_lines')
 
 current_player_ts, ts_players, ts_percent = true_shooting(first_player, data, player_first_year, player_last_year)
 ts_max = max(ts_percent)*0.01
 true_shooting_source = ColumnDataSource(data = dict(x = [0.25],y = [0],cur_player=[current_player_ts],  players=ts_players , ts=[np.linspace(0,ts_max,100).reshape(100,1)], dw = [0.5], dh = [ts_max-0]))
 ts = figure(plot_width=150, plot_height=350,x_range=[0, 1],x_axis_location=None, y_range=[0, ts_max],min_border_right=10, title = 'Career TS%', tools = [])
-ts.image(image='ts',x='x',y='y',dw='dw',dh='dh', palette=viridis(100)[:75], source = true_shooting_source)
+ts.image(image='ts',x='x',y='y',dw='dw',dh='dh', palette=viridis(100)[:50], source = true_shooting_source)
 ts_span = Span(location=current_player_ts*0.01, dimension='width', line_color='#f16913', line_dash='solid', line_width=5, line_alpha=0.7, name = 'ts_span')
 ts.add_layout(ts_span)
 ts.xaxis.major_label_text_color = None
@@ -723,9 +708,9 @@ ts.outline_line_color = None
 
 all_block, all_steal = defense_scatter_all(data, player_first_year, player_last_year)
 defenseallsource = ColumnDataSource(data = dict(stl=all_steal , blk=all_block, color = ['blue']*len(all_block)))
-defenseplayersource = ColumnDataSource(data = dict(stl=[stlavg] , blk=[blkavg], color = ['#a30693']))
+defenseplayersource = ColumnDataSource(data = dict(stl=[stlavg] , blk=[blkavg], color = ['#c157f2']))
 defense_scatter.circle(x='stl', y='blk', fill_color = 'color', size = 4, source = defenseallsource, alpha = 0.15)
-defense_scatter.circle(x='stl', y='blk', fill_color = 'color', size = 10, source = defenseplayersource)
+defense_scatter.circle(x='stl', y='blk', fill_color = 'color', size = 10, source = defenseplayersource, alpha = 0.85)
 
 all_nba_pts, all_nba_asts, all_nba_rebs, all_nba_per = all_nba_avg_lines(data, player_first_year, player_last_year)
 
@@ -745,7 +730,7 @@ i.vbar(x = 'x', top = 'a', width = 0.5, color={'field': 'a', 'transform': color_
 
 # Selected Players' Average lines
 avglinep = p.line('x', 'avg', source=sourceppg, line_width=3.5, line_color='#E24A33', alpha = 0.2)
-avglinewt = w.line('x', 'avgt', source=sourcerpg, line_width=3.5, line_color='purple', alpha = 0.2)
+avglinewt = w.line('x', 'avgt', source=sourcerpg, line_width=3.5, line_color='blue', alpha = 0.2)
 avglinewo = w.line('x', 'avgo', source=sourcerpg, line_width=3.5, line_color='#568ce2', alpha = 0.2)
 avglinewd = w.line('x', 'avgd', source=sourcerpg, line_width=3.5, line_color='blue', alpha = 0.2)
 avglinez = z.line('x', 'avg', source=sourceapg, line_width=3.5, line_color='#a30693', alpha = 0.2)
