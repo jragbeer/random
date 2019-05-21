@@ -8,7 +8,7 @@ import smtplib
 import calendar
 import socket
 import urllib
-from urllib.request import HTTPError, URLError
+from urllib.request import HTTPError, URLError, Request, urlopen
 import datetime
 import pickle
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -498,7 +498,9 @@ def gather_weather_forecast_hourly(citytimezone, nameofcity, url):
         conn = sqlite3.connect(path + '{}weather.db'.format(nameofcity.replace(' ', '')))
         c2 = conn.cursor()
         # parse the Weather Channel's webpage and pulls forecasted weather data
-        graphsource = urllib.request.urlopen('https://weather.com/en-CA/weather/hourbyhour/l/{}'.format(url)).read()
+        request = Request('https://weather.com/en-CA/weather/hourbyhour/l/{}'.format(url),
+                          headers={'User-Agent': 'Mozilla/5.0'})
+        graphsource = urlopen(request).read()
         soup = bs.BeautifulSoup(graphsource, 'html.parser')  # actual and predicted data
         timee = []
         temp = []
