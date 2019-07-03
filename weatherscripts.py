@@ -108,7 +108,7 @@ def pull_historical_data(city = 'Toronto', year = 2014, freq = None):
     return weather
 
 # download data from Weather Canada and put into databases
-def load_2019_data_hourly():
+def load_2019_data_hourly(month=1):
     """
 
     appends to database hourly weather data from jan 1, 2019 onward
@@ -118,7 +118,7 @@ def load_2019_data_hourly():
     """
     for z in list(citydict.keys()):
         today = datetime.datetime.now()
-        bigdf = get_new_data_hourly(citydict[z]['stationid'], 2019, 1)
+        bigdf = get_new_data_hourly(citydict[z]['stationid'], 2019, month)
         bigdf = bigdf[bigdf.index < datetime.datetime(today.year, today.month, today.day-1, 5)]
         path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
         db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
@@ -137,6 +137,7 @@ def load_old_data_into_db_hourly():
                 try:
                     dfs['{}_{}'.format(x, y)] = get_new_data_hourly(citydict[z]['stationid'], x, y)
                     print(z, x, y)
+                    time.sleep(2)
                 except Exception as e:
                     print(str(e))
                     pass
@@ -253,6 +254,72 @@ def get_new_data_hourly(stationid, year=None, month = None):
     Wdata['HUMIDEX'] = pd.Series([hmdxx(x.TEMP, x.DEW_TEMP) for x in Wdata.itertuples()], index=Wdata.index)
     Wdata['REL_HUM'] = Wdata['REL_HUM'].astype(np.int64)
     return Wdata
+def add_latest_historical(stationid, z, conn, year=None, month = None):
+    """
+    grab most recent data (this month) from Weather Canada in csv form. The dataframe is sorted, column datatypes assigned
+    and extra columns HOUR and HUMIDEX are added, while many are dropped. Only returns from latest timestamp in DB to newest in csv.
+
+    :param stationid: station ID to grab from
+    :param year: year
+    :param month: month
+    :return: returns a dataframe that's cleaned
+    """
+
+    def read_latest_demand_datetime(conn, tablename):
+        query = """select datetime from {}""".format(tablename)
+        new = pd.read_sql(query, conn)
+        return new.max()
+
+    date = datetime.datetime.now()
+    latest_dt = read_latest_demand_datetime(conn, citydict[z]['tablename'])
+    latest_dt_datetime = datetime.datetime(int(latest_dt.values[0][:4]), int(latest_dt.values[0][5:7]), int(latest_dt.values[0][8:10]), int(latest_dt.values[0][11:13]))
+    if year and month:
+        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data.csv".format(
+        stationid, year, month)
+    try:
+        df = pd.read_csv(datastring, encoding='utf-8', skiprows=16, header=None,
+                         names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
+                                'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
+                                'Wind Dir (10s deg)', 'Wind Dir Flag', 'Wind Spd (km/h)', 'Wind Spd Flag',
+                                'Visibility (km)', 'Visibility Flag', 'Stn Press (kPa)', 'Stn Press Flag',
+                                'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
+        Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY', 'TEMP', 'REL_HUM', 'DEW_TEMP']]
+        Wdata.set_index('DATETIME', inplace=True)
+        Wdata.index = pd.to_datetime(Wdata.index)
+    except:
+        df = pd.read_csv(datastring, encoding='utf-8', skiprows=17, header=None,
+                         names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
+                                'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
+                                'Wind Dir (10s deg)', 'Wind Dir Flag', 'Wind Spd (km/h)', 'Wind Spd Flag',
+                                'Visibility (km)', 'Visibility Flag', 'Stn Press (kPa)', 'Stn Press Flag',
+                                'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
+        Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY', 'TEMP', 'REL_HUM', 'DEW_TEMP']]
+        Wdata.set_index('DATETIME', inplace=True)
+        Wdata.index = pd.to_datetime(Wdata.index)
+    Wdata.dropna(how = 'any', inplace=True)
+    Wdata = Wdata.loc[latest_dt_datetime + datetime.timedelta(hours = 1):, :]
+    Wdata = Wdata.sort_index()
+    Wdata['TEMP'] = Wdata['TEMP'].astype(float)
+    Wdata['DEW_TEMP'] = Wdata['DEW_TEMP'].astype(float)
+    Wdata['HOUR'] = Wdata.index.hour
+    Wdata['HUMIDEX'] = pd.Series([hmdxx(x.TEMP, x.DEW_TEMP) for x in Wdata.itertuples()], index=Wdata.index)
+    Wdata['REL_HUM'] = Wdata['REL_HUM'].astype(np.int64)
+    return Wdata
+def load_latest_data_into_db_hourly():
+    """
+    Updates DBs with newest data since the last timestamp. Hourly
+    :return: nothing
+    """
+    today = datetime.datetime.now()
+    path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+    for z in list(citydict.keys()):
+        db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
+        conn = sqlite3.connect(path + db)
+        bigdf = add_latest_historical(citydict[z]['stationid'], z, conn, int(today.year), int(today.month))
+        bigdf.drop_duplicates(inplace=True)
+        bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='append')
+        print(str(z) + ':  done')
+        logging.info(str(z) + ':  done')
 
 # previous day's hourly weather scripts
 def create_table_previous_hourly(c_, nameOfTable):
