@@ -99,20 +99,51 @@ def getCoords(row, geom_col, coord_type):
         return list( multiGeomHandler(geom, coord_type, gtype) )
 
 def update_pickup_dropoff(attr, old, new):
-    update_chart(str(new), select_car_type.value, select_year.value)
+    update_chart(str(new), select_car_type.value, select_year.value, select_hour.value, select_month.value, select_day.value, select_holiday.value)
 
 def update_car_type(attr, old, new):
-    update_chart(select_pickup_dropoff.value, str(new), select_year.value)
+    if str(new) == "Pick-Up":
+        newnew = 'pulocationid'
+    else:
+        newnew = 'dolocationid'
+    update_chart(select_pickup_dropoff.value, newnew,  select_year.value, select_hour.value, select_month.value, select_day.value, select_holiday.value)
 
+def update_day_of_week(attr, old, new):
+    update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, select_hour.value, select_month.value, str(new), select_holiday.value)
+
+def update_hour(attr, old, new):
+    update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, str(new),  select_month.value, select_day.value, select_holiday.value)
 
 def update_year(attr, old, new):
-    update_chart(select_pickup_dropoff.value, select_car_type.value, str(new))
+    update_chart(select_pickup_dropoff.value, select_car_type.value, str(new), select_hour.value, select_month.value, select_day.value, select_holiday.value)
 
-def update_chart(pickup_dropoff, cartype, year):
+def update_holiday(attr, old, new):
+    new_var = str(new)
+    if new_var == 'No':
+        new_var = 0
+    elif new_var == 'Yes':
+        new_var = 1
+    else:
+        new_var = 'all'
+    update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, select_hour.value, select_month.value, select_day.value, str(new_var))
+
+def update_month(attr, old, new):
+    update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, select_hour.value, str(new), select_day.value, select_holiday.value)
+
+def update_chart(pickup_dropoff, cartype, year, hour, month, day, holiday):
     DATA = copy.deepcopy(DF)
-    dat = pd.merge(DATA, pu_do_data[pickup_dropoff][cartype.lower()][str(year).lower()], right_index=True, left_on='LocationID')
+    dat = pd.merge(DATA, pu_do_data[pickup_dropoff][cartype.lower()][str(year).lower()][str(hour).lower()][str(month).lower()][str(day).lower()][str(holiday).lower()], right_index=True, left_on='LocationID')
     dfsource.data = ColumnDataSource(data=dat).data
 
+def wrap_in_paragraphs(text, colour="DarkSlateBlue", size=4):
+    """
+    This function wraps text in paragraph, bold and font tags - according to the colour and size given.
+    :param text: text to wrap in tags
+    :param colour: colour of the font
+    :param size: size of the font
+    :return: string wrapped in html tags
+    """
+    return """<p><b><font color={} size={}>{}</font></b></p>""".format(colour, size, text)
 doc = curdoc()
 #clears the html page and gives the tab a name
 doc.clear()
@@ -189,11 +220,27 @@ select_pickup_dropoff.on_change('value', update_pickup_dropoff)
 select_car_type = Select(title='Taxi Type', value='All', options=['Yellow', 'Green', 'FHV', 'All'])
 select_car_type.on_change('value', update_car_type)
 
-select_year = Select(title='Year', value='All', options=['2016', '2017', '2018', 'All'])
+select_year = Select(title='Year', value='All', options=[str(x) for x in range(2016, 2019)] + ['All'])
 select_year.on_change('value', update_year)
 
-uu = widgetbox([select_pickup_dropoff, select_car_type, select_year], width=240)
-dashboard = row(uu, p, )
+select_hour = Select(title='Hour', value='All', options=[str(x) for x in range(18, 21)] + ['All'])
+select_hour.on_change('value', update_hour)
+
+select_month = Select(title='Month', value='All', options=[str(x) for x in range(1, 13)] + ['All'])
+select_month.on_change('value', update_month)
+
+select_day = Select(title='Day of Week', value='All', options=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'All'])
+select_day.on_change('value', update_day_of_week)
+
+select_holiday = Select(title='Holiday', value='All', options=['No', 'Yes', 'All'])
+select_holiday.on_change('value', update_holiday)
+
+
+div = Div(text=wrap_in_paragraphs('WOW THIS SUCKS.'), width = 240)
+
+uu = widgetbox([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday], width=240)
+first_part = column(uu, div)
+dashboard = row(first_part, p, )
 show(dashboard)
 
 doc.add_root(dashboard)

@@ -168,24 +168,55 @@ for colour in ['yellow', 'green', 'fhv']:
     pickle_in = open("data_{}1.pickle".format(colour),"rb")
     df_one[colour] = pickle.load(pickle_in)
     print(datetime.datetime.now()-timee)
-
+big_dict = {'pulocationid': {}, "dolocationid": {}}
+print()
 df_one['all'] = pd.concat([df_one[x] for x in ['yellow', 'green', 'fhv']], sort=False)
+print(df_one['all'].sample(20).to_string())
 for each in ['pulocationid', "dolocationid"]:
-    for z in ['yellow', 'green', 'fhv', 'all']:
-        for t in [2016, 2017, 2018, 'all']:
-            rrtt = copy.deepcopy(df_one[z])
-            if t != 'all':
-                rrtt = rrtt[rrtt['year'] == t]
-            rr = pd.DataFrame(rrtt[each].value_counts())
-            rr.columns = ['value']
-            for i in all_points:
-                if i not in list(rr.index):
-                    print(i, ' not in')
-                    rr.append(pd.DataFrame(data={'value': 0}, index=[i]))
-            pickle_out = open("{}_{}_{}_full_test.pickle".format(each, z, t), "wb")
-            pickle.dump(rr, pickle_out)
-            pickle_out.close()
-            print(datetime.datetime.now() - timee)
-            print('over')
+    for tipo in ['yellow', 'green', 'fhv', 'all']:
+        big_dict[each][tipo] = {}
+        for yr in [2016, 2017, 2018, 'all']:
+            big_dict[each][tipo][str(yr)] = {}
+            for hr in [18, 19, 20, "all"]:
+                big_dict[each][tipo][str(yr)][str(hr)] = {}
+                for mth in list(range(1,13)) + ['all']:
+                    big_dict[each][tipo][str(yr)][str(hr)][str(mth)] = {}
+                    for day in list(range(1,8)) + ['all']:
+                        big_dict[each][tipo][str(yr)][str(hr)][str(mth)][str(day)] = {}
+                        for hlday in [0, 1, 'all']:
+                            rrtt = copy.deepcopy(df_one[tipo])
+                            if yr != 'all':
+                                rrtt = rrtt[rrtt['year'] == yr]
+                            else:
+                                pass
+                            if hr != 'all' and each == 'pulocationid':
+                                rrtt = rrtt[rrtt['pickup_hour'] == hr]
+                            elif hr != 'all' and each == 'dolocationid':
+                                rrtt = rrtt[rrtt['dropoff_hour'] == hr]
+                            else:
+                                pass
+                            if mth != 'all':
+                                rrtt = rrtt[rrtt['month'] == mth]
+                            else:
+                                pass
+                            if day != 'all':
+                                rrtt = rrtt[rrtt['day_of_week'] == day]
+                            else:
+                                pass
+                            if hlday != 'all':
+                                rrtt = rrtt[rrtt['holiday'] == hlday]
+                            else:
+                                pass
+                            rr = pd.DataFrame(rrtt[each].value_counts())
+                            rr.columns = ['value']
+                            for i in all_points:
+                                if i not in list(rr.index):
+                                    rr.append(pd.DataFrame(data={'value': 0}, index=[i]))
+                            big_dict[each][tipo][str(yr)][str(hr)][str(mth)][str(day)][str(hlday)] = rr
 
+                            print(datetime.datetime.now() - timee)
+                            print(each, tipo, yr, hr, mth, day, hlday, 'over')
+pickle_out = open("all_data.pickle", "wb")
+pickle.dump(big_dict, pickle_out)
+pickle_out.close()
 print(datetime.datetime.now()-timee)
