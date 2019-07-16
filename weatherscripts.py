@@ -20,6 +20,14 @@ import time
 import logging
 import pytz
 from shutil import copyfile, copy2
+from sqlalchemy import create_engine
+
+# credentials for Azure SQL
+def get_credentials():
+    path_to_file = "C:/Users/J_Ragbeer/PycharmProjects/weatherdata/"
+    with open(path_to_file + "server_credentials.txt", 'r') as file:
+        temp = file.read().splitlines()
+        return list(set(temp))
 
 # augment a dataframe of weather data
 def hmdxx(temp, dew_temp):
@@ -270,7 +278,6 @@ def add_latest_historical(stationid, z, conn, year=None, month = None):
         new = pd.read_sql(query, conn)
         return new.max()
 
-    date = datetime.datetime.now()
     latest_dt = read_latest_demand_datetime(conn, citydict[z]['tablename'])
     latest_dt_datetime = datetime.datetime(int(latest_dt.values[0][:4]), int(latest_dt.values[0][5:7]), int(latest_dt.values[0][8:10]), int(latest_dt.values[0][11:13]))
     if year and month:
@@ -296,8 +303,8 @@ def add_latest_historical(stationid, z, conn, year=None, month = None):
         Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY', 'TEMP', 'REL_HUM', 'DEW_TEMP']]
         Wdata.set_index('DATETIME', inplace=True)
         Wdata.index = pd.to_datetime(Wdata.index)
-    Wdata.dropna(how = 'any', inplace=True)
-    Wdata = Wdata.loc[latest_dt_datetime + datetime.timedelta(hours = 1):, :]
+    Wdata.dropna(how='any', inplace=True)
+    Wdata = Wdata.loc[latest_dt_datetime + datetime.timedelta(hours=1):, :]
     Wdata = Wdata.sort_index()
     Wdata['TEMP'] = Wdata['TEMP'].astype(float)
     Wdata['DEW_TEMP'] = Wdata['DEW_TEMP'].astype(float)
@@ -311,6 +318,11 @@ def load_latest_data_into_db_hourly():
     :return: nothing
     """
     today = datetime.datetime.now()
+    credentials = get_credentials()
+    connection_string = "Driver={ODBC Driver 13 for SQL Server};" + "Server={};Database={};Uid={};Pwd={};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;Authentication=ActiveDirectoryPassword".format(
+        credentials[0], credentials[1], credentials[2], credentials[3])
+    engine = create_engine("mssql+pyodbc:///?odbc_connect={}".format(urllib.parse.quote_plus(connection_string)))
+
     path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
     for z in list(citydict.keys()):
         db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
@@ -318,7 +330,7 @@ def load_latest_data_into_db_hourly():
         bigdf = add_latest_historical(citydict[z]['stationid'], z, conn, int(today.year), int(today.month))
         bigdf.drop_duplicates(inplace=True)
         bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='append')
-        print(str(z) + ':  done')
+        bigdf.to_sql(citydict[z]['tablename'], engine, index=True, if_exists='append')
         logging.info(str(z) + ':  done')
 
 # previous day's hourly weather scripts
