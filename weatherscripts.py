@@ -27,7 +27,7 @@ def get_credentials():
     path_to_file = "C:/Users/J_Ragbeer/PycharmProjects/weatherdata/"
     with open(path_to_file + "server_credentials.txt", 'r') as file:
         temp = file.read().splitlines()
-        return list(set(temp))
+        return list(temp)
 
 # augment a dataframe of weather data
 def hmdxx(temp, dew_temp):
@@ -571,6 +571,11 @@ def gather_weather_forecast_hourly(citytimezone, nameofcity, url):
     """
 
     try:
+        credentials = get_credentials()
+        connection_string = "Driver={ODBC Driver 13 for SQL Server};" + "Server={};Database={};Uid={};Pwd={};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;Authentication=ActiveDirectoryPassword".format(
+            credentials[0], credentials[1], credentials[2], credentials[3])
+        engine = create_engine("mssql+pyodbc:///?odbc_connect={}".format(urllib.parse.quote_plus(connection_string)))
+
         date = datetime.datetime.now().astimezone(pytz.timezone(citytimezone))
         name = '{}_Weather_Forecast'.format(nameofcity.replace(' ', '_'))
         path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
@@ -603,7 +608,39 @@ def gather_weather_forecast_hourly(citytimezone, nameofcity, url):
         humidity = [x.split('%')[0] for x in humidity]
         maxxx = np.argmax(temp)
 
+        col_headers = [
+                       "CURRENTHOUR", "CURRENTHOURTEMP", "CURRENTHOURFEELS", "CURRENTHOURHUMIDITY",
+                       "SECONDHOUR", "SECONDHOURTEMP", "SECONDHOURFEELS", "SECONDHOURHUMIDITY",
+                       "THIRDHOUR", "THIRDHOURTEMP", "THIRDHOURFEELS", "THIRDHOURHUMIDITY",
+                       "FOURTHHOUR", "FOURTHHOURTEMP", "FOURTHHOURFEELS", "FOURTHHOURHUMIDITY",
+                       "FIFTHHOUR", "FIFTHHOURTEMP", "FIFTHHOURFEELS", "FIFTHHOURHUMIDITY",
+                       "SIXTHHOUR", "SIXTHHOURTEMP", "SIXTHHOURFEELS", "SIXTHHOURHUMIDITY",
+                       "SEVENTHHOUR", "SEVENTHHOURTEMP", "SEVENTHHOURFEELS", "SEVENTHHOURHUMIDITY",
+                       "EIGHTHHOUR", "EIGHTHHOURTEMP", "EIGHTHHOURFEELS", "EIGHTHHOURHUMIDITY",
+                       "NINTHHOUR", "NINTHHOURTEMP", "NINTHHOURFEELS", "NINTHHOURHUMIDITY",
+                       "TENTHHOUR", "TENTHHOURTEMP", "TENTHHOURFEELS", "TENTHHOURHUMIDITY",
+                       "ELEVENTHHOUR", "ELEVENTHHOURTEMP", "ELEVENTHHOURFEELS", "ELEVENTHHOURHUMIDITY",
+                       "TWELFTHHOUR", "TWELFTHHOURTEMP", "TWELFTHHOURFEELS", "TWELFTHHOURHUMIDITY",
+                       "THIRTEENTHHOUR", "THIRTEENTHHOURTEMP", "THIRTEENTHHOURFEELS", "THIRTEENTHHOURHUMIDITY",
+                       "FOURTEENTHHOUR", "FOURTEENTHHOURTEMP", "FOURTEENTHHOURFEELS", "FOURTEENTHHOURHUMIDITY",
+                       "FIFTEENTHHOUR", "FIFTEENTHHOURTEMP", "FIFTEENTHHOURFEELS", "FIFTEENTHHOURHUMIDITY",
+                       "SIXTEENTHHOUR", "SIXTEENTHHOURTEMP", "SIXTEENTHHOURFEELS", "SIXTEENTHHOURHUMIDITY"]
+        data = pd.DataFrame()
+        data['Time'] = [int(x.replace('\n', '').split(':')[0]) for x in timee]
+        data['Time'] = data['Time'].astype(int)
+        data['Temp'] = [int(x.split('°')[0]) for x in temp]
+        data['Feels'] = [int(x.split('°')[0]) for x in feels]
+        data['Humidity'] = [x.split('%')[0] for x in humidity]
+        data['Temp'] = data['Temp'].astype(int)
+        data['Feels'] = data['Feels'].astype(int)
+        data['Humidity'] = data['Humidity'].astype(int)
+
+        new = pd.concat([pd.DataFrame(data.iloc[x,:]).T for x in range(len(data.index))], axis='columns')
+        new.fillna(method='ffill', inplace=True)
+        alt_data = pd.DataFrame([new.values[-1]],columns=col_headers, index = [str(date).split('.')[0]])
+
         try:
+            alt_data.to_sql(name, engine, if_exists='append', index=True, index_label="CURRENTTIME")
             data_entry_forecast(c2, name, timee, temp, feels, humidity, date)
             conn.commit()
             logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
@@ -614,6 +651,7 @@ def gather_weather_forecast_hourly(citytimezone, nameofcity, url):
                                                                                                date))
             time.sleep(300)
             try:
+                alt_data.to_sql(name, engine, if_exists='append', index=True, index_label="CURRENTTIME")
                 data_entry_forecast(c2, name, timee, temp, feels, humidity, date)
                 conn.commit()
                 logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
@@ -624,6 +662,7 @@ def gather_weather_forecast_hourly(citytimezone, nameofcity, url):
                                                                                                      date))
                 time.sleep(150)
                 try:
+                    alt_data.to_sql(name, engine, if_exists='append', index=True, index_label="CURRENTTIME")
                     data_entry_forecast(c2, name, timee, temp, feels, humidity, date)
                     conn.commit()
                     logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
