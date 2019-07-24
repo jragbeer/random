@@ -1,13 +1,13 @@
 import pandas as pd
 import numpy as np
 import glob
+import sys
 import os
 import datetime
 import sqlite3
 import smtplib
 import calendar
 import socket
-import urllib
 from urllib.request import HTTPError, URLError, Request, urlopen
 import datetime
 import pickle
@@ -21,6 +21,13 @@ import logging
 import pytz
 from shutil import copyfile, copy2
 from sqlalchemy import create_engine
+from sqlalchemy.schema import MetaData
+import pyodbc
+import sqlalchemy
+from dateutil import parser
+import holidays
+import datetime
+import urllib
 
 # credentials for Azure SQL
 def get_credentials():
@@ -97,11 +104,6 @@ def new_deg_days(df):
         else:
             newcooldays.append(x)
     return newheatdays,newcooldays
-def fill_missing(idf, freq= 'D'):
-    if freq == 'D':
-        pass
-    elif freq == 'H':
-        pass
 def pull_historical_data(city = 'Toronto', year = 2014, freq = None):
     weatherpath = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
     weatherdb = '{}WeatherHistorical.db'.format(city.replace(' ', ''))
@@ -571,11 +573,6 @@ def gather_weather_forecast_hourly(citytimezone, nameofcity, url):
     """
 
     try:
-        credentials = get_credentials()
-        connection_string = "Driver={ODBC Driver 13 for SQL Server};" + "Server={};Database={};Uid={};Pwd={};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;Authentication=ActiveDirectoryPassword".format(
-            credentials[0], credentials[1], credentials[2], credentials[3])
-        engine = create_engine("mssql+pyodbc:///?odbc_connect={}".format(urllib.parse.quote_plus(connection_string)))
-
         date = datetime.datetime.now().astimezone(pytz.timezone(citytimezone))
         name = '{}_Weather_Forecast'.format(nameofcity.replace(' ', '_'))
         path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
@@ -606,52 +603,51 @@ def gather_weather_forecast_hourly(citytimezone, nameofcity, url):
         temp = [int(x.split('°')[0]) for x in temp]
         feels = [int(x.split('°')[0]) for x in feels]
         humidity = [x.split('%')[0] for x in humidity]
-        maxxx = np.argmax(temp)
 
-        col_headers = [
-                       "CURRENTHOUR", "CURRENTHOURTEMP", "CURRENTHOURFEELS", "CURRENTHOURHUMIDITY",
-                       "SECONDHOUR", "SECONDHOURTEMP", "SECONDHOURFEELS", "SECONDHOURHUMIDITY",
-                       "THIRDHOUR", "THIRDHOURTEMP", "THIRDHOURFEELS", "THIRDHOURHUMIDITY",
-                       "FOURTHHOUR", "FOURTHHOURTEMP", "FOURTHHOURFEELS", "FOURTHHOURHUMIDITY",
-                       "FIFTHHOUR", "FIFTHHOURTEMP", "FIFTHHOURFEELS", "FIFTHHOURHUMIDITY",
-                       "SIXTHHOUR", "SIXTHHOURTEMP", "SIXTHHOURFEELS", "SIXTHHOURHUMIDITY",
-                       "SEVENTHHOUR", "SEVENTHHOURTEMP", "SEVENTHHOURFEELS", "SEVENTHHOURHUMIDITY",
-                       "EIGHTHHOUR", "EIGHTHHOURTEMP", "EIGHTHHOURFEELS", "EIGHTHHOURHUMIDITY",
-                       "NINTHHOUR", "NINTHHOURTEMP", "NINTHHOURFEELS", "NINTHHOURHUMIDITY",
-                       "TENTHHOUR", "TENTHHOURTEMP", "TENTHHOURFEELS", "TENTHHOURHUMIDITY",
-                       "ELEVENTHHOUR", "ELEVENTHHOURTEMP", "ELEVENTHHOURFEELS", "ELEVENTHHOURHUMIDITY",
-                       "TWELFTHHOUR", "TWELFTHHOURTEMP", "TWELFTHHOURFEELS", "TWELFTHHOURHUMIDITY",
-                       "THIRTEENTHHOUR", "THIRTEENTHHOURTEMP", "THIRTEENTHHOURFEELS", "THIRTEENTHHOURHUMIDITY",
-                       "FOURTEENTHHOUR", "FOURTEENTHHOURTEMP", "FOURTEENTHHOURFEELS", "FOURTEENTHHOURHUMIDITY",
-                       "FIFTEENTHHOUR", "FIFTEENTHHOURTEMP", "FIFTEENTHHOURFEELS", "FIFTEENTHHOURHUMIDITY",
-                       "SIXTEENTHHOUR", "SIXTEENTHHOURTEMP", "SIXTEENTHHOURFEELS", "SIXTEENTHHOURHUMIDITY"]
-        data = pd.DataFrame()
-        data['Time'] = [int(x.replace('\n', '').split(':')[0]) for x in timee]
-        data['Time'] = data['Time'].astype(int)
-        data['Temp'] = [int(x.split('°')[0]) for x in temp]
-        data['Feels'] = [int(x.split('°')[0]) for x in feels]
-        data['Humidity'] = [x.split('%')[0] for x in humidity]
-        data['Temp'] = data['Temp'].astype(int)
-        data['Feels'] = data['Feels'].astype(int)
-        data['Humidity'] = data['Humidity'].astype(int)
-
-        new = pd.concat([pd.DataFrame(data.iloc[x,:]).T for x in range(len(data.index))], axis='columns')
-        new.fillna(method='ffill', inplace=True)
-        alt_data = pd.DataFrame([new.values[-1]],columns=col_headers, index = [str(date).split('.')[0]])
-
+        # col_headers = [
+        #                "CURRENTHOUR", "CURRENTHOURTEMP", "CURRENTHOURFEELS", "CURRENTHOURHUMIDITY",
+        #                "SECONDHOUR", "SECONDHOURTEMP", "SECONDHOURFEELS", "SECONDHOURHUMIDITY",
+        #                "THIRDHOUR", "THIRDHOURTEMP", "THIRDHOURFEELS", "THIRDHOURHUMIDITY",
+        #                "FOURTHHOUR", "FOURTHHOURTEMP", "FOURTHHOURFEELS", "FOURTHHOURHUMIDITY",
+        #                "FIFTHHOUR", "FIFTHHOURTEMP", "FIFTHHOURFEELS", "FIFTHHOURHUMIDITY",
+        #                "SIXTHHOUR", "SIXTHHOURTEMP", "SIXTHHOURFEELS", "SIXTHHOURHUMIDITY",
+        #                "SEVENTHHOUR", "SEVENTHHOURTEMP", "SEVENTHHOURFEELS", "SEVENTHHOURHUMIDITY",
+        #                "EIGHTHHOUR", "EIGHTHHOURTEMP", "EIGHTHHOURFEELS", "EIGHTHHOURHUMIDITY",
+        #                "NINTHHOUR", "NINTHHOURTEMP", "NINTHHOURFEELS", "NINTHHOURHUMIDITY",
+        #                "TENTHHOUR", "TENTHHOURTEMP", "TENTHHOURFEELS", "TENTHHOURHUMIDITY",
+        #                "ELEVENTHHOUR", "ELEVENTHHOURTEMP", "ELEVENTHHOURFEELS", "ELEVENTHHOURHUMIDITY",
+        #                "TWELFTHHOUR", "TWELFTHHOURTEMP", "TWELFTHHOURFEELS", "TWELFTHHOURHUMIDITY",
+        #                "THIRTEENTHHOUR", "THIRTEENTHHOURTEMP", "THIRTEENTHHOURFEELS", "THIRTEENTHHOURHUMIDITY",
+        #                "FOURTEENTHHOUR", "FOURTEENTHHOURTEMP", "FOURTEENTHHOURFEELS", "FOURTEENTHHOURHUMIDITY",
+        #                "FIFTEENTHHOUR", "FIFTEENTHHOURTEMP", "FIFTEENTHHOURFEELS", "FIFTEENTHHOURHUMIDITY",
+        #                "SIXTEENTHHOUR", "SIXTEENTHHOURTEMP", "SIXTEENTHHOURFEELS", "SIXTEENTHHOURHUMIDITY"]
+        # data = pd.DataFrame()
+        # data['Time'] = [int(str(x).replace('\n', '').split(':')[0]) for x in timee]
+        # data['Time'] = data['Time'].astype(int)
+        # data['Temp'] = [int(str(x).split('°')[0]) for x in temp]
+        # data['Feels'] = [int(str(x).split('°')[0]) for x in feels]
+        # data['Humidity'] = [str(x).split('%')[0] for x in humidity]
+        # data['Temp'] = data['Temp'].astype(int)
+        # data['Feels'] = data['Feels'].astype(int)
+        # data['Humidity'] = data['Humidity'].astype(int)
+        #
+        # new = pd.concat([pd.DataFrame(data.iloc[x,:]).T for x in range(len(data.index))], axis='columns')
+        # new.fillna(method='ffill', inplace=True)
+        # alt_data = pd.DataFrame([new.values[-1]], columns=col_headers, index=[str(date).split('.')[0]])
+        # print(name, alt_data.to_string())
         try:
-            alt_data.to_sql(name, engine, if_exists='append', index=True, index_label="CURRENTTIME")
+            # schema needs to be specified (usually dbo) or else no commit happens
             data_entry_forecast(c2, name, timee, temp, feels, humidity, date)
             conn.commit()
             logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
         except Exception as q:
+            print('fails {} | {}'.format(str(q), error_handling()))
             logging.info(str(q))
             logging.info(
                 '{} WEATHER FORECAST FAILED! Trying again in 5 minutes. Local time: {}'.format(nameofcity.upper(),
                                                                                                date))
             time.sleep(300)
             try:
-                alt_data.to_sql(name, engine, if_exists='append', index=True, index_label="CURRENTTIME")
                 data_entry_forecast(c2, name, timee, temp, feels, humidity, date)
                 conn.commit()
                 logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
@@ -662,18 +658,17 @@ def gather_weather_forecast_hourly(citytimezone, nameofcity, url):
                                                                                                      date))
                 time.sleep(150)
                 try:
-                    alt_data.to_sql(name, engine, if_exists='append', index=True, index_label="CURRENTTIME")
                     data_entry_forecast(c2, name, timee, temp, feels, humidity, date)
                     conn.commit()
                     logging.info('{} WEATHER FORECAST table updated! Local time: {}'.format(nameofcity.upper(), date))
                 except Exception as ii:
-                    logging.info(str(ii))
-                    send_email(text='Error in {} WEATHER FORECAST script | {}'.format(nameofcity.upper(), str(i)),
-                               html='Error in {} WEATHER FORECAST script | {}'.format(nameofcity.upper(), str(i)))
+                    logging.info(str(ii) + "| email sent")
+                    send_email(text='Error in {} WEATHER FORECAST script | {} | {}'.format(nameofcity.upper(), str(ii), error_handling()),
+                               html='Error in {} WEATHER FORECAST script | {} | {}'.format(nameofcity.upper(), str(ii), error_handling()))
     except Exception as e:
-        logging.info(str(e))
-        send_email(text='Error in {} WEATHER FORECAST script'.format(nameofcity.upper()),
-                   html='Error in {} WEATHER FORECAST script'.format(nameofcity.upper()))
+        logging.info(str(e) + "| email sent")
+        send_email(text='Error in {} WEATHER FORECAST script | {} | {}'.format(nameofcity.upper(), str(e), error_handling()),
+                   html='Error in {} WEATHER FORECAST script | {} | {}'.format(nameofcity.upper(), str(e), error_handling()))
 def gather_weather_forecasts():
     """
 
@@ -683,8 +678,24 @@ def gather_weather_forecasts():
     """
     for x in citiesdict.keys():
         gather_weather_forecast_hourly(citiesdict[str(x)]['timezone'], x, citiesdict[str(x)]['url'])
+def copy_weather_forecast_to_azure():
+    credentials = get_credentials()
+    dbschema = 'dbo,schema,public,online'  # Searches left-to-right
+    connection_string = "Driver={ODBC Driver 17 for SQL Server};" + "Server={};Database={};Uid={};Pwd={};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;Authentication=ActiveDirectoryPassword".format(
+        credentials[0], credentials[1], credentials[2], credentials[3])
+    engine = create_engine("mssql+pyodbc:///?odbc_connect={}".format(urllib.parse.quote_plus(connection_string)),
+                           connect_args={'options': '-csearch_path={}'.format(dbschema)})
+    path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+    for z in list(citiesdict.keys()):
+        name = '{}_Weather_Forecast'.format(z.replace(' ', '_'))
+        db = '{}weather.db'.format(z.replace(' ', ''))
+        conn = sqlite3.connect(path + db)
+        new = pd.read_sql('select * from {}'.format(name), conn)
+        new.drop_duplicates(inplace=True)
+        new.to_sql(name, engine, index=False, if_exists='replace')
+        logging.info('{} copy complete'.format(name))
 
-# send an email
+# send an email / error handling
 def send_email(text, html):
     """
 
@@ -733,12 +744,20 @@ def send_email(text, html):
         logging.info('error sending mail')  # confirm that email wasn't sent
 
     server.quit()
+def error_handling():
+    """
+
+    This function returns a string with all of the information regarding the error
+
+    :return: string with the error information
+    """
+    return '{}. {}, line: {}'.format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
 
 #for the weather forecasts
-citiesdict = {'Boston': {'url':'USMA0046:1:US', 'timezone': 'America/Toronto'},
+citiesdict = {'Toronto': {'url':'CAXX0504:1:CA', 'timezone': 'America/Toronto'},
+              'Boston': {'url':'USMA0046:1:US', 'timezone': 'America/Toronto'},
               'Berlin': {'url':'10785:4:GM', 'timezone': 'Europe/Berlin'},
               'Vancouver':{'url':'CAXX0518:1:CA', 'timezone': 'America/Vancouver'},
-              'Toronto': {'url':'CAXX0504:1:CA', 'timezone': 'America/Toronto'},
               'Mississauga': {'url':'CAXX0295:1:CA', 'timezone': 'America/Toronto'},
               'Edmonton': {'url':'CAXX0126:1:CA', 'timezone': 'America/Edmonton'},
               'Montreal': {'url':'CAXX0301:1:CA', 'timezone': 'America/Toronto'},
@@ -760,4 +779,3 @@ citydict = {
 'Gatineau':{'stationid': 50719, 'tablename': 'Ottawa_Gatineau_A'},
 'Quebec City':{'stationid': 51457, 'tablename': 'Quebec_INTL_A'},
 'Mississauga':{'stationid': 51459, 'tablename': 'Toronto_INTL_A'}}
-
