@@ -321,10 +321,11 @@ def load_latest_data_into_db_hourly():
     """
     today = datetime.datetime.now()
     credentials = get_credentials()
-    connection_string = "Driver={ODBC Driver 13 for SQL Server};" + "Server={};Database={};Uid={};Pwd={};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;Authentication=ActiveDirectoryPassword".format(
+    dbschema = 'dbo,schema,public,online'  # Searches left-to-right
+    connection_string = "Driver={ODBC Driver 17 for SQL Server};" + "Server={};Database={};Uid={};Pwd={};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;Authentication=ActiveDirectoryPassword".format(
         credentials[0], credentials[1], credentials[2], credentials[3])
-    engine = create_engine("mssql+pyodbc:///?odbc_connect={}".format(urllib.parse.quote_plus(connection_string)))
-
+    engine = create_engine("mssql+pyodbc:///?odbc_connect={}".format(urllib.parse.quote_plus(connection_string)),
+                           connect_args={'options': '-csearch_path={}'.format(dbschema)})
     path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
     for z in list(citydict.keys()):
         db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
@@ -779,3 +780,4 @@ citydict = {
 'Gatineau':{'stationid': 50719, 'tablename': 'Ottawa_Gatineau_A'},
 'Quebec City':{'stationid': 51457, 'tablename': 'Quebec_INTL_A'},
 'Mississauga':{'stationid': 51459, 'tablename': 'Toronto_INTL_A'}}
+
