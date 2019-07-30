@@ -7,7 +7,7 @@ import bs4 as bs
 import urllib.request
 from bokeh.plotting import figure, show, save
 from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, Label, LogColorMapper, GeoJSONDataSource
-from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, Range1d, ColorBar
+from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, Range1d, ColorBar, LinearColorMapper
 from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Div, inputs
 from bokeh.layouts import widgetbox, row, column, gridplot, layout
 from bokeh.io import curdoc
@@ -16,7 +16,7 @@ import pickle
 import time
 import copy
 import colorcet as cc
-
+import calendar
 
 
 def getXYCoords(geometry, coord_type):
@@ -99,17 +99,15 @@ def getCoords(row, geom_col, coord_type):
         return list( multiGeomHandler(geom, coord_type, gtype) )
 
 def update_pickup_dropoff(attr, old, new):
-    update_chart(str(new), select_car_type.value, select_year.value, select_hour.value, select_month.value, select_day.value, select_holiday.value)
+    update_chart(str(new), select_car_type.value, select_year.value, select_hour.value, select_month.value,
+                     select_day.value, select_holiday.value)
+
 
 def update_car_type(attr, old, new):
-    if str(new) == "Pick-Up":
-        newnew = 'pulocationid'
-    else:
-        newnew = 'dolocationid'
-    update_chart(select_pickup_dropoff.value, newnew,  select_year.value, select_hour.value, select_month.value, select_day.value, select_holiday.value)
+    update_chart(select_pickup_dropoff.value, str(new).lower(),  select_year.value, select_hour.value, select_month.value, select_day.value, select_holiday.value)
 
 def update_day_of_week(attr, old, new):
-    update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, select_hour.value, select_month.value, str(new), select_holiday.value)
+    update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, select_hour.value, select_month.value, select_day.value, select_holiday.value)
 
 def update_hour(attr, old, new):
     update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, str(new),  select_month.value, select_day.value, select_holiday.value)
@@ -118,21 +116,28 @@ def update_year(attr, old, new):
     update_chart(select_pickup_dropoff.value, select_car_type.value, str(new), select_hour.value, select_month.value, select_day.value, select_holiday.value)
 
 def update_holiday(attr, old, new):
-    new_var = str(new)
-    if new_var == 'No':
-        new_var = 0
-    elif new_var == 'Yes':
-        new_var = 1
-    else:
-        new_var = 'all'
-    update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, select_hour.value, select_month.value, select_day.value, str(new_var))
+
+    update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, select_hour.value, select_month.value, select_day.value, str(new))
 
 def update_month(attr, old, new):
     update_chart(select_pickup_dropoff.value, select_car_type.value, select_year.value, select_hour.value, str(new), select_day.value, select_holiday.value)
 
 def update_chart(pickup_dropoff, cartype, year, hour, month, day, holiday):
+    global DF
     DATA = copy.deepcopy(DF)
-    dat = pd.merge(DATA, pu_do_data[pickup_dropoff][cartype.lower()][str(year).lower()][str(hour).lower()][str(month).lower()][str(day).lower()][str(holiday).lower()], right_index=True, left_on='LocationID')
+    top3_ = DATA.sort_values(by='value', ascending=False).iloc[:3, :]
+    wow = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    holi = ['No', 'Yes']
+    if str(holiday) in holi:
+        holi_value = holi.index(str(holiday))
+    else:
+        holi_value = 'all'
+    if str(day).lower() in wow:
+        day_value = wow.index(str(select_day.value).lower())+1
+    else:
+        day_value = 'all'
+    div.text = make_div(top3_)
+    dat = pd.merge(DATA, so_far[pickup_dropoff][cartype.lower()][str(year).lower()][str(hour).lower()][str(month).lower()][str(day_value)][str(holi_value)], right_index=True, left_on='LocationID')
     dfsource.data = ColumnDataSource(data=dat).data
 
 def wrap_in_paragraphs(text, colour="DarkSlateBlue", size=4):
@@ -144,30 +149,37 @@ def wrap_in_paragraphs(text, colour="DarkSlateBlue", size=4):
     :return: string wrapped in html tags
     """
     return """<p><b><font color={} size={}>{}</font></b></p>""".format(colour, size, text)
+
+def make_div(top3_):
+    text = wrap_in_paragraphs('NYC For-Hire Vehicle / Taxi  Analysis', size=5) + \
+    wrap_in_paragraphs('Top 3 Travelled To:', 'DimGray') + wrap_in_paragraphs('{}'.format(top3_.iloc[0, 3]), 'Firebrick') + \
+           wrap_in_paragraphs('{}'.format(top3_.iloc[1, 3]), 'Firebrick') + wrap_in_paragraphs('{}'.format(top3_.iloc[2, 3]), 'Firebrick')
+    return text
+
 doc = curdoc()
 #clears the html page and gives the tab a name
 doc.clear()
 doc.title = 'NYC Taxi Dashboard'
 
-# File path
-points_fp = r"C:\Users\Julien\PycharmProjects\nyctaxi\geofiles\taxi_zones.shp"
-pu_do_data = {"Pick-Up": {}, "Drop-Off": {}}
+# infinite colour palette
 palette = cc.fire
-for colr in ['yellow', 'green', "fhv", "all", ]:
-    pu_do_data['Pick-Up'][str(colr)] = {}
-    pu_do_data['Drop-Off'][str(colr)] = {}
-    for yr in [2016, 2017, 2018, 'all']:
-        # pickle_in = open("pulocationid_{}_full.pickle".format(colr),"rb")
-        pickle_in = open("pulocationid_{}_{}_full_test.pickle".format(colr, yr),"rb")
-        pu_data = pickle.load(pickle_in)
-        # pickle_in = open("dolocationid_{}_full.pickle".format(colr),"rb")
-        pickle_in = open("dolocationid_{}_{}_full_test.pickle".format(colr, yr),"rb")
-        do_data = pickle.load(pickle_in)
-        pu_data.columns = ['value']
-        do_data.columns = ['value']
-        pu_do_data['Pick-Up'][str(colr)][str(yr)] = pu_data
-        pu_do_data['Drop-Off'][str(colr)][str(yr)] = do_data
+# for colr in ['yellow', 'green', "fhv", "all", ]:
+#     pu_do_data['Pick-Up'][str(colr)] = {}
+#     pu_do_data['Drop-Off'][str(colr)] = {}
+#     for yr in [2016, 2017, 2018, 'all']:
+#         # pickle_in = open("pulocationid_{}_full.pickle".format(colr),"rb")
+#         pickle_in = open("pulocationid_{}_{}_full_test.pickle".format(colr, yr),"rb")
+#         pu_data = pickle.load(pickle_in)
+#         # pickle_in = open("dolocationid_{}_full.pickle".format(colr),"rb")
+#         pickle_in = open("dolocationid_{}_{}_full_test.pickle".format(colr, yr),"rb")
+#         do_data = pickle.load(pickle_in)
+#         pu_data.columns = ['value']
+#         do_data.columns = ['value']
+#         pu_do_data['Pick-Up'][str(colr)][str(yr)] = pu_data
+#         pu_do_data['Drop-Off'][str(colr)][str(yr)] = do_data
 
+# File path
+points_fp = r"C:\Users\J_Ragbeer\PycharmProjects\nyctaxi\geofiles\taxi_zones.shp"
 # Read the data
 data = gpd.read_file(points_fp)
 data['x'] = data.apply(getCoords, geom_col="geometry", coord_type="x", axis=1)
@@ -180,16 +192,22 @@ data['x'] = [np.array(x) for x in data['x']]
 data = data[[x for x in data.columns if x not in ['geometry']]]
 data.fillna(0, inplace=True)
 
+pickle_in = open("answers.pickle","rb")
+so_far = pickle.load(pickle_in)
+
 DF = copy.deepcopy(data)
-data = pd.merge(data, pu_do_data['Pick-Up']["all"]["all"], right_index = True, left_on='LocationID')
+data = pd.merge(data, so_far['Drop-Off']["all"]["all"]["all"]["all"]["all"]["all"], right_index = True, left_on='LocationID')
 dfsource = ColumnDataSource(data=data)
+top3 = data.sort_values(by='value', ascending=False).iloc[:3, :]
 
 # Specify the tools that we want to use
 TOOLS = "pan,wheel_zoom,box_zoom,reset,save"
 
 # Flip the colors in color palette
+palette = palette[46:253]
 palette.reverse()
-color_mapper = LogColorMapper(palette=palette, )
+print(len(palette))
+color_mapper = LinearColorMapper(palette=palette, )
 
 p = figure(title="NYC Map", tools=TOOLS,
            plot_width=1350, plot_height=900, active_scroll="wheel_zoom")
@@ -206,7 +224,7 @@ ghover = HoverTool(renderers=[grid])
 ghover.tooltips=[("Location ID", "@LocationID"),
                 ("Borough", "@borough"),
                 ("Zone", "@zone"),
-                ("Value", "@value{0,0}"),
+                ("No. of Trips", "@value{0,0}"),
                ]
 
 p.add_tools(ghover)
@@ -214,7 +232,7 @@ color_bar = ColorBar(color_mapper=color_mapper, location=(0, 0), orientation='ho
 p.axis.visible = False
 p.add_layout(color_bar, 'below')
 
-select_pickup_dropoff = Select(title='Pick-Up/Drop-Off', value='Pick-Up', options=['Pick-Up', 'Drop-Off'])
+select_pickup_dropoff = Select(title='Pick-Up/Drop-Off', value='Drop-Off', options=['Pick-Up', 'Drop-Off'])
 select_pickup_dropoff.on_change('value', update_pickup_dropoff)
 
 select_car_type = Select(title='Taxi Type', value='All', options=['Yellow', 'Green', 'FHV', 'All'])
@@ -235,8 +253,7 @@ select_day.on_change('value', update_day_of_week)
 select_holiday = Select(title='Holiday', value='All', options=['No', 'Yes', 'All'])
 select_holiday.on_change('value', update_holiday)
 
-
-div = Div(text=wrap_in_paragraphs('WOW THIS SUCKS.'), width = 240)
+div = Div(width = 240, text=make_div(top3))
 
 uu = widgetbox([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday], width=240)
 first_part = column(uu, div)
