@@ -17,6 +17,7 @@ import time
 import copy
 import colorcet as cc
 import calendar
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
 
 
 def getXYCoords(geometry, coord_type):
@@ -153,19 +154,26 @@ def update_chart(pickup_dropoff, cartype, year, hour, month, day, holiday):
         hour_value = 'all'
 
     thing = so_far[pickup_dropoff][cartype.lower()][str(year).lower()][str(hour_value)][str(month_value)][str(day_value)][str(holi_value)]
+    nums_ = thing.describe()
+
+    colorbar_divmin.text = wrap_in_paragraphs(f'Min:  {int(nums_.loc["min", "value"]):,}', 'gold', )
+    colorbar_div25.text = wrap_in_paragraphs(f'25%: {int(nums_.loc["25%", "value"]):,}', 'darkorange', )
+    colorbar_div50.text = wrap_in_paragraphs(f'50%: {int(nums_.loc["50%", "value"]):,}', 'orangered', )
+    colorbar_div75.text = wrap_in_paragraphs(f'75%: {int(nums_.loc["75%", "value"]):,}', 'firebrick', )
+    colorbar_divmax.text = wrap_in_paragraphs(f'Max: {int(nums_.loc["max", "value"]):,}', 'darkred', )
 
     div.text = make_div(thing)
     dat = pd.merge(DATA, thing, right_index=True, left_on='LocationID')
     borough_data_ = pd.DataFrame(dat.groupby(['borough'])['value'].sum())
     borough_source.data = ColumnDataSource(
         data={'names': borough_data_.index, 'x': np.array([x for x in range(len(borough_data_.index))]) + 0.5, 'right': borough_data_.values,
-              'colour': ['firebrick'] * len(borough_data_.index)}).data
+              'colour': ['firebrick'] * len(borough_data_.index), 'percents': [100*int(x)/sum(borough_data_.values) for x in borough_data_.values]}).data
 
     top5_locations = dat.sort_values(by='value', ascending=False).iloc[:5, :].sort_values(by='value')
 
     locations_source.data = ColumnDataSource(
         data={'zone': np.asarray(top5_locations['zone']), 'x': np.array([x for x in range(len(top5_locations.index))]) + 0.5, 'borough': np.asarray(top5_locations["borough"]),
-              'right': np.asarray(top5_locations["value"]), 'colour': ['orange'] * len(top5_locations.index)}).data
+              'right': np.asarray(top5_locations["value"]), 'colour': ['orange'] * len(top5_locations.index), 'percents': [100*int(x)/sum(borough_data_.values) for x in top5_locations["value"].values]}).data
     dfsource.data = ColumnDataSource(data=dat).data
     z.y_range.factors = top5_locations['zone'].to_list()
 
@@ -180,8 +188,9 @@ def wrap_in_paragraphs(text, colour="DarkSlateBlue", size=4):
     return """<p><b><font color={} size={}>{}</font></b></p>""".format(colour, size, text)
 
 def make_div(info):
-    text = wrap_in_paragraphs('NYC For-Hire Vehicle / Taxi  Analysis', size=5) + \
-    wrap_in_paragraphs('Total Trips: {:,}'.format(np.asarray(info).sum()), 'Firebrick')
+    text = wrap_in_paragraphs('NYC For-Hire Vehicle / Taxi  Analysis',) + \
+    wrap_in_paragraphs('Total Trips: {:,}'.format(np.asarray(info).sum()), 'Firebrick', 5) + \
+           wrap_in_paragraphs('Mean: {:,}'.format(int(np.asarray(info).mean())), 'Firebrick', 5)
     return text
 
 doc = curdoc()
@@ -241,8 +250,7 @@ color_mapper = LinearColorMapper(palette=palette, )
 months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 color_bar = ColorBar(color_mapper=color_mapper, ticker=BasicTicker(), location=(0, 0), orientation='horizontal', border_line_color=None,)
 
-p = figure(title="NYC Map", tools=TOOLS,
-           plot_width=1225, plot_height=900, active_scroll="wheel_zoom")
+p = figure(title="NYC Map", tools=TOOLS, plot_width=1200, plot_height=870, active_scroll="wheel_zoom")
 
 # Do not add grid line
 p.grid.grid_line_color = None
@@ -264,34 +272,38 @@ p.axis.visible = False
 p.add_layout(color_bar, 'below')
 
 # W Chart
-w = figure(title="Borough Counts", tools=TOOLS, y_axis_label=None, y_range=FactorRange(factors=[]),
-           plot_width=400, plot_height=450, active_scroll="wheel_zoom")
+w = figure(title="Borough Counts", toolbar_location=None, y_axis_label=None, y_range=FactorRange(factors=[]),
+           plot_width=375, plot_height=450)
 w.ygrid.grid_line_color = None
-borough_source = ColumnDataSource(data={'names': borough_data.index, 'x': np.array([x for x in range(len(borough_data.index))])+0.5, 'right': borough_data.values, 'colour': ['firebrick']*len(borough_data.index)})
+borough_source = ColumnDataSource(data={'names': borough_data.index, 'x': np.array([x for x in range(len(borough_data.index))])+0.5, 'right': borough_data.values, 'colour': ['firebrick']*len(borough_data.index), 'percents': [100*x/sum(borough_data.values) for x in borough_data.values]})
 
 wchart = w.hbar(y='x', right='right', left=0, height=0.8, source=borough_source, fill_color='colour', name='wchart')
 whover = HoverTool(renderers=[wchart])
 whover.tooltips=[("Borough", "@names"),
-                ("No. of Trips", "@right{0,0}")]
+                ("No. of Trips", "@right{0,0}"), ("Percentage", "@percents{0.0}%")]
 w.add_tools(whover)
 w.xaxis.formatter = NumeralTickFormatter(format="0.0a")
 w.y_range.factors = borough_data.index
-
+w.yaxis.major_label_text_font_size = "9pt"
+w.yaxis.major_label_text_font_style = 'bold'
 # Z Chart
-z = figure(title="Top 5 Locations", tools=TOOLS, y_axis_label=None, y_range=FactorRange(factors=[]),
-           plot_width=400, plot_height=450, active_scroll="wheel_zoom")
+z = figure(title="Top 5 Locations", toolbar_location=None, y_axis_label=None, y_range=FactorRange(factors=[]),
+           plot_width=375, plot_height=450)
 z.ygrid.grid_line_color = None
-locations_source = ColumnDataSource(data={'zone': np.asarray(top5_['zone']), 'x': np.array([x for x in range(len(top5_.index))])+0.5,'borough': np.asarray(top5_["borough"]), 'right': np.asarray(top5_["value"]), 'colour': ['orange']*len(top5_.index)})
+locations_source = ColumnDataSource(data={'zone': np.asarray(top5_['zone']), 'x': np.array([x for x in range(len(top5_.index))])+0.5,'borough': np.asarray(top5_["borough"]), 'right': np.asarray(top5_["value"]), 'colour': ['orange']*len(top5_.index), 'percents': [100*int(x)/sum(borough_data.values) for x in top5_["value"]]})
 
 zchart = z.hbar(y='x', right='right', left=0, height=0.6, source=locations_source, fill_color='colour', name='zchart')
 zhover = HoverTool(renderers=[zchart])
 zhover.tooltips=[("Borough", "@borough"),
                  ("Zone", "@zone"),
-                ("No. of Trips", "@right{0,0}")]
+                ("No. of Trips", "@right{0,0}"),
+                 ("Percentage", "@percents{0.0}%")]
 z.add_tools(zhover)
 z.xaxis.formatter = NumeralTickFormatter(format="0.0a")
 z.y_range.factors = np.asarray(top5_['zone'])
-
+z.yaxis.major_label_text_font_size = "9pt"
+z.yaxis.major_label_text_font_style = 'bold'
+# selects
 select_pickup_dropoff = Select(title='Pick-Up/Drop-Off', value='Drop-Off', options=['Pick-Up', 'Drop-Off'])
 select_pickup_dropoff.on_change('value', update_pickup_dropoff)
 
@@ -315,18 +327,27 @@ select_holiday.on_change('value', update_holiday)
 
 div = Div(width=240, text=make_div(starting))
 
-bottom_div_text = wrap_in_paragraphs("Data is from June 2016 to end of 2018.") + wrap_in_paragraphs("This dashboard is maintained by:", "DimGray") + \
-                  wrap_in_paragraphs("Julien Ragbeer, IT", "Black") + \
+bottom_div_text = wrap_in_paragraphs("This dashboard is maintained by:", "DimGray", size=3) + \
+                  wrap_in_paragraphs("Julien Ragbeer, IT", "Black", 3) + \
                   wrap_in_paragraphs("Any comments / questions / concerns, please send an email to the maintainer.", "DimGray", size=3) + \
                   wrap_in_paragraphs("""Data is up-to-date as of <br><font color="DarkSlateBlue">January 1, 2019</font>""", "Black", 3) + \
                   wrap_in_paragraphs("Best viewed with Google Chrome", "DimGray", size=3)
 
 bottom_div = Div(text=bottom_div_text, width=235)
+nums = starting.describe()
+
+colorbar_divmin = Div(text=wrap_in_paragraphs(f'Min:  {int(nums.loc["min", "value"]):,}', 'gold',), width=250)
+colorbar_div25 = Div(text=wrap_in_paragraphs(f'25%: {int(nums.loc["25%", "value"]):,}', 'darkorange',), width=250, style={'text-align': 'center'})
+colorbar_div50 = Div(text=wrap_in_paragraphs(f'50%: {int(nums.loc["50%", "value"]):,}', 'orangered',), width=250, style={'text-align': 'center'})
+colorbar_div75 = Div(text=wrap_in_paragraphs(f'75%: {int(nums.loc["75%", "value"]):,}', 'firebrick',), width=250, style={'text-align': 'center'})
+colorbar_divmax = Div(text=wrap_in_paragraphs(f'Max: {int(nums.loc["max", "value"]):,}', 'darkred',), width=210, style={'text-align': 'right'})
 
 uu = widgetbox([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday], width=240)
 first_part = column(uu, div, bottom_div)
-second_part = column(w,z)
-dashboard = row(first_part, p, second_part,)
+third_part = column(w,z)
+colorbar_divs = row(colorbar_divmin, colorbar_div25, colorbar_div50, colorbar_div75, colorbar_divmax)
+middle_part = column(p, colorbar_divs)
+dashboard = row(first_part, middle_part, third_part,)
 show(dashboard)
 
 doc.add_root(dashboard)
