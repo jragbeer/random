@@ -28,6 +28,7 @@ from dateutil import parser
 import holidays
 import datetime
 import urllib
+import traceback
 
 # credentials for Azure SQL
 def get_credentials():
@@ -213,7 +214,9 @@ def get_new_data_daily(stationid, year=None):
     Wdata.fillna(method='ffill', inplace=True)
     Wdata.fillna(method='bfill', inplace=True)
     Wdata.set_index('DATETIME', inplace=True)
+
     Wdata.index = pd.to_datetime(Wdata.index)
+    Wdata = Wdata[Wdata.index < datetime.datetime.now()-datetime.timedelta(days=1)]
     Wdata = Wdata.sort_index()
 
     return Wdata
@@ -334,7 +337,24 @@ def load_latest_data_into_db_hourly():
         bigdf.drop_duplicates(inplace=True)
         bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='append')
         bigdf.to_sql(citydict[z]['tablename'], engine, index=True, if_exists='append')
-        logging.info(str(z) + ':  done')
+        logging.info(str(z) + ' Hourly:  done')
+def load_latest_data_into_db_daily():
+    """
+    Updates DBs with newest data since the last timestamp. Hourly
+    :return: nothing
+    """
+    # Azure SQL DB
+    credentials = get_credentials()
+    dbschema = 'dbo,schema,public,online'  # Searches left-to-right
+    connection_string = "Driver={ODBC Driver 17 for SQL Server};" + "Server={};Database={};Uid={};Pwd={};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;Authentication=ActiveDirectoryPassword".format(
+        credentials[0], credentials[1], credentials[2], credentials[3])
+    engine = create_engine("mssql+pyodbc:///?odbc_connect={}".format(urllib.parse.quote_plus(connection_string)),
+                           connect_args={'options': '-csearch_path={}'.format(dbschema)})
+    for y in citydict.keys():
+        all_data = get_new_data_daily(citydict[y]['stationid'])
+        all_data = all_data.iloc[-1:, :]
+        all_data.to_sql(citydict[y]['tablename'] + '_Daily', engine, if_exists='append')
+        logging.info(str(z) + 'Daily:  done')
 
 # previous day's hourly weather scripts
 def create_table_previous_hourly(c_, nameOfTable):
@@ -474,7 +494,7 @@ def get_previous_day_weather_daily(city, stationid, tablename):
         conn = sqlite3.connect(path + db)
         c2 = conn.cursor()
         date = datetime.datetime.now()
-        Wdata = get_new_data_hourly(stationid)
+        Wdata = get_new_data_daily(stationid)
         Wdata = Wdata[Wdata.index == datetime.datetime(date.year, date.month, date.day - 1)]
         nameofTable = tablename
 
@@ -752,7 +772,7 @@ def error_handling():
 
     :return: string with the error information
     """
-    return '{}. {}, line: {}'.format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
+    return traceback.format_exc()
 
 #for the weather forecasts
 citiesdict = {'Toronto': {'url':'CAXX0504:1:CA', 'timezone': 'America/Toronto'},
