@@ -70,10 +70,10 @@ def hourly_forecast_24(citytimezone, nameofcity, url, q):
         name = '{}_Weather_Forecast_24'.format(nameofcity.replace(' ', '_'))
         soup, web_driver = grab_soup(url, )
         # allow all elements to load
-        time.sleep(3)
+        time.sleep(22)
         web_driver.find_element_by_xpath("""//*[@id="twc-scrollabe"]/div/button""").click()
         # allow all elements to load
-        time.sleep(3)
+        time.sleep(23)
         timee = []
         temp = []
         feels = []
@@ -143,55 +143,25 @@ def extract():
     :return: nothing
     """
     q = mp.Queue()  # put each process on a queue, so when finished,
-    URL = f'https://weather.com/en-CA/weather/hourbyhour/l/{citiesdict["Toronto"]["url"]}'
-    p1 = Process(target=hourly_forecast_24,
-                 args=(citiesdict["Toronto"]["timezone"], "Toronto", URL, q,))  # assign process 1 the function
-    p1.start()  # start process 1
+    new = {}
+    for city in citiesdict.keys():
+        URL = f'https://weather.com/en-CA/weather/hourbyhour/l/{citiesdict[city]["url"]}'
+        new[city] = Process(target=hourly_forecast_24,
+                     args=(citiesdict[city]["timezone"], city, URL, q,))  # assign process X the function
+        new[city].start()  # start processes
 
-    URL = f'https://weather.com/en-CA/weather/hourbyhour/l/{citiesdict["Montreal"]["url"]}'
-    p2 = Process(target=hourly_forecast_24, args=(citiesdict["Montreal"]["timezone"], "Montreal", URL, q,))
-    p2.start()
-
-    URL = f'https://weather.com/en-CA/weather/hourbyhour/l/{citiesdict["Mississauga"]["url"]}'
-    p3 = Process(target=hourly_forecast_24, args=(citiesdict["Mississauga"]["timezone"], "Mississauga", URL, q,))
-    p3.start()
-
-    URL = f'https://weather.com/en-CA/weather/hourbyhour/l/{citiesdict["Edmonton"]["url"]}'
-    p4 = Process(target=hourly_forecast_24, args=(citiesdict["Edmonton"]["timezone"], "Edmonton", URL, q,))
-    p4.start()
-
-    URL = f'https://weather.com/en-CA/weather/hourbyhour/l/{citiesdict["Vancouver"]["url"]}'
-    p5 = Process(target=hourly_forecast_24, args=(citiesdict["Vancouver"]["timezone"], "Vancouver", URL, q,))
-    p5.start()
-
-    URL = f'https://weather.com/en-CA/weather/hourbyhour/l/{citiesdict["Berlin"]["url"]}'
-    p6 = Process(target=hourly_forecast_24, args=(citiesdict["Berlin"]["timezone"], "Berlin", URL, q,))
-    p6.start()
-
-    URL = f'https://weather.com/en-CA/weather/hourbyhour/l/{citiesdict["Boston"]["url"]}'
-    p7 = Process(target=hourly_forecast_24, args=(citiesdict["Boston"]["timezone"], "Boston", URL, q,))
-    p7.start()
     procs = []
     while True:  # check if processes are finished every 8 seconds
         time.sleep(1)
         procs.append(q.get())
-        if len(procs) == 7:  # once all processes are complete, break loop
+        if len(procs) == len(list(citiesdict.keys())):  # once all processes are complete, break loop
             break
-    if procs == ['over' * 7]:  # if all 3 processes finish successfully, terminate them
-        p1.terminate()
-        p2.terminate()
-        p3.terminate()
-        p4.terminate()
-        p5.terminate()
-        p6.terminate()
-        p7.terminate()
-    p1.join()  # join the processes so that they (and the parent process) finish and release resources at the same time
-    p2.join()
-    p3.join()
-    p4.join()
-    p5.join()
-    p6.join()
-    p7.join()
+    if procs == ['over' * len(list(citiesdict.keys()))]:  # if all 3 processes finish successfully, terminate them
+        for x in new:
+            new[x].terminate()
+    # join the processes so that they (and the parent process) finish and release resources at the same time
+    for x in new:
+        new[x].join()
     q.close()  # close the queue (release resources)
 
 
