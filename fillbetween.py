@@ -33,86 +33,130 @@ y = np.array([20.3, 25.43, 30.2, 27.9, 28.1, 28.2, 32, 25.5, 28.2, 25.5])
 
 # easier to plot 8 vs 8000
 X = np.array([x for x in np.arange(len(y))])
-
+print(X)
 #mean array, difference array,
-ymean = np.array([y.mean() for x in X])
+ymean = np.array([y.mean() for x in y])
 diffs = y - ymean
-
-
-
-ydict={'y{}'.format(x): np.linspace(y[x],y[x+1], 1000) for x in range(len(y)-1)}
+kk = []
+for x in range(len(y)):
+    try:
+        if np.sign(ymean[0] - y[x]) != np.sign(ymean[0] - y[x+1]):
+            kk.append([x,x+1])
+    except:
+        pass
+print(kk)
+kk[0] = [0, kk[0][-1]]
+print(kk)
 
 # 1000 points between each value in y
-xx = np.array([x for x in np.linspace(0, len(y)-1, (len(y)-1) * 1000)])
+xx = {0: np.array([x for x in np.linspace(0, len(y)-1, (len(y)-1) * 1000)])}
 
-theta = math.atan(np.abs(y[2]-y[0]) / len(y[:2]))
-degrees = theta * 180 / math.pi
-tri1adj = (ymean[0]-y[0])*math.atan(math.radians(90-degrees))
-cc, magicnumber = find_nearest(xx, tri1adj)
-xx1=xx[:magicnumber].copy()
-newy = np.linspace(y[0], y[2], 1000)
-find, _ = find_nearest(newy, ymean[0])
-ymean2 = np.array([ymean[0] for x in range(len(newy))])
-k=list(newy).index(find)
-newy = np.array([x for x in np.linspace(newy[0],newy[k], magicnumber)])
+theta = {}
+degrees = {}
+triangle_adjacent = {}
+cc = {}
+magicnumber = {0:0}
+newy = {}
 
-theta2 = math.atan(np.abs(y[7]-y[6]) / 1)
-degrees2 = theta2 * 180 / math.pi
-tri2adj = np.abs((ymean[0]-y[7]))*math.atan(math.radians(90-degrees2))
-tri2hyp = np.sqrt(np.abs(ymean[0]-y[7])**2 + tri2adj**2)
-cc2, magicnumber2 = find_nearest(xx, tri2adj)
-xx2=xx[magicnumber:8000-magicnumber2].copy()
-newy2 = np.concatenate((np.linspace(ymean[0], y[2], 2000-magicnumber), np.linspace(y[2], y[3], 1000), np.linspace(y[3], y[4], 1000),np.linspace(y[4], y[5], 1000),np.linspace(y[5], y[6], 1000),np.linspace(y[6], ymean[0], 1000-magicnumber2)), axis=None)
+def thing(xx, duo, idx):
+    theta[idx] = math.atan(np.abs(y[duo[1]] - y[duo[0]]) / 2)
+    degrees[idx] = theta[idx] * 180 / math.pi
+    triangle_adjacent[idx] = (ymean[0] - y[duo[0]]) * math.atan(math.radians(90 - degrees[idx]))
+    _,  magicnumber[idx] = find_nearest(xx[0], triangle_adjacent[idx])
+    xx[idx] = xx[0][:magicnumber[idx]].copy()
+    newy[idx] = np.linspace(y[duo[0]], y[duo[1]], 1000)
+    find, _ = find_nearest(newy[idx], ymean[0])
+    k = list(newy[idx]).index(find)
+    if idx == 1:
+        newy[idx] = np.array([x for x in np.linspace(newy[idx][0], newy[idx][k], magicnumber[idx])])
+    elif idx == len(kk):
+        pass
+    else:
+        pass
+    return xx[[idx]], newy[idx]
+
+def ok(xx, duo, idx, magicnumber, newy):
+    theta[idx] = math.atan(np.abs(y[duo[1]] - y[duo[0]]) / len(y[duo[0]:y[duo[1]]]))
+    degrees[idx] = theta[idx] * 180 / math.pi
+    # find length of adjacent for triangle
+    triangle_adjacent[idx] = (ymean[0] - y[duo[0]]) * math.atan(math.radians(90 - degrees[idx]))
+    # find nearest number for the length with
+    _,  magicnumber[idx] = find_nearest(xx[0], triangle_adjacent[idx])
+    # new point on X line
+    # original line, sliced. From last magic number to this magic number
+    xx[idx] = xx[0][magicnumber[idx-1]:magicnumber[idx]].copy()
+    newy[idx] = np.linspace(y[duo[0]], y[duo[1]], 1000)
+    find, _ = find_nearest(newy[idx], ymean[0])
+    k = list(newy[idx]).index(find)
+    if idx == 1:
+        newy[idx] = np.array([x for x in np.linspace(newy[idx][0], newy[idx][k], magicnumber[idx])])
+    elif idx == len(kk):
+        pass
+    else:
+        pass
+    return xx[[idx]], newy[idx]
+
+theta[1] = math.atan(np.abs(y[2]-y[0]) / len(y[:2]))
+degrees[1] = theta[1] * 180 / math.pi
+triangle_adjacent[1] = (y.mean()-y[0])*math.atan(math.radians(90-degrees[1]))
+cc[1], magicnumber[1] = find_nearest(xx[0], triangle_adjacent[1])
+xx[1]=xx[0][:magicnumber[1]].copy()
+newy[1] = np.linspace(y[0], y[2], 1000)
+find, _ = find_nearest(newy[1], y.mean())
+k=list(newy[1]).index(find)
+newy[1] = np.array([x for x in np.linspace(newy[1][0],newy[1][k], magicnumber[1])])
+print(magicnumber)
 
 
-theta3 = math.atan(np.abs(y[8]-y[7]) / 1)
-degrees3 = theta3 * 180 / math.pi
-tri3adj = np.abs(ymean[0]-y[7])*math.tan(math.radians(90-degrees3))
-cc3, magicnumber3 = find_nearest(xx, 7+tri3adj)
-xx3=xx[7000-magicnumber2:magicnumber3].copy()
-newy3 = np.concatenate((np.linspace(ymean[0], y[7], len(xx[7000-magicnumber2:7000])), np.linspace(y[7], ymean[0],len(xx[7000:magicnumber3]))), axis = None)
-
-theta4 = math.atan(np.abs(y[9]-y[8]) / 1)
-degrees4 = theta4 * 180 / math.pi
-tri4adj = np.abs(ymean[0]-y[8])*math.tan(math.radians(90-degrees4))
-cc4, magicnumber4 = find_nearest(xx, 8+tri4adj)
-xx4 = xx[magicnumber3: magicnumber4].copy()
-newy4 = np.concatenate((np.linspace(ymean[0], y[8], len(xx[magicnumber3:8000])), np.linspace(y[8], ymean[0],len(xx[8000:magicnumber4]))), axis = None)
+theta[2] = math.atan(np.abs(y[7]-y[6]) / 1)
+degrees[2] = theta[2] * 180 / math.pi
+triangle_adjacent[2] = np.abs((ymean[0]-y[7]))*math.atan(math.radians(90-degrees[2]))
+cc[2], magicnumber[2] = find_nearest(xx[0], triangle_adjacent[2])
+xx[2]=xx[0][magicnumber[1]:7000-magicnumber[2]].copy()
+newy[2] = np.concatenate((np.linspace(ymean[0], y[2], 2000-magicnumber[1]), np.linspace(y[2], y[3], 1000), np.linspace(y[3], y[4], 1000),np.linspace(y[4], y[5], 1000),np.linspace(y[5], y[6], 1000),np.linspace(y[6], ymean[0], 1000-magicnumber[2])), axis=None)
 
 
-xx5 = xx[magicnumber4:].copy()
-newy5 = np.linspace(ymean[0], y[9], len(xx5))
-ymean = np.array([ymean[0] for x in range(len(xx))])
-print(xx5)
-data = ColumnDataSource(data = dict(x=xx, y= y, ymean = ymean, x1=xx1, x2 = xx2,x3=xx3,x4=xx4 ,x5 = xx5, newy5 = newy5, newy2 = newy2,newy3 = newy3, newy4 = newy4,newy = newy,origx = X, ymean2 = ymean2))
+theta[3] = math.atan(np.abs(y[8]-y[7]) / 1)
+degrees[3] = theta[3] * 180 / math.pi
+triangle_adjacent[3] = np.abs(y.mean()-y[7])*math.tan(math.radians(90-degrees[3]))
+cc[3], magicnumber[3] = find_nearest(xx[0], 7+triangle_adjacent[3])
+xx[3]=xx[0][7000-magicnumber[2]:magicnumber[3]].copy()
+newy[3] = np.concatenate((np.linspace(ymean[0], y[7], len(xx[0][7000-magicnumber[2]:7000])), np.linspace(y[7], y.mean(),len(xx[0][7000:magicnumber[3]]))), axis = None)
+
+theta[4] = math.atan(np.abs(y[9]-y[8]) / 1)
+degrees[4] = theta[4] * 180 / math.pi
+triangle_adjacent[4] = np.abs(ymean[0]-y[8])*math.tan(math.radians(90-degrees[4]))
+cc[4], magicnumber[4] = find_nearest(xx[0], 8+triangle_adjacent[4])
+xx[4] = xx[0][magicnumber[3]: magicnumber[4]].copy()
+newy[4] = np.concatenate((np.linspace(ymean[0], y[8], len(xx[0][magicnumber[3]:8000])), np.linspace(y[8], ymean[0],len(xx[0][8000:magicnumber[4]]))), axis = None)
+
+
+xx[5] = xx[0][magicnumber[4]:].copy()
+newy[5] = np.linspace(y.mean(), y[9], len(xx[5]))
+ymean = np.array([y.mean() for x in range(len(xx))])
+print(ymean)
+data = ColumnDataSource(data = dict(x=xx[0], y=y, ymean=ymean, x1=xx[1], x2=xx[2], x3=xx[3], x4=xx[4], x5=xx[5], newy5=newy[5], newy2=newy[2], newy3=newy[3], newy4=newy[4], newy1=newy[1],origx = X,))
 
 TOOLS = "pan,wheel_zoom,reset,hover,save"
-
-p = figure(plot_width=950, plot_height=450,title="Kevin Durant PPG", tools=TOOLS)
+p = figure(plot_width=1600, plot_height=1000,title="Kevin Durant PPG", tools=TOOLS)
 p.grid.grid_line_color = None
 p.hover.point_policy = "follow_mouse"
-p.line('origx','y', source = data)
-p.line('origx','ymean', source = data)
 
-band1 = Band(base='x1', lower='newy', upper='ymean', source=data,
-            level='underlay', fill_alpha=0.54, line_width=1, fill_color='red', line_color = 'red')
-p.add_layout(band1)
-
-band2 = Band(base='x2', lower='ymean', upper='newy2', source=data,
-            level='underlay', fill_alpha=0.54, line_width=1, fill_color='green', line_color = 'green')
-p.add_layout(band2)
-
-band3 = Band(base='x3', lower='newy3', upper='ymean', source=data,
-            level='underlay', fill_alpha=0.54, line_width=1, fill_color='red', line_color = 'red')
-p.add_layout(band3)
-
-band4 = Band(base='x4', lower='ymean', upper='newy4', source=data,
-            level='underlay', fill_alpha=0.54, line_width=1, fill_color='green', line_color = 'green')
-p.add_layout(band4)
-
-band5 = Band(base='x5', lower='newy5', upper='ymean', source=data,
-            level='underlay', fill_alpha=0.54, line_width=1, fill_color='red', line_color = 'red')
-p.add_layout(band5)
-
+print(X)
+bands = {}
+for i in range(1,6):
+    if i % 2 != 0:
+        print(i)
+        bands[i] = Band(base = f"x{i}", source = data, upper='ymean', lower = f"newy{i}",
+                        level='underlay', fill_alpha=0.44, line_width=1, fill_color='red', line_color = 'red')
+    else:
+        bands[i] = Band(base = f"x{i}", source = data, lower='ymean', upper = f"newy{i}",
+                        level='underlay', fill_alpha=0.44, line_width=1, fill_color='green', line_color = 'green')
+    p.add_layout(bands[i])
+p.line('origx','y', source=data, line_width=3,)
+p.line('origx','ymean', source=data, line_width=3,)
 show(p)
+
+
+
 
