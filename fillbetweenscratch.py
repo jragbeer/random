@@ -1,103 +1,121 @@
+import pandas as pd
 import numpy as np
-import math
+import sqlite3
+import datetime
+import time
+from datetime import timezone
+from bokeh.plotting import figure, show, gmap
+from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, OpenURL, CustomJS, DatetimeTickFormatter, GMapOptions, LinearColorMapper
 from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, Range1d, FuncTickFormatter,DataRange1d , Band, SingleIntervalTicker
+from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Button, CheckboxGroup, Div
+from bokeh.layouts import widgetbox, row, column
+from bokeh.io import curdoc
+from bokeh.palettes import Purples, BuPu
+import webbrowser
+from math import pi
+from dateutil import parser
+from os.path import dirname, join
+import re
+import bokeh
+from bokeh.io import show
+from bokeh.transform import linear_cmap
+from bokeh.palettes import RdYlGn3 as palette
+from bokeh.plotting import figure
+import math
 
-
-def find_nearest(array, value):
-    array = np.asarray(array)
-    idx = (np.abs(array - value)).argmin()
-    return array[idx], idx
+np.random.seed(0)
 
 # y values
-y = np.array([20.3, 25.43, 30.2, 27.9, 28.1, 28.2, 32, 25.5, 28.2, 25.5])
+y = np.array([20.3, 22.93, 30.2, 27.9, 28.1, 28.2, 32, 25.5, 28.2, 25.5])
 
 # easier to plot 8 vs 8000
 X = np.array([x for x in np.arange(len(y))])
-
+ymean = [y.mean() for x in range(len(X))]
 #mean array, difference array,
-ymean = np.array([y.mean() for x in y])
-diffs = y - ymean
+diffs = y - np.array([y.mean() for x in X])
 kk = []
 for x in range(len(y)):
     try:
-        if np.sign(ymean[0] - y[x]) == np.sign(ymean[0] - y[x+1]):
-            pass
-        else:
+        if np.sign(ymean[0] - y[x]) != np.sign(ymean[0] - y[x+1]):
             kk.append([x,x+1])
     except:
         pass
-# print(kk)
+print(kk)
+theta, degrees, triangle_adjacent = {}, {}, {}
+#
+# high = np.around(np.abs(diffs[kk[0][0]]) + np.abs(diffs[kk[0][0]]), 3)
+# print(high)
+# hypotenuse = np.sqrt(1+high**2) # c = sqrt(a**2 + b**2) where a = 1 and b = high
+# adjacent = 1
+# theta[1] = np.around(np.arctan(np.abs(hypotenuse / adjacent)), 8)
+# theta[2] = np.around(np.arcsin(np.abs(high / hypotenuse)), 8)
+# triangle_adjacent[1] = np.around(X[2] - (diffs[2] / np.tan(theta[1])), 3)
+# triangle_adjacent[2] = np.around(X[1]+(np.abs(diffs[1]) / np.tan(theta[1])), 3)
+# avg = (triangle_adjacent[1] + triangle_adjacent[2])/2
+# patches = {"1":{'x': [0, 0, X[1], avg],
+#              'y': [y.mean(), y[0], y[1], y.mean()]}}
+# print(theta)
+# print(patches)
+# print(triangle_adjacent)
+# print('-'*13)
 
-ydict={'y{}'.format(x): np.linspace(y[x],y[x+1], 1000) for x in range(len(y)-1)}
+def thing(x_in, y_in, kk, diffs, idx):
+    cc = len(kk)
+    if idx == cc:
+        idx = -1
+    print(idx)
+    adjacent = 1
+    high = np.around(np.abs(diffs[kk[idx][0]]) + np.abs(diffs[kk[idx][0]]), 8)
+    hypotenuse = np.sqrt(1 + high**2) # c = sqrt(a**2 + b**2) where a = 1 and b = high
+    theta[4] = np.around(np.arctan(np.abs(hypotenuse / adjacent)), 8)
+    if idx == 0:
+        triangle_adjacent[1] = np.around(X[2] - (diffs[2] / np.tan(theta[4])), 3)
+        triangle_adjacent[2] = np.around(X[1] + (np.abs(diffs[1]) / np.tan(theta[4])), 3)
+        avg = (triangle_adjacent[1] + triangle_adjacent[2]) / 2
+        x_array = [0, 0,]
 
-# 1000 points between each value in y
-xx = np.array([x for x in np.linspace(0, len(y)-1, (len(y)-1) * 1000)])
+        if y_in[0] > y_in.mean():
+            for i, k in enumerate(y_in):
+                if k < y_in.mean():
+                    x_array.append(x_in[i-1])
+                    break
+            x_array.append(avg)
+        if y_in[0] < y_in.mean():
+            for i, k in enumerate(y_in):
+                print(k)
+                if k > y_in.mean():
+                    x_array.append(x_in[i-1])
+                    break
+            x_array.append(avg)
 
-def func(origy, avgarray, xinput, inputvals):
-    print(inputvals, )
+        y_array = [y_in.mean(), y_in[idx], y_in[1], y_in.mean()]
+        return x_array, y_array
+    if idx == -1:
+        triangle_adjacent[3] = np.around(X[-1] - (diffs[-2] / np.tan(theta[4])), 8)
+        triangle_adjacent[4] = np.around(X[-2] + (np.abs(diffs[-1]) / np.tan(theta[4])), 8)
+        avg = (triangle_adjacent[3] + triangle_adjacent[4]) / 2
+        x_array = [x_in[idx], x_in[idx], avg]
+        y_array = [y_in.mean(),y_in[idx], y_in.mean()]
+        return x_array, y_array
 
-    def dofirstthing(inputvals, avgarray):
-        num1 = 0
-        num2 = inputvals[1]
-        theta = math.atan(np.abs(origy[num2] - origy[num1]) / len(origy[:num2]))
-        degrees = theta * 180 / math.pi
-        tri1adj = (avgarray[0] - origy[num1]) * math.atan(math.radians(90 - degrees))
-        cc, magicnumber = find_nearest(xinput, tri1adj)
-        xx1 = xinput[:magicnumber].copy()
-        newy = np.linspace(origy[num1], origy[num2], 1000)
-        find, _ = find_nearest(newy, avgarray[0])
-        k = list(newy).index(find)
-        newy = np.array([x for x in np.linspace(newy[0], newy[k], magicnumber)])
-        return xx1, newy, magicnumber
+patches = {f"{x+1}":{} for x in range(len(kk))}
+patches["2"]["x"], patches["2"]["y"] = thing(X, y, kk, diffs, len(kk))
+patches["1"]["x"], patches["1"]["y"] = thing(X, y, kk, diffs, 0)
 
-    def domiddlething(inputvals2, ymean, magicnumber, othernums):
-        num1 = inputvals2[0]
-        num2 = inputvals2[1]
-        theta2 = math.atan(np.abs(y[num2] - y[num1]) / 1)
-        degrees2 = theta2 * 180 / math.pi
-        tri2adj = np.abs((ymean[0] - y[num2])) * math.atan(math.radians(90 - degrees2))
-        cc2, magicnumber2 = find_nearest(xx, tri2adj)
-        # print(magicnumber2)
-        xx2 = xx[magicnumber:num2 * 1000 - magicnumber2].copy()
-        # print(xx2)
-        if inputvals2 == inputvals[1]:
-            ar = np.linspace(ymean[0], y[othernums[0]], inputvals[0][1]*1000 - magicnumber)
-        else:
-            ar = np.array([])
-        for i in range(othernums[0],othernums[1]):
-            ar = np.concatenate((ar, np.linspace(y[i], y[i+1])), axis = None )
+print(patches)
 
 
-        newy2 = np.concatenate((ar, np.linspace(y[i+1], ymean[0], 1000-magicnumber2)), axis = None)
 
-        # newy2 = np.concatenate((np.linspace(ymean[0], y[2], inputvals[0][1]*1000 - magicnumber), np.linspace(y[2], y[3], 1000),
-        #                         np.linspace(y[3], y[4], 1000), np.linspace(y[4], y[5], 1000),
-        #                         np.linspace(y[5], y[6], 1000), np.linspace(y[6], ymean[0], 1000 - magicnumber2)),axis=None)
 
-        if othernums[1] - othernums[0] ==1:
-            newy2= np.concatenate((np.linspace(ymean[0], y[num1], len(xx[(num1*1000)-magicnumber2: num1 * 1000]))), (np.linspace( y[num1], ymean[0],len(xx[num1 * 1000:magicnumber]))),axis = None)
+data = ColumnDataSource(data = dict(y= y, ymean = ymean, origx = X, patch_1_x = patches["1"]["x"], patch_1_y = patches["1"]["y"],patch_2_x = patches["2"]["x"],patch_2_y = patches["2"]["y"]))
 
-        return xx2, newy2, magicnumber2
+TOOLS = "pan,wheel_zoom,reset,hover,save"
+p = figure(plot_width=1600, plot_height=1000,title="Kevin Durant PPG", tools=TOOLS)
+p.grid.grid_line_color = None
+p.hover.point_policy = "follow_mouse"
+p.line('origx','y', source=data, line_width=3,)
+p.line('origx','ymean', source=data, line_width=3,)
+p.patch('patch_1_x', "patch_1_y", source = data, fill_color="red", alpha = 0.5)
+p.patch('patch_2_x', "patch_2_y", source = data, fill_color="red", alpha = 0.5)
 
-    crazydict = {}
-    magdict= {}
-    for x in range(len(inputvals)-1):
-        print('here, ',x)
-        if x == 0:
-            crazydict['x{}'.format(x)], crazydict['newy{}'.format(x)], magdict['mag{}'.format(x)] = dofirstthing(inputvals[x] ,avgarray)
-        elif x == len(kk)-1:
-            pass
-        else:
-            crazydict['x{}'.format(x)], crazydict['newy{}'.format(x)], magdict['mag{}'.format(x)] = domiddlething(inputvals[x], avgarray, magdict['mag{}'.format(x-1)], [inputvals[x-1][1], inputvals[x][0]])
-    p = magdict['mag{}'.format(x)]
-    crazydict['x{}'.format(x+1)] = xx[p:].copy()
-    crazydict['newy{}'.format(x + 1)] = np.linspace(avgarray[0], y[9], len(crazydict['x{}'.format(x+1)]))
-    ymean = np.array([y.mean() for x  in range(len(xx))])
-
-    data = ColumnDataSource(data = crazydict)
-
-    return ymean, data
-h, d = func(origy = y, avgarray = ymean, xinput = xx, inputvals = kk)
-
-for x in d.data:
-    print(x)
+show(p)
