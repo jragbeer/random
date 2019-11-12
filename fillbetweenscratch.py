@@ -23,11 +23,11 @@ from bokeh.palettes import RdYlGn3 as palette
 from bokeh.plotting import figure
 import math
 
-# np.random.seed(0)
+np.random.seed(0)
 # y values
-# y = np.array([20.3, 22.93, 30.2, 27.9, 28.1, 28.2, 32, 26.5, 28.2, 25.5])
-y = np.array([20.3, 22.93, 30.2, 27.9, 28.1, 28.2, 32, 26.5, 28.2, 25.5])*-1
-
+y = np.array([20.3, 22.93, 30.2, 27.9, 28.1, 28.2, 32, 25.5, 28.2, 25.5])
+# y = np.array([20.3, 22.93, 30.2, 27.9, 28.1, 28.2, 32, 25.5, 28.2, 25.5, 25.2])*-1
+y = np.array([np.random.randint(10, 50 + 1) for x in range(10)])
 print(y)
 X = np.array([x for x in np.arange(len(y))])
 ymean = [y.mean() for x in range(len(X))]
@@ -41,12 +41,115 @@ for x in range(len(y)):
             change_points.append([x,x+1])
     except:
         pass
-print(change_points)
-
 
 def thing(x_in, y_in, change_points, diffs, idx, last_x=None):
-    cc = len(change_points)
-    if idx == cc:
+
+    def first_glpyh(x_in, y_in, change_points, diffs, idx, theta):
+        x_array = [0, 0, ]
+        y_array = [y_in.mean(), y_in[idx],]
+        # if glyph is above live and diff is positive
+        if y_in[0] > y_in.mean():
+            triangle_adjacent_1 = np.around(x_in[change_points[0][1]] + (diffs[change_points[0][1]] / np.tan(theta)), 3)
+            triangle_adjacent_2 = np.around(x_in[change_points[0][0]] + (np.abs(diffs[change_points[0][0]]) / np.tan(theta)), 3)
+            avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
+            for i, k in enumerate(y_in):
+                if k > y_in.mean():
+                    x_array.append(x_in[i])
+                    y_array.append(y_in[i])
+                elif k < y_in.mean():
+                    break
+            x_array.append(avg)
+            above_below = 'above'
+        # if the glyph will be below line and diff is negative
+        elif y_in[0] < y_in.mean():
+            triangle_adjacent_1 = np.around(x_in[change_points[0][1]] - (diffs[change_points[0][1]] / np.tan(theta)), 3)
+            triangle_adjacent_2 = np.around(x_in[change_points[0][0]] + (np.abs(diffs[change_points[0][0]]) / np.tan(theta)), 3)
+            avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
+            for i, k in enumerate(y_in):
+                if k < y_in.mean():
+                    x_array.append(x_in[i])
+                    y_array.append(y_in[i])
+                elif k > y_in.mean():
+                    break
+            x_array.append(avg)
+            above_below = 'below'
+        y_array.append(y_in.mean())
+        return x_array, y_array, avg, above_below
+
+    def last_glpyh(x_in, y_in, diffs, idx, last_x):
+
+        x_array = [last_x, x_in[idx], x_in[idx],]
+        y_array = [y_in.mean(), y_in.mean(), y_in[idx], ]
+
+        if diffs[-1] > 0:
+            for i in range(len(y_in)-1, 0, -1):
+                if diffs[i] > 0:
+                    x_array.append(x_in[i])
+                    y_array.append(y_in[i])
+                else:
+                    break
+            above_below = 'above'
+        else:
+            for i in range(len(y_in)-1, 0, -1):
+                if diffs[i] < 0:
+                    x_array.append(x_in[i])
+                    y_array.append(y_in[i])
+                else:
+                    break
+            above_below = 'below'
+        return x_array, y_array, None, above_below
+
+        # x_array = [0, 0, ]
+        # y_array = [y_in.mean(), y_in[idx],]
+        # # if glyph is above live and diff is positive
+        # if y_in[0] > y_in.mean():
+        #     triangle_adjacent_1 = np.around(x_in[change_points[0][1]] + (diffs[change_points[0][1]] / np.tan(theta)), 3)
+        #     triangle_adjacent_2 = np.around(x_in[change_points[0][0]] + (np.abs(diffs[change_points[0][0]]) / np.tan(theta)), 3)
+        #     avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
+        #     for i, k in enumerate(y_in):
+        #         if k > y_in.mean():
+        #             x_array.append(x_in[i])
+        #             y_array.append(y_in[i])
+        #         elif k < y_in.mean():
+        #             break
+        #     x_array.append(avg)
+        #     above_below = 'above'
+        # # if the glyph will be below line and diff is negative
+        # elif y_in[0] < y_in.mean():
+        #     triangle_adjacent_1 = np.around(x_in[change_points[0][1]] - (diffs[change_points[0][1]] / np.tan(theta)), 3)
+        #     triangle_adjacent_2 = np.around(x_in[change_points[0][0]] + (np.abs(diffs[change_points[0][0]]) / np.tan(theta)), 3)
+        #     avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
+        #     for i, k in enumerate(y_in):
+        #         if k < y_in.mean():
+        #             x_array.append(x_in[i])
+        #             y_array.append(y_in[i])
+        #         elif k > y_in.mean():
+        #             break
+        #     x_array.append(avg)
+        #     above_below = 'below'
+        # y_array.append(y_in.mean())
+        # return x_array, y_array, avg, above_below
+
+    def middle_glyph(x_in, y_in, change_points, diffs, idx, theta):
+        if y_in[change_points[idx][0]] > y_in.mean():
+            triangle_adjacent_1 = np.around(x_in[change_points[idx][0]] + (diffs[change_points[idx][0]] / np.tan(theta)), 3)
+            triangle_adjacent_2 = np.around(x_in[change_points[idx][1]] - (np.abs(diffs[change_points[idx][1]]) / np.tan(theta)), 3)
+            avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
+            above_below = 'above'
+        else:
+            triangle_adjacent_1 = np.around(x_in[change_points[idx][0]] - (diffs[change_points[idx][0]] / np.tan(theta)), 3)
+            triangle_adjacent_2 = np.around(x_in[change_points[idx][1]] - (np.abs(diffs[change_points[idx][1]]) / np.tan(theta)), 3)
+            avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
+            above_below = 'below'
+
+        if np.abs(change_points[idx - 1][1] - change_points[idx][0]+1) > 1:
+            x_array = [last_x] + [x for x in range(change_points[idx - 1][1], change_points[idx][0]+1)] + [avg]
+        else:
+            x_array = [last_x] + [x for x in range(change_points[idx - 1][1], change_points[idx][0] + 1)] + [avg]
+        y_array = [y_in.mean()] + [x for x in y_in[change_points[idx-1][1]:change_points[idx][0]+1]] + [y_in.mean()]
+        return x_array, y_array, avg, above_below
+
+    if idx == len(change_points):
         idx = -1
     adjacent = 1
     high = np.around(np.abs(diffs[change_points[idx][0]]) + np.abs(diffs[change_points[idx][1]]), 8)
@@ -54,62 +157,14 @@ def thing(x_in, y_in, change_points, diffs, idx, last_x=None):
     theta = np.around(np.arctan(np.abs(hypotenuse / adjacent)), 8)
     # if the first glyph to be drawn
     if idx == 0:
-        x_array = [0, 0, ]
-        if y_in[0] > y_in.mean():
-            triangle_adjacent_1 = np.around(x_in[2] + (diffs[2] / np.tan(theta)), 3)
-            triangle_adjacent_2 = np.around(x_in[1] + (np.abs(diffs[1]) / np.tan(theta)), 3)
-            avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
-            for i, k in enumerate(y_in):
-                if k < y_in.mean():
-                    x_array.append(x_in[i-1])
-                    break
-            x_array.append(avg)
-            above_below = 'above'
-        elif y_in[0] < y_in.mean():
-            triangle_adjacent_1 = np.around(x_in[2] - (diffs[2] / np.tan(theta)), 3)
-            triangle_adjacent_2 = np.around(x_in[1] + (np.abs(diffs[1]) / np.tan(theta)), 3)
-            avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
-            for i, k in enumerate(y_in):
-                if k > y_in.mean():
-                    x_array.append(x_in[i-1])
-                    break
-            x_array.append(avg)
-            above_below = 'below'
-        y_array = [y_in.mean(), y_in[idx], y_in[1], y_in.mean()]
-        print(y_array, x_array)
-        return x_array, y_array, avg, above_below
+        return first_glpyh(x_in, y_in, change_points, diffs, idx, theta)
     # if the last glyph to be drawn
     elif idx == -1:
-        triangle_adjacent_1 = np.around(x_in[-1] - (diffs[-2] / np.tan(theta)), 8)
-        triangle_adjacent_2 = np.around(x_in[-2] + (np.abs(diffs[-1]) / np.tan(theta)), 8)
-        avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
-        x_array = [x_in[idx], x_in[idx], last_x]
-        y_array = [y_in.mean(),y_in[idx], y_in.mean()]
-        if diffs[-1] > 0:
-            above_below = 'above'
-        else:
-            above_below = 'below'
-        return x_array, y_array, avg, above_below
+        return last_glpyh(x_in, y_in, diffs, idx, last_x)
     # if a glyph in the middle of the endpoints
     else:
-        if y_in[change_points[idx][0]] > y_in.mean():
-            triangle_adjacent_1 = np.around(x_in[change_points[idx][0]] + (diffs[change_points[idx][0]] / np.tan(theta)), 3)
-            triangle_adjacent_2 = np.around(x_in[change_points[idx][1]] - (np.abs(diffs[change_points[idx][1]]) / np.tan(theta)), 3)
-            avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
-            above_below = 'above'
-        elif y_in[change_points[idx][0]] < y_in.mean():
-            triangle_adjacent_1 = np.around(x_in[change_points[idx][0]] - (diffs[change_points[idx][0]] / np.tan(theta)), 3)
-            triangle_adjacent_2 = np.around(x_in[change_points[idx][1]] - (np.abs(diffs[change_points[idx][1]]) / np.tan(theta)), 3)
-            avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
-            above_below = 'below'
-            # print("avg", avg, triangle_adjacent_1, triangle_adjacent_2)
-        if np.abs(change_points[idx - 1][1] - change_points[idx][0]+1) > 1:
-            x_array = [last_x] + [x for x in range(change_points[idx - 1][1], change_points[idx][0]+1)] + [avg]
-        else:
-            x_array = [last_x] + [x for x in range(change_points[idx - 1][1], change_points[idx][0] + 1)] + [avg]
-        y_array = [y_in.mean()] + [x for x in y_in[change_points[idx-1][1]:change_points[idx][0]+1]] + [y_in.mean()]
+        return middle_glyph(x_in, y_in, change_points, diffs, idx, theta)
 
-        return x_array, y_array, avg, above_below
 
 patches = {f"{x+1}":{} for x in range(len(change_points)+1)}
 a_b_dict = {f"{x+1}":{'words':None, 'colour':None} for x in range(len(change_points)+1)}
