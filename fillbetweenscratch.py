@@ -1,36 +1,16 @@
-import pandas as pd
 import numpy as np
-import sqlite3
-import datetime
-import time
-from datetime import timezone
-from bokeh.plotting import figure, show, gmap
-from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, OpenURL, CustomJS, DatetimeTickFormatter, GMapOptions, LinearColorMapper
-from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, Range1d, FuncTickFormatter,DataRange1d , Band, SingleIntervalTicker
-from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Button, CheckboxGroup, Div
-from bokeh.layouts import widgetbox, row, column
-from bokeh.io import curdoc
-from bokeh.palettes import Purples, BuPu
-import webbrowser
-from math import pi
-from dateutil import parser
-from os.path import dirname, join
-import re
+from bokeh.plotting import figure, show
+from bokeh.models import ColumnDataSource
 import bokeh
-from bokeh.io import show
-from bokeh.transform import linear_cmap
-from bokeh.palettes import RdYlGn3 as palette
-from bokeh.plotting import figure
-import math
 from collections import Counter
-from itertools import permutations, combinations_with_replacement, combinations
 from pprint import pprint
 a = np.random.randint(1,500)
-print('seed',a)
-np.random.seed(a)
-#321
-#308
-
+# random seeds where issue is found
+b = 321
+c = 308
+np.random.seed(b)
+print('seed',b)
+print(f"Bokeh Version: {bokeh.__version__}")
 def main(p, X, y, below_colour, above_colour, ymean=None):
     y = np.array(y)
     X = np.array(X)
@@ -62,16 +42,23 @@ def main(p, X, y, below_colour, above_colour, ymean=None):
         """
 
         def first_glpyh(x_in, y_in, split, change_points, diffs, idx, theta):
+            triangle_adjacent_1 = np.around(
+                x_in[change_points[0][1]] - (np.abs(diffs[change_points[0][1]]) / np.tan(theta)), 3)
+            triangle_adjacent_2 = np.around(
+                x_in[change_points[0][0]] + (np.abs(diffs[change_points[0][0]]) / np.tan(theta)), 3)
+            avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
+
+
             x_array = [x_in.min(), x_in.min(), ]
             y_array = [split, y_in[idx], ]
+
+            # COMMENT OUT/IN TO CHANGE ORDER OF VERTICES
+            x_array = [avg, x_in.min(), x_in.min()]
+            y_array = [split,split, y_in[idx], ]
+
             # if glyph is above live and diff is positive
             if diffs[0] > 0:
                 above_below = 'above'
-                triangle_adjacent_1 = np.around(
-                    x_in[change_points[0][1]] - (np.abs(diffs[change_points[0][1]]) / np.tan(theta)), 3)
-                triangle_adjacent_2 = np.around(
-                    x_in[change_points[0][0]] + (np.abs(diffs[change_points[0][0]]) / np.tan(theta)), 3)
-                avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
                 for i, k in enumerate(diffs):
                     if i == 0:
                         continue
@@ -83,11 +70,6 @@ def main(p, X, y, below_colour, above_colour, ymean=None):
             # if the glyph will be below line and diff is negative
             elif diffs[0] < 0:
                 above_below = 'below'
-                triangle_adjacent_1 = np.around(
-                    x_in[change_points[0][1]] - (np.abs(diffs[change_points[0][1]]) / np.tan(theta)), 3)
-                triangle_adjacent_2 = np.around(
-                    x_in[change_points[0][0]] + (np.abs(diffs[change_points[0][0]]) / np.tan(theta)), 3)
-                avg = (triangle_adjacent_1 + triangle_adjacent_2) / 2
                 for i, k in enumerate(diffs):
                     if i == 0:
                         continue
@@ -96,8 +78,13 @@ def main(p, X, y, below_colour, above_colour, ymean=None):
                         y_array.append(y_in[i])
                     elif k > 0:
                         break
-            x_array.append(avg)
-            y_array.append(split)
+            # COMMENT IN/OUT TO CHANGE ORDER OF VERTICES
+            # x_array.append(avg)
+            # y_array.append(split)
+
+            # COMMENT IN/OUT TO CLOSE SHAPE
+            # x_array.append(x_array[0])
+            # y_array.append(y_array[0])
             return x_array, y_array, avg, above_below
 
         def last_glpyh(x_in, y_in, split, diffs, idx, last_x):
@@ -173,16 +160,14 @@ def main(p, X, y, below_colour, above_colour, ymean=None):
     # for each change point (pass the line to switch at)
     for x in range(1, len(change_points) + 2):
         # calculate x, y, right-most point on x-axis, position of patch
-        patches[str(x)]["x"], patches[str(x)]["y"], x_point, a_b_dict[str(x)]["words"] = make_glyph_coords(X, y, split,
-                                                                                                           change_points,
-                                                                                                           diffs,  x - 1,
-                                                                                                           x_point)
+        patches[str(x)]["x"], patches[str(x)]["y"], x_point, a_b_dict[str(x)]["words"] = make_glyph_coords(X, y, split, change_points, diffs,  x - 1, x_point)
 
         # assign colour based on position of patch
         if a_b_dict[str(x)]['words'] == 'below':
             a_b_dict[str(x)]['colour'] = below_colour
         elif a_b_dict[str(x)]['words'] == 'above':
             a_b_dict[str(x)]['colour'] = above_colour
+    print("\nPathces data:")
     pprint(patches)
     # initial data
     data_dict = {"x": X, "y": y, "ymean": [split for x in range(len(y))],
@@ -205,12 +190,14 @@ below_colour = "red"
 above_colour = "green"
 y = np.array([np.random.randint(10, 80) for x in range(10)])
 X = np.array(sorted([np.random.randint(10, 80) for x in range(10)]))
-thing = True
-while thing:
+
+# ensure that each x value is unique
+check = True
+while check:
     if max(Counter(X).values()) > 1:
         X = np.array(sorted([np.random.randint(10, 80) for x in range(10)]))
     else:
-        thing = False
+        check = False
 ymean = y.mean()
 split = np.random.randint(y.min()+1,y.max()-1)
 
