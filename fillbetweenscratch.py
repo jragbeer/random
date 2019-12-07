@@ -5,12 +5,8 @@ import bokeh
 from collections import Counter
 from pprint import pprint
 a = np.random.randint(1,500)
-# random seeds where issue is found
-b = 321
-c = 308
-np.random.seed(b)
-print('seed',b)
-print(f"Bokeh Version: {bokeh.__version__}")
+np.random.seed(a)
+print('seed',a)
 def main(p, X, y, below_colour, above_colour, ymean=None):
     y = np.array(y)
     X = np.array(X)
@@ -167,22 +163,16 @@ def main(p, X, y, below_colour, above_colour, ymean=None):
             a_b_dict[str(x)]['colour'] = below_colour
         elif a_b_dict[str(x)]['words'] == 'above':
             a_b_dict[str(x)]['colour'] = above_colour
-    print("\nPathces data:")
-    pprint(patches)
     # initial data
-    data_dict = {"x": X, "y": y, "ymean": [split for x in range(len(y))],
-                 'colour': [a_b_dict[str(x)]['colour'] for x in a_b_dict.keys()]}
-    # add x and y arrays for each patch
-    data_dict.update(**{f"patch_{x}_x": patches[x]["x"] for x in patches.keys()})
-    data_dict.update(**{f"patch_{x}_y": patches[x]["y"] for x in patches.keys()})
-
+    line_dict = {"x": X, "y": y, "ymean": [split for x in range(len(y))],}
+    patch_sources = {x+1: ColumnDataSource(data = {'x': i["x"], 'y': i['y'],}) for x,i in enumerate(patches.values())}
     # create single CDS for all of the glyphs
-    data = ColumnDataSource(data=data_dict)
-    p.line('x', 'y', source=data, line_width=3, )
-    p.line('x', 'ymean', source=data, line_width=3, )
+    line_source = ColumnDataSource(data=line_dict)
+    p.line('x', 'y', source=line_source, line_width=3, )
+    p.line('x', 'ymean', source=line_source, line_width=3, )
     patch_glyphs = {}
     for x in range(1, len(change_points) + 2):
-        patch_glyphs[str(x)] = p.patch(f'patch_{x}_x', f"patch_{x}_y", source=data,
+        patch_glyphs[str(x)] = p.patch(f'x', f"y", source=patch_sources[x],
                                        fill_color=a_b_dict[str(x)]['colour'], alpha=0.5)
     return p
 # y values
