@@ -34,8 +34,8 @@ from selenium import webdriver
 import re
 from selenium.webdriver.common.keys import Keys
 import urllib.request
-from selenium.webdriver.firefox.options import Options
-
+from selenium.webdriver.firefox.options import Options as firefox_options
+from selenium.webdriver.chrome.options import Options as chrome_options
 # credentials for Azure SQL
 def get_credentials():
     # credentials for Azure SQL
@@ -749,9 +749,18 @@ def hourly_forecast_24(citytimezone, nameofcity, url, q):
         driver - the browser (process) instance
         """
         if browser == 'chrome':
-            driver = webdriver.Chrome()
+            chromeOptions = chrome_options()
+            chromeOptions.add_experimental_option("prefs", {
+                "download.default_directory": r"C:\Users\J_Ragbeer\Downloads",
+                "download.prompt_for_download": False,
+                "download.directory_upgrade": True,
+                "safebrowsing.enabled": True
+            })
+            chromeOptions.add_argument("--disable-gpu")
+            chromeOptions.add_argument("--headless")
+            driver = webdriver.Chrome(options=chromeOptions)
         else:
-            firefoxOptions = Options()
+            firefoxOptions = firefox_options()
             firefoxOptions.set_preference("browser.download.folderList", 2)
             firefoxOptions.set_preference("browser.download.manager.showWhenStarting", False)
             firefoxOptions.set_preference("browser.download.dir", path.replace('/', '\\') + 'data\\downloads\\')
