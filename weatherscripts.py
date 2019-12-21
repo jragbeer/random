@@ -1,15 +1,10 @@
 import pandas as pd
 import numpy as np
-import glob
 import sys
 import os
 import sqlite3
 import smtplib
-import calendar
-import socket
-from urllib.request import HTTPError, URLError, Request, urlopen
-import pickle
-from apscheduler.schedulers.blocking import BlockingScheduler
+from urllib.request import Request, urlopen
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import ssl
@@ -17,22 +12,14 @@ import bs4 as bs
 import time
 import logging
 import pytz
-from shutil import copyfile, copy2
+from shutil import copy2
 from sqlalchemy import create_engine
-from sqlalchemy.schema import MetaData
-import pyodbc
-import sqlalchemy
-from dateutil import parser
-import holidays
 import datetime
 import urllib
 import traceback
-from multiprocessing import Pool
 from multiprocessing import Process
 import multiprocessing as mp
 from selenium import webdriver
-import re
-from selenium.webdriver.common.keys import Keys
 import urllib.request
 from selenium.webdriver.firefox.options import Options as firefox_options
 from selenium.webdriver.chrome.options import Options as chrome_options
@@ -777,7 +764,7 @@ def hourly_forecast_24(citytimezone, nameofcity, url, q):
     try:
         datee = datetime.datetime.now().astimezone(pytz.timezone(citytimezone))
         name = '{}_Weather_Forecast_24'.format(nameofcity.replace(' ', '_'))
-        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
+        path = os.getcwd().replace("\\", "/") + "/"
         conn = sqlite3.connect(path + '{}weather.db'.format(nameofcity.replace(' ', '')))
         engine = azure_sql_connection()
         soup, web_driver = grab_soup(url, )
