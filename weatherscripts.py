@@ -158,10 +158,8 @@ def load_old_data_into_db_hourly():
                     pass
         bigdf = pd.concat([x for x in dfs.values()])
         bigdf.drop_duplicates(inplace=True)
-        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
-        db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
-        conn = sqlite3.connect(path + db)
-        bigdf.to_sql(citydict[z]['tablename'], conn, index=True, if_exists='replace')
+        engine = azure_sql_connection()
+        bigdf.to_sql(citydict[z]['tablename'], engine, index=True, if_exists='replace')
         print(z, 'done')
 def load_old_data_into_db_daily():
     """
@@ -181,10 +179,8 @@ def load_old_data_into_db_daily():
         bigdf.drop_duplicates(inplace=True)
         today = datetime.datetime.now()
         bigdf = bigdf[bigdf.index < datetime.datetime(today.year, today.month, today.day)]
-        path = r'C:/Users/J_Ragbeer/PycharmProjects/weatherdata/'
-        db = '{}WeatherHistorical.db'.format(z.replace(' ', ''))
-        conn = sqlite3.connect(path + db)
-        bigdf.to_sql(citydict[z]['tablename']+'_Daily', conn, index=True, if_exists='replace')
+        engine = azure_sql_connection()
+        bigdf.to_sql(citydict[z]['tablename']+'_Daily', engine, index=True, if_exists='replace')
         print(z, 'done')
 def get_new_data_daily(stationid, year=None):
     """
@@ -198,16 +194,10 @@ def get_new_data_daily(stationid, year=None):
 
     date = datetime.datetime.now()
     if year:
-        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month=1&Day=14&timeframe=2&submit=Download+Data.csv".format(
-        stationid, year)
+        datastring = f"http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={stationid}&Year={year}&Month=1&Day=14&timeframe=2&submit=Download+Data.csv"
     else:
-        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month=1&Day=14&timeframe=2&submit=Download+Data.csv".format(
-        stationid, date.year)
-    try:
-        df = pd.read_csv(datastring, skiprows = 25)
-        df['Month'] = df['Month'].astype(np.int64)
-    except:
-        df = pd.read_csv(datastring, skiprows=24)
+        datastring = f"http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={stationid}&Year={date.year}&Month=1&Day=14&timeframe=2&submit=Download+Data.csv"
+    df = pd.read_csv(datastring)
     df.columns = df.columns.str.replace('\(°C\)', '')
     df.columns = df.columns.str.strip()
     df.columns = df.columns.str.upper()
@@ -236,36 +226,19 @@ def get_new_data_hourly(stationid, year=None, month = None):
     """
     date = datetime.datetime.now()
     if year and month:
-        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data.csv".format(
-        stationid, year, month)
+        datastring = f"http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={stationid}&Year={year}&Month={month}&Day=14&timeframe=1&submit=Download+Data.csv"
     else:
-        datastring = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={}&Year={}&Month={}&Day=14&timeframe=1&submit=Download+Data.csv".format(
-        stationid, date.year, date.month)
-    try:
-        df = pd.read_csv(datastring, encoding='utf-8', skiprows=16, header=None,
-                         names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
-                                'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
-                                'Wind Dir (10s deg)', 'Wind Dir Flag', 'Wind Spd (km/h)', 'Wind Spd Flag',
-                                'Visibility (km)', 'Visibility Flag', 'Stn Press (kPa)', 'Stn Press Flag',
-                                'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
-        Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY', 'TEMP', 'REL_HUM', 'DEW_TEMP']]
-        Wdata.fillna(method='ffill', inplace=True)
-        Wdata.fillna(method='bfill', inplace=True)
-        Wdata.set_index('DATETIME', inplace=True)
-        Wdata.index = pd.to_datetime(Wdata.index)
-    except Exception as i:
-        df = pd.read_csv(datastring, encoding='utf-8', skiprows=17, header=None,
-                         names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
-                                'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
-                                'Wind Dir (10s deg)', 'Wind Dir Flag', 'Wind Spd (km/h)', 'Wind Spd Flag',
-                                'Visibility (km)', 'Visibility Flag', 'Stn Press (kPa)', 'Stn Press Flag',
-                                'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
-        Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY', 'TEMP', 'REL_HUM', 'DEW_TEMP']]
-        Wdata.fillna(method='ffill', inplace=True)
-        Wdata.fillna(method='bfill', inplace=True)
-        Wdata.set_index('DATETIME', inplace=True)
-        Wdata.index = pd.to_datetime(Wdata.index)
-
+        datastring = f"http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={stationid}&Year={date.year}&Month={date.month}&Day=14&timeframe=1&submit=Download+Data.csv"
+    df = pd.read_csv(datastring, encoding='utf-8',  names=['DATETIME', 'YEAR', 'MONTH', 'DAY', 'Time', 'TEMP', 'Temp Flag',
+                            'DEW_TEMP', 'Dew Point Temp Flag', 'REL_HUM', 'Rel Hum Flag',
+                            'Wind Dir (10s deg)', 'Wind Dir Flag', 'Wind Spd (km/h)', 'Wind Spd Flag',
+                            'Visibility (km)', 'Visibility Flag', 'Stn Press (kPa)', 'Stn Press Flag',
+                            'Hmdx', 'Hmdx Flag', 'Wind Chill', 'Wind Chill Flag', 'Weather'])
+    Wdata = df[['DATETIME', 'YEAR', 'MONTH', 'DAY', 'TEMP', 'REL_HUM', 'DEW_TEMP']]
+    Wdata.fillna(method='ffill', inplace=True)
+    Wdata.fillna(method='bfill', inplace=True)
+    Wdata.set_index('DATETIME', inplace=True)
+    Wdata.index = pd.to_datetime(Wdata.index)
     Wdata = Wdata.sort_index()
     Wdata['HOUR'] = Wdata.index.hour
     Wdata['HUMIDEX'] = pd.Series([hmdxx(x.TEMP, x.DEW_TEMP) for x in Wdata.itertuples()], index=Wdata.index)
