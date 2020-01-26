@@ -1,5 +1,6 @@
 import geopandas as gpd
 import pysal as ps
+from shapely.geometry import Point
 import numpy as np
 import pandas as pd
 import datetime
@@ -109,7 +110,7 @@ data['x'] = data.apply(getCoords, geom_col="geometry", coord_type="x", axis=1)
 data['y'] = data.apply(getCoords, geom_col="geometry", coord_type="y", axis=1)
 data['y'] = [np.array(x) for x in data['y']]
 data['x'] = [np.array(x) for x in data['x']]
-
+pprint(data)
 info = {x.CFSAUID: {'long':np.nanmean(x.x), 'lat': np.nanmean(x.y)} for x in data.itertuples()}
 
 file = open(os.getcwd().replace("\\", "/") + "/IESO_Zonal_Map.geojson", 'r', encoding='utf-8')
@@ -121,18 +122,26 @@ for x in range(len(zonal_geojson['features'])):
     d = zonal_geojson['features'][x]['properties']["description"]
     x_range = [i[0] for i in r]
     y_range = [i[1] for i in r]
-    zonal_data[t] = {'Description': d, 'Long/Lat':r, 'ranges': {'long': [min(x_range), max(x_range)], 'lat': [min(y_range), max(y_range)]}}
-
+    zonal_data[t] = {'Description': d, 'Long/Lat':r, 'ranges': {'long': [min(x_range), max(x_range)], 'lat': [min(y_range), max(y_range)], 'center': {'long':np.nanmean(x_range), 'lat': np.nanmean(y_range)}}}
+print('\n-\n')
 pprint(zonal_data)
+print('\n-\n')
+
+zone_boundaries = gpd.read_file(os.getcwd().replace("\\", "/") + "/IESO_Zonal_Map.geojson")
+
+zone_boundaries['center'] = [i.centroid for i in zone_boundaries.geometry]
+print(zone_boundaries.to_string())
+print('\n-\n')
+#
+
 zone_fsa_mapping = {}
-for z in info.keys():
-    for i in zonal_data.keys():
-        if zonal_data[i]['ranges']['lat'][0] <= info[z]['lat'] <= zonal_data[i]['ranges']['lat'][1]:
-            if zonal_data[i]['ranges']['long'][0] <= info[z]['long'] <= zonal_data[i]['ranges']['long'][1]:
-                try:
-                    zone_fsa_mapping[i].append(z)
-                except:
-                    zone_fsa_mapping[i] = [z]
+
+for i in zone_boundaries.itertuples(): # each zone
+    for z in info.keys(): # each FSA
+        if Point(info[z]['long'], info[z]['lat']).within(i.geometry):
+            try:
+                zone_fsa_mapping[i.Name].append(z)
+            except:
+                zone_fsa_mapping[i.Name] = [z]
 
 pprint(zone_fsa_mapping)
-
