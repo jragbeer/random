@@ -17,6 +17,8 @@ import time
 import copy
 import colorcet as cc
 import calendar
+from pprint import pprint
+
 pd.set_option('display.float_format', lambda x: '%.3f' % x)
 
 
@@ -155,27 +157,31 @@ def update_chart(pickup_dropoff, cartype, year, hour, month, day, holiday):
 
     thing = so_far[pickup_dropoff][cartype.lower()][str(year).lower()][str(hour_value)][str(month_value)][str(day_value)][str(holi_value)]
     nums_ = thing.describe()
+    if nums_.loc['count', :].values[0] == 0:
+        div.text = "NO DATA AVAILABLE"
+    else:
 
-    colorbar_divmin.text = wrap_in_paragraphs(f'Min:  {int(nums_.loc["min", "value"]):,}', 'gold', )
-    colorbar_div25.text = wrap_in_paragraphs(f'25%: {int(nums_.loc["25%", "value"]):,}', 'darkorange', )
-    colorbar_div50.text = wrap_in_paragraphs(f'50%: {int(nums_.loc["50%", "value"]):,}', 'orangered', )
-    colorbar_div75.text = wrap_in_paragraphs(f'75%: {int(nums_.loc["75%", "value"]):,}', 'firebrick', )
-    colorbar_divmax.text = wrap_in_paragraphs(f'Max: {int(nums_.loc["max", "value"]):,}', 'darkred', )
+        colorbar_divmin.text = wrap_in_paragraphs(f'Min:  {int(nums_.loc["min", "value"]):,}', 'gold', )
+        colorbar_div25.text = wrap_in_paragraphs(f'25%: {int(nums_.loc["25%", "value"]):,}', 'darkorange', )
+        colorbar_div50.text = wrap_in_paragraphs(f'50%: {int(nums_.loc["50%", "value"]):,}', 'orangered', )
+        colorbar_div75.text = wrap_in_paragraphs(f'75%: {int(nums_.loc["75%", "value"]):,}', 'firebrick', )
+        colorbar_divmax.text = wrap_in_paragraphs(f'Max: {int(nums_.loc["max", "value"]):,}', 'darkred', )
 
-    div.text = make_div(thing)
-    dat = pd.merge(DATA, thing, right_index=True, left_on='LocationID')
-    borough_data_ = pd.DataFrame(dat.groupby(['borough'])['value'].sum())
-    borough_source.data = ColumnDataSource(
-        data={'names': borough_data_.index, 'x': np.array([x for x in range(len(borough_data_.index))]) + 0.5, 'right': borough_data_.values,
-              'colour': ['firebrick'] * len(borough_data_.index), 'percents': [100*int(x)/sum(borough_data_.values) for x in borough_data_.values]}).data
+        div.text = make_div(thing)
+        dat = pd.merge(DATA, thing, right_index=True, left_on='OBJECTID', how='left')
+        dat['value'].fillna(1, inplace=True)
+        borough_data_ = pd.DataFrame(dat.groupby(['borough'])['value'].sum())
+        borough_source.data = dict(ColumnDataSource(
+            data={'names': borough_data_.index, 'x': np.array([x for x in range(len(borough_data_.index))]) + 0.5, 'right': borough_data_.values,
+                  'colour': ['firebrick'] * len(borough_data_.index), 'percents': [100*int(x)/sum(borough_data_.values) for x in borough_data_.values]}).data)
 
-    top5_locations = dat.sort_values(by='value', ascending=False).iloc[:5, :].sort_values(by='value')
+        top5_locations = dat.sort_values(by='value', ascending=False).iloc[:5, :].sort_values(by='value')
 
-    locations_source.data = ColumnDataSource(
-        data={'zone': np.asarray(top5_locations['zone']), 'x': np.array([x for x in range(len(top5_locations.index))]) + 0.5, 'borough': np.asarray(top5_locations["borough"]),
-              'right': np.asarray(top5_locations["value"]), 'colour': ['orange'] * len(top5_locations.index), 'percents': [100*int(x)/sum(borough_data_.values) for x in top5_locations["value"].values]}).data
-    dfsource.data = ColumnDataSource(data=dat).data
-    z.y_range.factors = top5_locations['zone'].to_list()
+        locations_source.data = dict(ColumnDataSource(
+            data={'zone': np.asarray(top5_locations['zone']), 'x': np.array([x for x in range(len(top5_locations.index))]) + 0.5, 'borough': np.asarray(top5_locations["borough"]),
+                  'right': np.asarray(top5_locations["value"]), 'colour': ['orange'] * len(top5_locations.index), 'percents': [100*int(x)/sum(borough_data_.values) for x in top5_locations["value"].values]}).data)
+        dfsource.data = dict(ColumnDataSource(data=dat).data)
+        z.y_range.factors = top5_locations['zone'].to_list()
 
 def wrap_in_paragraphs(text, colour="DarkSlateBlue", size=4):
     """
@@ -214,7 +220,7 @@ doc.title = 'NYC Taxi Dashboard'
 #         pu_do_data['Drop-Off'][str(colr)][str(yr)] = do_data
 
 # File path
-points_fp = r"C:\Users\J_Ragbeer\PycharmProjects\nyctaxi\geofiles\taxi_zones.shp"
+points_fp = r"C:\Users\Julien\PycharmProjects\nyctaxi\geofiles\taxi_zones.shp"
 # Read the data
 data = gpd.read_file(points_fp)
 data['x'] = data.apply(getCoords, geom_col="geometry", coord_type="x", axis=1)
@@ -231,14 +237,19 @@ pickle_in = open("answers.pickle","rb")
 so_far = pickle.load(pickle_in)
 DF = copy.deepcopy(data)
 starting = so_far['Drop-Off']["all"]["all"]["all"]["all"]["all"]["all"]
-data = pd.merge(data, starting, right_index = True, left_on='LocationID')
+ending = so_far['Drop-Off']["all"]["all"]["all"]['1']['all']['all']
+ending1 = so_far['Drop-Off']["all"]["all"]["all"]['2']['all']['all']
+ending2 = so_far['Drop-Off']["all"]["all"]["all"]['3']['all']['all']
 
+data = pd.merge(data, starting, right_index=True, left_on='OBJECTID', how='right')
+data.dropna(how='any', inplace=True, thresh=6)
 top5_ = data.sort_values(by='value', ascending=False).iloc[:5, :].sort_values(by='value')
 
 dfsource = ColumnDataSource(data=data)
 
 current_time = datetime.datetime.now()
 TOOLS = "pan,wheel_zoom,box_zoom,reset,save"
+months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 borough_data = pd.DataFrame(data.groupby(['borough'])['value'].sum())
 
@@ -247,14 +258,14 @@ borough_data = pd.DataFrame(data.groupby(['borough'])['value'].sum())
 palette = cc.fire[16:253]
 palette.reverse()
 color_mapper = LinearColorMapper(palette=palette, )
-months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 color_bar = ColorBar(color_mapper=color_mapper, ticker=BasicTicker(), location=(0, 0), orientation='horizontal', border_line_color=None,)
 
 p = figure(title="NYC Map", tools=TOOLS, plot_width=1200, plot_height=870, active_scroll="wheel_zoom")
-
+p.add_layout(color_bar, 'below')
 # Do not add grid line
 p.grid.grid_line_color = None
-
+p.axis.visible = False
+p.x_range = Range1d(min([min(x) for x in data['x']])-min([min(x) for x in data['x']])*0.01, max([max(x) for x in data['x']]) + max([max(x) for x in data['x']])*0.03)
 # Add polygon grid and a legend for it
 grid = p.patches('x', 'y', source=dfsource, name="grid",
          fill_color={'field': 'value', 'transform': color_mapper},
@@ -266,10 +277,8 @@ ghover.tooltips=[("Location ID", "@LocationID"),
                 ("Zone", "@zone"),
                 ("No. of Trips", "@value{0,0}"),
                ]
-
 p.add_tools(ghover)
-p.axis.visible = False
-p.add_layout(color_bar, 'below')
+
 
 # W Chart
 w = figure(title="Borough Counts", toolbar_location=None, y_axis_label=None, y_range=FactorRange(factors=[]),
@@ -328,7 +337,7 @@ select_holiday.on_change('value', update_holiday)
 div = Div(width=240, text=make_div(starting))
 
 bottom_div_text = wrap_in_paragraphs("This dashboard is maintained by:", "DimGray", size=3) + \
-                  wrap_in_paragraphs("Julien Ragbeer, IT", "Black", 3) + \
+                  wrap_in_paragraphs("Julien Ragbeer", "Black", 3) + \
                   wrap_in_paragraphs("Any comments / questions / concerns, please send an email to the maintainer.", "DimGray", size=3) + \
                   wrap_in_paragraphs("""Data is up-to-date as of <br><font color="DarkSlateBlue">January 1, 2019</font>""", "Black", 3) + \
                   wrap_in_paragraphs("Best viewed with Google Chrome", "DimGray", size=3)
@@ -342,12 +351,31 @@ colorbar_div50 = Div(text=wrap_in_paragraphs(f'50%: {int(nums.loc["50%", "value"
 colorbar_div75 = Div(text=wrap_in_paragraphs(f'75%: {int(nums.loc["75%", "value"]):,}', 'firebrick',), width=250, style={'text-align': 'center'})
 colorbar_divmax = Div(text=wrap_in_paragraphs(f'Max: {int(nums.loc["max", "value"]):,}', 'darkred',), width=210, style={'text-align': 'right'})
 
-uu = widgetbox([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday], width=240)
-first_part = column(uu, div, bottom_div)
-third_part = column(w,z)
-colorbar_divs = row(colorbar_divmin, colorbar_div25, colorbar_div50, colorbar_div75, colorbar_divmax)
-middle_part = column(p, colorbar_divs)
-dashboard = row(first_part, middle_part, third_part,)
-show(dashboard)
+size_mode = "stretch_width"
+aspect_ratio = 'auto'
+height = ""
+width = ""
 
-doc.add_root(dashboard)
+#
+# uu = column([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday], width=240)
+# first_part = column(uu, div, bottom_div)
+# third_part = column(w,z)
+# colorbar_divs = row(colorbar_divmin, colorbar_div25, colorbar_div50, colorbar_div75, colorbar_divmax)
+# middle_part = column(p, colorbar_divs)
+# dashboard = row(first_part, middle_part, third_part, aspect_ratio = 'auto', min_height=500, min_width=500)
+#
+# uu = widgetbox([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday], width=240)
+# first_part = column(uu, div, bottom_div)
+# third_part = column(w,z)
+# colorbar_divs = row(colorbar_divmin, colorbar_div25, colorbar_div50, colorbar_div75, colorbar_divmax)
+# middle_part = column(p, colorbar_divs)
+# dashboard = row(first_part, middle_part, third_part,)
+
+uu = column([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday],  width=228)
+first_part = column(uu, div, bottom_div, max_width=250)
+third_part = column(w,z, max_width=375)
+colorbar_divs = row(colorbar_divmin, colorbar_div25, colorbar_div50, colorbar_div75, colorbar_divmax, max_width=850)
+middle_part = column(p, colorbar_divs, max_width=1000)
+dash = row(first_part, middle_part, third_part,sizing_mode=size_mode)
+show(dash)
+doc.add_root(dash)
