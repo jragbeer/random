@@ -1,26 +1,20 @@
 import geopandas as gpd
-import pysal as ps
 import numpy as np
 import pandas as pd
 import datetime
-import bs4 as bs
-import urllib.request
 from bokeh.plotting import figure, show, save
 from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, Label, LogColorMapper, GeoJSONDataSource, FactorRange, FixedTicker, FuncTickFormatter
 from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, Range1d, ColorBar, LinearColorMapper, BasicTicker
 from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Div, inputs
 from bokeh.layouts import widgetbox, row, column, gridplot, layout
 from bokeh.io import curdoc
-import calendar
 import pickle
 import time
 import copy
 import colorcet as cc
-import calendar
-from pprint import pprint
+import os
 
 pd.set_option('display.float_format', lambda x: '%.3f' % x)
-
 
 def getXYCoords(geometry, coord_type):
     """ Returns either x or y coordinates from  geometry coordinate sequence. Used with LineString and Polygon geometries."""
@@ -139,10 +133,9 @@ def update_chart(pickup_dropoff, cartype, year, hour, month, day, holiday):
         day_value = weekdays.index(str(day).lower())+1
     else:
         day_value = 'all'
-    months2 = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-    if str(month) in months2:
-        month_value = months2.index(str(month))+1
+    if str(month) in months:
+        month_value = months.index(str(month))+1
     else:
         month_value = 'all'
 
@@ -158,16 +151,15 @@ def update_chart(pickup_dropoff, cartype, year, hour, month, day, holiday):
     thing = so_far[pickup_dropoff][cartype.lower()][str(year).lower()][str(hour_value)][str(month_value)][str(day_value)][str(holi_value)]
     nums_ = thing.describe()
     if nums_.loc['count', :].values[0] == 0:
-        div.text = "NO DATA AVAILABLE"
+        data_div.text = "NO DATA AVAILABLE"
     else:
-
         colorbar_divmin.text = wrap_in_paragraphs(f'Min:  {int(nums_.loc["min", "value"]):,}', 'gold', )
         colorbar_div25.text = wrap_in_paragraphs(f'25%: {int(nums_.loc["25%", "value"]):,}', 'darkorange', )
         colorbar_div50.text = wrap_in_paragraphs(f'50%: {int(nums_.loc["50%", "value"]):,}', 'orangered', )
         colorbar_div75.text = wrap_in_paragraphs(f'75%: {int(nums_.loc["75%", "value"]):,}', 'firebrick', )
         colorbar_divmax.text = wrap_in_paragraphs(f'Max: {int(nums_.loc["max", "value"]):,}', 'darkred', )
 
-        div.text = make_div(thing)
+        data_div.text = make_div(thing)
         dat = pd.merge(DATA, thing, right_index=True, left_on='OBJECTID', how='left')
         dat['value'].fillna(1, inplace=True)
         borough_data_ = pd.DataFrame(dat.groupby(['borough'])['value'].sum())
@@ -194,52 +186,33 @@ def wrap_in_paragraphs(text, colour="DarkSlateBlue", size=4):
     return """<p><b><font color={} size={}>{}</font></b></p>""".format(colour, size, text)
 
 def make_div(info):
-    text = wrap_in_paragraphs('NYC For-Hire Vehicle / Taxi  Analysis',) + \
-    wrap_in_paragraphs('Total Trips: {:,}'.format(np.asarray(info).sum()), 'Firebrick', 5) + \
-           wrap_in_paragraphs('Mean: {:,}'.format(int(np.asarray(info).mean())), 'Firebrick', 5)
-    return text
+    return wrap_in_paragraphs('NYC For-Hire Vehicle / Taxi  Analysis',) + \
+    wrap_in_paragraphs(f'Total Trips: {np.asarray(info).sum():,}', 'Firebrick', 5) + \
+           wrap_in_paragraphs(f'Mean: {int(np.asarray(info).mean()):,}', 'Firebrick', 5)
 
 doc = curdoc()
 #clears the html page and gives the tab a name
 doc.clear()
 doc.title = 'NYC Taxi Dashboard'
-
-# for colr in ['yellow', 'green', "fhv", "all", ]:
-#     pu_do_data['Pick-Up'][str(colr)] = {}
-#     pu_do_data['Drop-Off'][str(colr)] = {}
-#     for yr in [2016, 2017, 2018, 'all']:
-#         # pickle_in = open("pulocationid_{}_full.pickle".format(colr),"rb")
-#         pickle_in = open("pulocationid_{}_{}_full_test.pickle".format(colr, yr),"rb")
-#         pu_data = pickle.load(pickle_in)
-#         # pickle_in = open("dolocationid_{}_full.pickle".format(colr),"rb")
-#         pickle_in = open("dolocationid_{}_{}_full_test.pickle".format(colr, yr),"rb")
-#         do_data = pickle.load(pickle_in)
-#         pu_data.columns = ['value']
-#         do_data.columns = ['value']
-#         pu_do_data['Pick-Up'][str(colr)][str(yr)] = pu_data
-#         pu_do_data['Drop-Off'][str(colr)][str(yr)] = do_data
+path = os.getcwd().replace('\\', "/")
 
 # File path
-points_fp = r"C:\Users\Julien\PycharmProjects\nyctaxi\geofiles\taxi_zones.shp"
+shape_file = path + "/static/geofiles/taxi_zones.shp"
 # Read the data
-data = gpd.read_file(points_fp)
+data = gpd.read_file(shape_file)
 data['x'] = data.apply(getCoords, geom_col="geometry", coord_type="x", axis=1)
 data['y'] = data.apply(getCoords, geom_col="geometry", coord_type="y", axis=1)
 data['y'] = [np.array(x) for x in data['y']]
 data['x'] = [np.array(x) for x in data['x']]
 
 # Select only necessary columns for our plotting to keep the amount of data minumum
-# df = data[['x', 'y', 'pt_r_tt_ud', 'pt_r_tt', 'car_r_t', 'from_id', 'label_pt']]
 data = data[[x for x in data.columns if x not in ['geometry']]]
 data.fillna(0, inplace=True)
 
-pickle_in = open("answers.pickle","rb")
+pickle_in = open(path + "/data/nyctaxi_data_initial.pickle","rb")
 so_far = pickle.load(pickle_in)
 DF = copy.deepcopy(data)
 starting = so_far['Drop-Off']["all"]["all"]["all"]["all"]["all"]["all"]
-ending = so_far['Drop-Off']["all"]["all"]["all"]['1']['all']['all']
-ending1 = so_far['Drop-Off']["all"]["all"]["all"]['2']['all']['all']
-ending2 = so_far['Drop-Off']["all"]["all"]["all"]['3']['all']['all']
 
 data = pd.merge(data, starting, right_index=True, left_on='OBJECTID', how='right')
 data.dropna(how='any', inplace=True, thresh=6)
@@ -260,12 +233,14 @@ palette.reverse()
 color_mapper = LinearColorMapper(palette=palette, )
 color_bar = ColorBar(color_mapper=color_mapper, ticker=BasicTicker(), location=(0, 0), orientation='horizontal', border_line_color=None,)
 
-p = figure(title="NYC Map", tools=TOOLS, plot_width=1200, plot_height=870, active_scroll="wheel_zoom")
+p = figure(title="NYC Map", tools=TOOLS, plot_width=1000, plot_height=870, active_scroll="wheel_zoom")
 p.add_layout(color_bar, 'below')
 # Do not add grid line
 p.grid.grid_line_color = None
 p.axis.visible = False
-p.x_range = Range1d(min([min(x) for x in data['x']])-min([min(x) for x in data['x']])*0.01, max([max(x) for x in data['x']]) + max([max(x) for x in data['x']])*0.03)
+p.title.text_font_size = '14pt'
+p.x_range = Range1d(min([min(x) for x in data['x']])-min([min(x) for x in data['x']])*0.01,
+                    max([max(x) for x in data['x']]) + max([max(x) for x in data['x']])*0.01)
 # Add polygon grid and a legend for it
 grid = p.patches('x', 'y', source=dfsource, name="grid",
          fill_color={'field': 'value', 'transform': color_mapper},
@@ -279,7 +254,11 @@ ghover.tooltips=[("Location ID", "@LocationID"),
                ]
 p.add_tools(ghover)
 
-
+p.outline_line_width = 4
+p.outline_line_alpha = 0.3
+p.outline_line_color = "firebrick"
+p.axis.axis_line_color = None
+p.toolbar.autohide = True
 # W Chart
 w = figure(title="Borough Counts", toolbar_location=None, y_axis_label=None, y_range=FactorRange(factors=[]),
            plot_width=375, plot_height=450)
@@ -291,10 +270,9 @@ whover = HoverTool(renderers=[wchart])
 whover.tooltips=[("Borough", "@names"),
                 ("No. of Trips", "@right{0,0}"), ("Percentage", "@percents{0.0}%")]
 w.add_tools(whover)
-w.xaxis.formatter = NumeralTickFormatter(format="0.0a")
+
 w.y_range.factors = borough_data.index
-w.yaxis.major_label_text_font_size = "9pt"
-w.yaxis.major_label_text_font_style = 'bold'
+
 # Z Chart
 z = figure(title="Top 5 Locations", toolbar_location=None, y_axis_label=None, y_range=FactorRange(factors=[]),
            plot_width=375, plot_height=450)
@@ -308,10 +286,25 @@ zhover.tooltips=[("Borough", "@borough"),
                 ("No. of Trips", "@right{0,0}"),
                  ("Percentage", "@percents{0.0}%")]
 z.add_tools(zhover)
-z.xaxis.formatter = NumeralTickFormatter(format="0.0a")
 z.y_range.factors = np.asarray(top5_['zone'])
-z.yaxis.major_label_text_font_size = "9pt"
-z.yaxis.major_label_text_font_style = 'bold'
+
+for plot in [z, w]:
+    plot.xaxis.formatter = NumeralTickFormatter(format="0.0a")
+    plot.axis.major_label_text_font_size = "9pt"
+    plot.axis.major_label_text_font_style = 'bold'
+    plot.xaxis.major_label_orientation = np.pi / 4
+    plot.yaxis.major_label_text_font_style = 'bold'
+    plot.xaxis.major_label_text_font_style = 'bold'
+    plot.yaxis.major_label_text_font = "Arial"
+    plot.xaxis.major_label_text_font = "Arial"
+    plot.title.text_font_size = '14pt'
+    plot.yaxis.axis_label_text_font_style = "bold"
+    plot.xaxis.axis_label_text_font_style = "bold"
+    plot.toolbar.active_scroll = "auto"
+    plot.toolbar.autohide = True
+
+
+
 # selects
 select_pickup_dropoff = Select(title='Pick-Up/Drop-Off', value='Drop-Off', options=['Pick-Up', 'Drop-Off'])
 select_pickup_dropoff.on_change('value', update_pickup_dropoff)
@@ -334,48 +327,25 @@ select_day.on_change('value', update_day_of_week)
 select_holiday = Select(title='Holiday', value='All', options=['No', 'Yes', 'All'])
 select_holiday.on_change('value', update_holiday)
 
-div = Div(width=240, text=make_div(starting))
-
-bottom_div_text = wrap_in_paragraphs("This dashboard is maintained by:", "DimGray", size=3) + \
-                  wrap_in_paragraphs("Julien Ragbeer", "Black", 3) + \
-                  wrap_in_paragraphs("Any comments / questions / concerns, please send an email to the maintainer.", "DimGray", size=3) + \
-                  wrap_in_paragraphs("""Data is up-to-date as of <br><font color="DarkSlateBlue">January 1, 2019</font>""", "Black", 3) + \
-                  wrap_in_paragraphs("Best viewed with Google Chrome", "DimGray", size=3)
-
+data_div = Div(width=240, text=make_div(starting))
+bottom_div_text = wrap_in_paragraphs("Any comments / questions / concerns, please send an email to the maintainer.", "DimGray", size=3) + \
+                  wrap_in_paragraphs("""Data is up-to-date as of <br><font color="DarkSlateBlue">January 1, 2019</font>""", "Black", 3)
 bottom_div = Div(text=bottom_div_text, width=235)
-nums = starting.describe()
 
-colorbar_divmin = Div(text=wrap_in_paragraphs(f'Min:  {int(nums.loc["min", "value"]):,}', 'gold',), width=250)
-colorbar_div25 = Div(text=wrap_in_paragraphs(f'25%: {int(nums.loc["25%", "value"]):,}', 'darkorange',), width=250, style={'text-align': 'center'})
-colorbar_div50 = Div(text=wrap_in_paragraphs(f'50%: {int(nums.loc["50%", "value"]):,}', 'orangered',), width=250, style={'text-align': 'center'})
-colorbar_div75 = Div(text=wrap_in_paragraphs(f'75%: {int(nums.loc["75%", "value"]):,}', 'firebrick',), width=250, style={'text-align': 'center'})
-colorbar_divmax = Div(text=wrap_in_paragraphs(f'Max: {int(nums.loc["max", "value"]):,}', 'darkred',), width=210, style={'text-align': 'right'})
+nums = starting.describe()
+colorbar_divmin = Div(text=wrap_in_paragraphs(f'Min:  {int(nums.loc["min", "value"]):,}', 'gold',), width=200)
+colorbar_div25 = Div(text=wrap_in_paragraphs(f'25%: {int(nums.loc["25%", "value"]):,}', 'darkorange',), width=210, style={'text-align': 'center'})
+colorbar_div50 = Div(text=wrap_in_paragraphs(f'50%: {int(nums.loc["50%", "value"]):,}', 'orangered',), width=210, style={'text-align': 'center'})
+colorbar_div75 = Div(text=wrap_in_paragraphs(f'75%: {int(nums.loc["75%", "value"]):,}', 'firebrick',), width=210, style={'text-align': 'center'})
+colorbar_divmax = Div(text=wrap_in_paragraphs(f'Max: {int(nums.loc["max", "value"]):,}', 'darkred',), width=200, style={'text-align': 'right'})
 
 size_mode = "stretch_width"
-aspect_ratio = 'auto'
-height = ""
-width = ""
 
-#
-# uu = column([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday], width=240)
-# first_part = column(uu, div, bottom_div)
-# third_part = column(w,z)
-# colorbar_divs = row(colorbar_divmin, colorbar_div25, colorbar_div50, colorbar_div75, colorbar_divmax)
-# middle_part = column(p, colorbar_divs)
-# dashboard = row(first_part, middle_part, third_part, aspect_ratio = 'auto', min_height=500, min_width=500)
-#
-# uu = widgetbox([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday], width=240)
-# first_part = column(uu, div, bottom_div)
-# third_part = column(w,z)
-# colorbar_divs = row(colorbar_divmin, colorbar_div25, colorbar_div50, colorbar_div75, colorbar_divmax)
-# middle_part = column(p, colorbar_divs)
-# dashboard = row(first_part, middle_part, third_part,)
-
-uu = column([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday],  width=228)
-first_part = column(uu, div, bottom_div, max_width=250)
-third_part = column(w,z, max_width=375)
-colorbar_divs = row(colorbar_divmin, colorbar_div25, colorbar_div50, colorbar_div75, colorbar_divmax, max_width=850)
-middle_part = column(p, colorbar_divs, max_width=1000)
-dash = row(first_part, middle_part, third_part,sizing_mode=size_mode)
+selects = column([select_pickup_dropoff, select_car_type, select_year, select_hour, select_month, select_day, select_holiday],  width=228)
+first_part = column([selects, data_div, bottom_div], max_width=250)
+third_part = column([w, z], max_width=375)
+colorbar_divs = row([colorbar_divmin, colorbar_div25, colorbar_div50, colorbar_div75, colorbar_divmax], max_width=700)
+middle_part = column([p, colorbar_divs], max_width=1050)
+dash = row([first_part, middle_part, third_part],sizing_mode=size_mode)
 show(dash)
 doc.add_root(dash)
