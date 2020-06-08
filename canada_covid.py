@@ -1,56 +1,49 @@
 import numpy as np
-from collections import Counter
 import pandas as pd
-import pickle
 import re
-from itertools import chain
-import webbrowser
-import sys
 import os
-import copy
-import yfinance as yf
-from pprint import pprint
-from dateutil import parser
-import sqlite3
 import datetime
-import pymongo
-import datetime
-import bokeh
 from bokeh.plotting import figure, show
 from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, OpenURL, Range1d, CustomJS, Button, DatePicker
 from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, FactorRange, Label, Legend, LabelSet
-from bokeh.models.widgets import StringFormatter, TableColumn, NumberFormatter, Button, HTMLTemplateFormatter
 from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Div, inputs, Slider, CheckboxGroup, Toggle
 from bokeh.io import curdoc
 from bokeh.layouts import row, column, gridplot, layout
-from bokeh.palettes import Category20_20
-from bokeh import events
-from sqlalchemy import create_engine
-import pymysql
-import traceback
-from pytz import timezone
-from tqdm import tqdm
-import holidays
-import inspect
-from pandas.tseries.offsets import BDay
-import colorcet as cc
-import time
 import requests
+import bs4 as bs
+from bs4 import BeautifulSoup
 
 # clear the webpage before visualization
 doc = curdoc()
 doc.clear()
 doc.title = 'COVID-19 in Canada'
 
+def update(metric, day):
+    if day == "Total":
+        if metric.replace(" ", "_") in data.columns:
+            p = data[metric.replace(" ", "_")]
+        else:
+            p = data['Adjusted_Deaths']
+        source2020.data = {'x': ['2019/20'], 'deaths': [total_canadian_deaths], "info": ['A/Wuhan/2019'],
+                                            'pop': [canada_population]}
+        mean_line.text = wrap_in_paragraphs(f"Average Deaths per year: {int(np.nanmean(p))}", 'firebrick', 3)
+        my_label.y = np.nanmean(p) + 10
+    elif day == "Per Day":
+        if metric.replace(" ", "_") in data.columns:
+            p = data[metric.replace(" ", "_")]/season_length
+        else:
+            p = data['Adjusted_Deaths']/season_length
 
-def update_metric(attr, old, new):
-    if new.replace(" ", "_") in data.columns:
-        p = data[new.replace(" ", "_")]
-    else:
-        p = data['Adjusted_Deaths']
-    mean_line.text=wrap_in_paragraphs(f"Average Deaths per year: {int(np.nanmean(p))}", 'firebrick', 5)
+        source2020.data = {'x': ['2019/20'], 'deaths': [total_canadian_deaths/(day_num-15)], "info": ['A/Wuhan/2019'],
+                                            'pop': [canada_population]}
+        mean_line.text=wrap_in_paragraphs(f"Average Deaths per day: {int(np.nanmean(p))}", 'firebrick', 3)
+        my_label.y = np.nanmean(p) + 0.5
     source.data = {'x': data['Season'], 'info':data['Strain'], 'deaths': p, 'pop': data['Pop']}
-
+    span.location = np.nanmean(p)
+def update_day(attr, old, new):
+    update(metric = select_metric.value, day=new)
+def update_metric(attr, old, new):
+    update(metric=new, day=select_day.value)
 def wrap_in_paragraphs(txt, colour="DarkSlateBlue", size=4):
     """
 
@@ -74,15 +67,22 @@ path = os.getcwd().replace("\\", "/") + "/data/"
 today = datetime.date.today()
 day_num = int(today.strftime('%j'))
 # number of days from October 1 to December 31 (first part of flu season)
-season_length = 92
+season_length = (datetime.datetime(2001,6,1).date() - datetime.datetime(2000,10,1).date()).days
+
 # canada population for half-point of 2020 according to worldometer.
 canada_population = 37742154
 
 # current coronavirus deaths, canada
-total_corona_deaths = pd.read_html(requests.get("https://www.worldometers.info/coronavirus/", headers=header).text)[0]
-total_corona_deaths.columns = [x.replace(',', "").replace(' ', "").lower() for x in total_corona_deaths.columns]
-total_corona_deaths.set_index('countryother', inplace=True)
-total_canadian_deaths = total_corona_deaths.loc['Canada']['totaldeaths']
+url = "https://www.worldometers.info/coronavirus/"
+soup = BeautifulSoup(requests.get(url, headers=header).text)
+a = str(soup.find_all('table')[0]).lower()
+p = re.findall('\d+,?\d+', a.split('canada')[2])
+total_canadian_deaths = int(p[1].replace(',', ""))
+
+# total_corona_deaths = pd.read_html(str(soup.find_all('table')[0]))
+# total_corona_deaths.columns = [x.replace(',', "").replace(' ', "").lower() for x in total_corona_deaths.columns]
+# total_corona_deaths.set_index('countryother', inplace=True)
+# total_canadian_deaths = total_corona_deaths.loc['Canada']['totaldeaths']
 
 # data from research paper
 df = pd.read_csv(path + 'covid_data.csv', engine='python', usecols=[x for x in range(0, 7) if x not in [4]], skipfooter=3)
@@ -121,13 +121,16 @@ data = df.merge(population, left_on='Season_Ending', right_on='Year')
 data['Pop']= data['Pop'].astype(int)
 data['Pop_multiplier'] = 1+(canada_population-data['Pop'])/data['Pop']
 data['Adjusted_Deaths'] = data['Deaths'] * data['Pop_multiplier']
-
 data.columns = [x.replace("_Range", "") for x in data.columns]
 data['Adjusted_Deaths_Low'] = data['Deaths_Low'] * data['Pop_multiplier']
 data['Adjusted_Deaths_High'] = data['Deaths_High'] * data['Pop_multiplier']
+
 metrics = ["Deaths", "Deaths Low", "Deaths High", "Adjusted Deaths", "Adjusted Deaths High","Adjusted Deaths Low",]
 select_metric = Select(title='Metric:', value=metrics[0], options=sorted(metrics))
 select_metric.on_change('value', update_metric)
+
+select_day = Select(title='Per Day / Total:', value="Total", options=['Total', 'Per Day'])
+select_day.on_change('value', update_day)
 
 p = figure(plot_width=800, plot_height=600, x_range = np.asarray(data['Season']).tolist() + ['2019/20'],
            tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
@@ -136,7 +139,11 @@ p = figure(plot_width=800, plot_height=600, x_range = np.asarray(data['Season'])
 p.add_tools(HoverTool(tooltips=[
     ("Strain", "@info"),("Deaths", "@deaths{(0,0)}"),("Population", "@pop{(0,0)}"),]))
 # MEAN LINE SPAN
-p.add_layout(Span(location=np.nanmean(data['Deaths']), dimension='width', line_color='firebrick', line_width=3, line_alpha= 0.43))
+span = Span(location=np.nanmean(data['Deaths']), dimension='width', line_color='firebrick', line_width=3, line_alpha= 0.43)
+p.add_layout(span)
+my_label = Label(x=5, y=np.nanmean(data['Deaths']) + 10, text='MEAN LINE', text_color='firebrick',
+                 text_alpha=0.43, text_font_style='bold')
+p.add_layout(my_label)
 
 source = ColumnDataSource(data={'x': data['Season'], 'info':data['Strain'], 'deaths': data['Deaths'], 'pop': data['Pop']})
 p.line(x="x", y='deaths', source=source, line_width=4, line_dash='dotted', alpha = 0.3 )
@@ -154,7 +161,7 @@ Population: <a href="https://en.wikipedia.org/wiki/Population_of_Canada">Wikiped
 Current Canadian deaths: Live from <a href="https://www.worldometers.info/coronavirus/">Worldometer</a>.<br>
 """
 div = Div(text=wrap_in_paragraphs(text, "Dimgrey", 3))
-mean_line = Div(text = wrap_in_paragraphs(f"Average Deaths per year: {int(np.nanmean(data['Deaths']))}", 'firebrick', 5))
+mean_line = Div(text = wrap_in_paragraphs(f"Average Deaths per year: {int(np.nanmean(data['Deaths']))}", 'firebrick', 3))
 
 # pretty up the dashboard
 p.yaxis[0].formatter = NumeralTickFormatter(format="0,0")
@@ -178,6 +185,6 @@ p.xaxis.axis_label_text_font_style = "bold"
 p.toolbar.active_scroll = "auto"
 p.toolbar.autohide = True
 
-dashboard = row(column([select_metric, mean_line, div], width = 200), p)
+dashboard = row(column([select_metric, select_day, mean_line, div], width = 200), p)
 curdoc().add_root(dashboard)
 show(dashboard)
