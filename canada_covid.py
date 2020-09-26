@@ -77,7 +77,7 @@ url = "https://www.worldometers.info/coronavirus/"
 soup = BeautifulSoup(requests.get(url, headers=header).text)
 a = str(soup.find_all('table')[0]).lower()
 p = re.findall('\d+,?\d+', a.split('canada')[2])
-total_canadian_deaths = int(p[1].replace(',', ""))
+total_canadian_deaths = int(p[2].replace(',', ""))
 
 # total_corona_deaths = pd.read_html(str(soup.find_all('table')[0]))
 # total_corona_deaths.columns = [x.replace(',', "").replace(' ', "").lower() for x in total_corona_deaths.columns]
