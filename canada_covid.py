@@ -74,15 +74,13 @@ canada_population = 37742154
 
 # current coronavirus deaths, canada
 url = "https://www.worldometers.info/coronavirus/"
-soup = BeautifulSoup(requests.get(url, headers=header).text)
-a = str(soup.find_all('table')[0]).lower()
-p = re.findall('\d+,?\d+', a.split('canada')[2])
-total_canadian_deaths = int(p[2].replace(',', ""))
-
-# total_corona_deaths = pd.read_html(str(soup.find_all('table')[0]))
-# total_corona_deaths.columns = [x.replace(',', "").replace(' ', "").lower() for x in total_corona_deaths.columns]
-# total_corona_deaths.set_index('countryother', inplace=True)
-# total_canadian_deaths = total_corona_deaths.loc['Canada']['totaldeaths']
+html_source = requests.get(url).text
+html_source = re.sub(r'<.*?>', lambda g: g.group(0).upper(), html_source)
+total_corona_deaths=pd.read_html(html_source)[2]
+total_corona_deaths = total_corona_deaths[total_corona_deaths['Country,Other']=='Canada']
+total_corona_deaths.columns = [x.replace(',', "").replace(' ', "").lower() for x in total_corona_deaths.columns]
+total_corona_deaths.set_index('countryother', inplace=True)
+total_canadian_deaths = total_corona_deaths.loc['Canada']['totaldeaths']
 
 # data from research paper
 df = pd.read_csv(path + 'covid_data.csv', engine='python', usecols=[x for x in range(0, 7) if x not in [4]], skipfooter=3)
