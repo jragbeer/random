@@ -16,8 +16,9 @@ from dask.distributed import Client, progress
 import dask.dataframe as dd
 import os
 from multiprocessing import Pool
+from multiprocessing.pool import ThreadPool
 from tqdm import tqdm
-from tqdm import tqdm
+from itertools import product
 
 switch = {"Green": "Green_Taxi_Trip_Data",
           "Yellow": "Yellow_Taxi_Trip_Data",
@@ -96,8 +97,21 @@ def make_season(series):
         else:
             array.append('winter')
     return array
-
-# part one (read from csv, initial clean, save as parquet)
+def thing(weekend, season, day_of_week, hr, m, yr, h, each, data, right):
+    # bad function, aiming to cut down on number of tasks to do at the end for post_transform
+    for d in day_of_week:
+        data = data[data['day_of_week'] == d]
+        for s in season:
+            data = data[data['season'] == s]
+            for w in weekend:
+                data = data[data['weekend'] == w]
+                value_counts = pd.DataFrame(data[each].value_counts())
+                value_counts.columns = ['value']
+                new_vals_df = pd.concat([pd.DataFrame(data={'value': 1}, index=[i]) for i in all_points if i not in list(value_counts.index)])
+                tmp = pd.concat([new_vals_df, value_counts], )
+                right['Pick-Up'][str('green')][yr][m][hr][h][d][s][w] = tmp
+    return right
+# part one (read from csv, initial clean, save as parquet) | use create_parquet_by_colour to start
 def initial_data_clean(df):
     """
     Make the numeric columns smaller and drop any bad lines.
@@ -138,7 +152,7 @@ def create_parquet_by_colour(colour='green'):
     file_sizes = 0
     for each in files:
         file_sizes += os.stat(each).st_size / 1024**3
-    logging.info(f"{colour.capitalize()} total file size as CSV: {file_sizes:.1f} GB")
+    logging.info(f"{colour.capitalize()} total file size as CSV: {file_sizes:.2f} GB")
     # set up your pool
     # with Pool(processes=4) as pool:
     #     # have your pool map the file names to dataframes
@@ -146,10 +160,29 @@ def create_parquet_by_colour(colour='green'):
     #     df_list.wait()
     #     df = pd.concat(df_list.get(), ignore_index=True)
     df = pd.concat((readcsv(each) for each in files[::-1]), ignore_index=True)
-    logging.info(f'initial clean finished for all processes: {datetime.datetime.now() - timee}')
     df = initial_data_clean(df)
     df.to_parquet(path + f'{colour}_data_oct2020.parquet')
-
+    logging.info(f'{colour} | initial clean finished for all processes: {datetime.datetime.now() - timee}')
+def create_parquet_by_colour_pipe(colour='green'):
+    global timee
+    csv_path = path + f'/{colour}/'
+    files = os.listdir(csv_path)
+    files = [csv_path + x for x in files]
+    file_sizes = 0
+    for each in files:
+        file_sizes += os.stat(each).st_size / 1024**3
+    logging.info(f"{colour.capitalize()} total file size as CSV: {file_sizes:.2f} GB")
+    # set up your pool
+    # with Pool(processes=4) as pool:
+    #     # have your pool map the file names to dataframes
+    #     df_list = pool.map_async(readcsv, files,)
+    #     df_list.wait()
+    #     df = pd.concat(df_list.get(), ignore_index=True)
+    df = pd.concat((readcsv(each) for each in files[::-1]), ignore_index=True)
+    logging.info(f'{colour} | initial clean finished for all processes: {datetime.datetime.now() - timee}')
+    return initial_data_clean(df)
+    # df.to_parquet(path + f'{colour}_data_oct2020.parquet')
+# part two (transformation functions, from datelike-strings to features for filtering) | use a data_transforms function
 @dask.delayed
 def inner_trans(df):
     df['dolocationid'] = df['dolocationid'].astype(np.int16)
@@ -195,17 +228,17 @@ def inner_trans(df):
         df[k] = pd.Series(v).astype(np.int16)
     df['season'] = pd.Series(make_season(df['pickup_date'])).astype('category')
     return df
-@dask.delayed
+# @dask.delayed
 def inner_trans2(df):
     df['dolocationid'] = df['dolocationid'].astype(np.int16)
     df['pulocationid'] = df['pulocationid'].astype(np.int16)
-    logging.info(datetime.datetime.now() - timee)
+    logging.info(f"0, {datetime.datetime.now() - timee}")
     df.reset_index(inplace=True, drop=True)
     try:
         df['dropoff_date'] = pd.to_datetime(df['dropoff_datetime'], errors='coerce', format='%m/%d/%Y %I:%M:%S %p')
     except Exception as e:
         df['dropoff_date'] = df['dropoff_datetime']
-    logging.info(datetime.datetime.now() - timee)
+    logging.info(f"1, {datetime.datetime.now() - timee}")
     try:
         df['pickup_date'] = pd.to_datetime(df['pickup_datetime'], errors='coerce', format='%m/%d/%Y %I:%M:%S %p')
     except:
@@ -216,7 +249,7 @@ def inner_trans2(df):
     # hours = pick_up_date.astype('datetime64[H]').astype(int)
     # for i, each in enumerate(pick_up_date):
     #     print(each, years[i], months[i], days[i], hours[i])
-    logging.info(datetime.datetime.now() - timee)
+    logging.info(f"2, {datetime.datetime.now() - timee}")
     df = df.drop(['dropoff_datetime', 'pickup_datetime'], 1, )
     df = df.replace([np.inf, -np.inf,'NaN', 'NaT'], np.nan)
     try:
@@ -231,14 +264,21 @@ def inner_trans2(df):
     df['year'] = df['pickup_date'].dt.year
     df['d_Hour'] = df['dropoff_date'].dt.hour
     df['day_of_week'] = df['pickup_date'].dt.weekday + 1
-    df['weekend'] = (df['day_of_week'] < 6).astype(int)
+    # df['weekend'] = (df['day_of_week'] < 6).astype(int)
     df['holiday'] = df['pickup_date'].isin(ny_holidays)
-    seasons = ['winter', 'winter', 'winter', 'spring', 'spring', 'spring', 'summer', 'summer', 'summer', 'fall', 'fall', 'fall',]
-    df['season'] = df['pickup_date'].dt.month.map(dict(zip(range(1, 13), seasons))).astype('category')
+    df.drop(columns=['dropoff_date', 'pickup_date'], inplace=True)
+    # seasons = ['winter', 'winter', 'winter', 'spring', 'spring', 'spring', 'summer', 'summer', 'summer', 'fall', 'fall', 'fall',]
+    # df['season'] = df['month'].map(dict(zip(range(1, 13), seasons))).astype('category')
+    for col in df.columns:
+        try:
+            df[col] = pd.to_numeric(df[col], downcast='integer')
+        except:
+            pass
     logging.info(f"vectorize done: {datetime.datetime.now() - timee}")
+    gc.collect()
     return df
 
-def data_transforms_dask_delayed(colour='green', size=2_200_000):
+def data_transforms_dask(colour='green', size=2_200_000):
     # dfs = []
     # counter = 0
     # for yr in range(2016, 2020):
@@ -272,29 +312,121 @@ def data_transforms_orig_vector(colour='green', ):
     df['colour'] = colour
     df['colour'] = df['colour'].astype('category')
     df.columns = [x.lower() for x in df.columns]
-    df.to_parquet(path + f'df_done_{colour}.parquet')
-def data_transforms_dask_vector(colour='green', size=5_000_000, ):
+    file_name = f'df_done_{colour}_oct2020.parquet'
+    done_time = datetime.datetime.now() - timee
+    df.to_parquet(path + file_name)
+    logging.info(f"Done in {done_time} ({done_time.seconds} seconds) | {colour} file available at: {str(path)}{file_name}")
+def data_transforms_mp_vector(colour='green', size=3_000_000, ):
     dfs=[]
-    df = pd.read_parquet(path + f'{colour}_data.parquet')
+    pool = Pool()
+    df = pd.read_parquet(path + f'{colour}_data_oct2020.parquet')
+    logging.info(datetime.datetime.now() - timee)
+    for x in tqdm(np.split(df, np.arange(size, len(df), size))):
+        dfs.append(pool.apply_async(inner_trans2, args=(x,),))
+    df = pd.concat([i.get() for i in dfs])
+    df.columns = [x.lower() for x in df.columns]
+    df['colour'] = colour
+    df['colour'] = df['colour'].astype('category')
+    logging.info(df.sample(5).to_string())
+    df.info(buf=buffer)
+    with open(path + "log.txt", "a",
+              encoding="utf-8") as f:
+        f.write(buffer.getvalue())
+    logging.info(datetime.datetime.now() - timee)
+    gc.collect()
+    file_name = f'df_done_{colour}_oct2020.parquet'
+    df.to_parquet(path + file_name)
+    done_time = datetime.datetime.now() - timee
+    logging.info(f"Done in {done_time} ({done_time.seconds} seconds) | {colour} file available at: {str(path)}{file_name}")
+def data_transforms_tp_vector(colour='green', size=1_500_000, ):
+    dfs=[]
+    pool = ThreadPool()
+    df = pd.read_parquet(path + f'{colour}_data_oct2020.parquet')
+    logging.info(datetime.datetime.now() - timee)
+    for x in tqdm(np.split(df, np.arange(size, len(df), size))):
+        dfs.append(pool.apply_async(inner_trans2, args=(x,),))
+    df = pd.concat([i.get() for i in dfs])
+    df.columns = [x.lower() for x in df.columns]
+    df['colour'] = colour
+    df['colour'] = df['colour'].astype('category')
+    logging.info(df.sample(5).to_string())
+    df.info(buf=buffer)
+    with open(path + "log.txt", "a",
+              encoding="utf-8") as f:
+        f.write(buffer.getvalue())
+    logging.info(datetime.datetime.now() - timee)
+    gc.collect()
+    file_name = f'df_done_{colour}_oct2020.parquet'
+    df.to_parquet(path + file_name)
+    done_time = datetime.datetime.now() - timee
+    logging.info(f"Done in {done_time} ({done_time.seconds} seconds) | {colour} file available at: {str(path)}{file_name}")
+def data_transforms_mp_vector_pipe(df, colour='green', size=6_000_000, ):
+    dfs = []
+    pool = Pool()
+    # df = pd.read_parquet(path + f'{colour}_data_oct2020.parquet')
+    logging.info(datetime.datetime.now() - timee)
+    for x in tqdm(np.split(df, np.arange(size, len(df), size))):
+        dfs.append(pool.apply_async(inner_trans2, args=(x,), ))
+    df = pd.concat([i.get() for i in dfs])
+    df.columns = [x.lower() for x in df.columns]
+    df['colour'] = colour
+    df['colour'] = df['colour'].astype('category')
+    logging.info(df.sample(5).to_string())
+    df.info(buf=buffer)
+    with open(path + "log.txt", "a",
+              encoding="utf-8") as f:
+        f.write(buffer.getvalue())
+    logging.info(datetime.datetime.now() - timee)
+    gc.collect()
+    file_name = f'df_done_{colour}_oct2020.parquet'
+    df.to_parquet(path + file_name)
+    done_time = datetime.datetime.now() - timee
+    logging.info(f"Done in {done_time} ({done_time.seconds} seconds) | {colour} file available at: {str(path)}{file_name}")
+def data_transforms_dask_vector(colour='green', size=1_500_000, ):
+    dfs=[]
+    df = pd.read_parquet(path + f'{colour}_data_oct2020.parquet')
+    # df = dask.delayed(pd.read_parquet)(f'{colour}_data_oct2020.parquet')  # Let Dask build object
     logging.info(datetime.datetime.now() - timee)
     for x in np.split(df, np.arange(size, len(df), size)):
         dfs.append(inner_trans2(x))
     df = pd.concat(dask.compute(*dfs))
+    df.columns = [x.lower() for x in df.columns]
     df['colour'] = colour
     df['colour'] = df['colour'].astype('category')
+    logging.info(df.sample(5).to_string())
+    df.info(buf=buffer)
+    with open(path + "log.txt", "a",
+              encoding="utf-8") as f:
+        f.write(buffer.getvalue())
+    logging.info(datetime.datetime.now() - timee)
+    gc.collect()
+    file_name = f'df_done_{colour}_oct2020.parquet'
+    df.to_parquet(path + file_name)
+    done_time = datetime.datetime.now() - timee
+    logging.info(f"Done in {done_time} ({done_time.seconds} seconds) | {colour} file available at: {str(path)}{file_name}")
+def data_transforms_dask_vector_npartitions(colour='green', size=int(5_700_000/4)+1, ):
+    ddf = pd.read_parquet(path + f'{colour}_data_oct2020.parquet',)
+    df = dd.from_pandas(ddf, npartitions=7*3)
+    logging.info(datetime.datetime.now() - timee)
+    df = df.map_partitions(inner_trans2)
     df.columns = [x.lower() for x in df.columns]
+    df = df.persist()
+    print(type(df))
+    df['colour'] = colour
+    df['colour'] = df['colour'].astype('category')
     # logging.info(df.sample(5).to_string())
     # df.info(buf=buffer)
     # with open(path + "log.txt", "a",
     #           encoding="utf-8") as f:
     #     f.write(buffer.getvalue())
-    # logging.info(datetime.datetime.now() - timee)
-    # pickle_out = open(path + f"data_{colour}_all_orig2.pickle", "wb")
-    # pickle.dump(df, pickle_out, protocol=4)
-    # pickle_out.close()
+    logging.info(datetime.datetime.now() - timee)
     gc.collect()
-    df.to_parquet(path + 'df.parquet')
-
+    file_name = f'df_done_{colour}_oct20201.parquet'
+    df = df.compute()
+    df.to_parquet(path + file_name, single_file = True)
+    print(type(df))
+    done_time = datetime.datetime.now() - timee
+    logging.info(f"Done in {done_time} ({done_time.seconds} seconds) | {colour} file available at: {str(path)}{file_name}")
 def data_transforms(colour='green', size=2_200_000):
     dfs = pd.concat(pd.read_sql(f"""select * from "{yr}_{colour.upper()}" """, conn, ) for yr in [2016, 2017, 2018, 2019])
     df = pd.concat([inner_trans(x) for x in np.split(dfs, np.arange(size, len(dfs), size))])
@@ -329,99 +461,82 @@ def data_transforms_orig(colour='green', ):
     gc.collect()
     logging.info(datetime.datetime.now() - timee)
 
-def thing(weekend, season, day_of_week, hr, m, yr, h, each, data, right):
-
-    # data = data[(data['year'] == yr) & (data['holiday'] == h) &(data['p_hour'] == hr) & (data['month'] == m)]
-
-    for d in day_of_week:
-        data = data[data['day_of_week'] == d]
-        for s in season:
-            data = data[data['season'] == s]
-            for w in weekend:
-                data = data[data['weekend'] == w]
-                value_counts = pd.DataFrame(data[each].value_counts())
-                value_counts.columns = ['value']
-                new_vals_df = pd.concat([pd.DataFrame(data={'value': 1}, index=[i]) for i in all_points if i not in list(value_counts.index)])
-                tmp = pd.concat([new_vals_df, value_counts], )
-                right['Pick-Up'][str('green')][yr][m][hr][h][d][s][w] = tmp
-    return right
-
-def inner_post_transform(w, s, d, h, hr, m, yr, each, data):
+# part three (convert from dataframe to nested dictionary, so bokeh can read it easier?) | use post_transform
+def post_parallel_function(data, params, each, car_type, pu_do_data):
+        config = {'p':{'col':'pulocationid', 'name':'Pick-Up', 'hour':'p_hour'}, 'd':{'col':'dolocationid', 'name':'Drop-Off'}, 'hour':'d_hour' }
+        dat = data[(data['month'] == params[1]) & (data['year'] == params[0])].copy()
+        day_of_week = range(1, 8)
+        hour = range(0, 24)
+        for d in day_of_week:
+            for hr in hour:
+                # print(params, h, d, hr)
+                # print(dat)
+                tmp = inner_post_transform(hr, d,config[each], dat)
+                pu_do_data[config[each]['name']][str(car_type)][params[0]][params[1]][hr][d] = tmp
+        return pu_do_data
+def inner_post_transform(hr, d,each, data_):
     c = datetime.datetime.now()
-    data = data[(data['weekend'] == w) & (data['season'] == s) & (data['year'] == yr) & (data['holiday'] == h) & (data['day_of_week'] == d) & (data['p_hour'] == hr) & (data['month'] == m)]
-    value_counts = pd.DataFrame(data[each].value_counts())
+    # filter down the data
+    data = data_[(data_['day_of_week'] == d) & (data_[each['hour']] == hr)]
+    value_counts = pd.DataFrame(data[each['col']].value_counts())
     value_counts.columns = ['value']
+    # create df of all 1's for each locationID not in the resultant df
     new_vals_df = pd.concat([pd.DataFrame(data={'value': 1}, index=[i]) for i in all_points if i not in list(value_counts.index)])
-    wow = pd.concat([new_vals_df, value_counts], )
-    done = datetime.datetime.now()
-    print(done-c)
+    wow = pd.concat([value_counts, new_vals_df, ], ) # concat the two dfs
+    # done = datetime.datetime.now()
+    # print(wow.to_string())
     return wow
-def post_transform():
-    df_one = {}
+def post_transform(data, color):
     colours = ['green']
     years = [2016, 2017, 2018, 2019, ]
-    weekend = [0, 1]
-    season = ["fall", "winter", "summer", "spring"]
-    holiday = [False, True ]
+    holiday = [False, True]
     day_of_week = list(range(1,8))
     hour = list(range(0,24))
     months = list(range(1,13))
-    inner_dict = {i:
+    year_month_combos = [i for i in list(product(years, months)) if not (i[0] == 2016 and i[1] < 7)]
+    inner_dict = {color:
                     {y:
                        {m:
                            {hr:
-                                {h:
-                                     {d:
-                                          {s: {w: {} for w in list(weekend)} for s in list(season)}
-                                      for d in list(day_of_week)}
-                                 for h in list(holiday)}
+                                {d:
+                                     {h:{} for h in list(holiday)}
+                                 for d in list(day_of_week)}
                             for hr in list(hour)}
                         for m in list(months)}
-                    for y in list(years)}
-                for i in list(colours)}
-    pu_do_data = {"Pick-Up": inner_dict,
-                  "Drop-Off": inner_dict}
-    num = 0
-    for colour in colours:
-        df_one[colour] = pd.read_parquet(path + f"df_done_{colour}.parquet")
-        df_one[colour].info()
-    data = df_one['green'].drop(columns=['day', 'dropoff_date','pickup_date'])
+                    for y in list(years)}}
+    pu_do_data = {"Pick-Up": inner_dict, "Drop-Off": inner_dict}
+    data = data.drop(columns=['day',])
     data.info()
+    print(data.memory_usage())
     print(data.sample(100).to_string())
-    # df_one['all'] = pd.concat([df_one[x] for x in colours], sort=False)
-    for each in ['pulocationid', "dolocationid"]:
-        for car_type in colours:
-            for yr in years:
-                for m in tqdm(months):
-                    for hr in hour:
-                        for h in holiday:
-                            for d in day_of_week:
-                                for s in season:
-                                    for w in weekend:
-                                        tmp = inner_post_transform(w,s,d,h,hr,m,yr, each, df_one['green'].copy())
-                                        if each == "pulocationid":
-                                            pu_do_data['Pick-Up'][str(car_type)][yr][m][hr][h][d][s][w] = tmp
-                                        else:
-                                            pu_do_data['Drop-Off'][str(car_type)][yr][m][hr][h][d][s][w] = tmp
-    pickle_out = open("green_output1.pickle", "wb")
+    for i in tqdm(year_month_combos):
+        print(i)
+        pu_do_data = post_parallel_function(data.copy(), i, 'p', color,pu_do_data)
+        # pprint(interesting)
+    pickle_out = open(f"{color}_output_oct2020.pickle", "wb")
     pickle.dump(pu_do_data, pickle_out)
     pickle_out.close()
 
-create_parquet_by_colour('green')
+# create_parquet_by_colour('yellow')
 
-# if __name__ == '__main__':
-#     # client = Client(n_workers=1, threads_per_worker=4, memory_limit='5GB')
-#     # client = Client()
-#     # print(client)
+if __name__ == '__main__':
+    # client = Client(n_workers=8, threads_per_worker=1, memory_limit='7.75GB')
+    colour = 'green'
+    timee = datetime.datetime.now()
+    # data_transforms_mp_vector(colour)
+    post_transform(pd.read_parquet(path + f"df_done_{colour}_oct2020.parquet"), colour)
+    # data_transforms_mp_vector_pipe(create_parquet_by_colour_pipe(colour), colour)
+    pass
+# #     # client = Client()
+# #     # print(client)
 #     # for col in ['yellow']:
-#     #     # create_parquet_by_colour(col)
-#     #     # logging.info(datetime.datetime.now() - timee)
-#     #     data_transforms_dask_vector(col)
-#     #     # func = data_transforms_orig_vector
-#     #     # logging.info(func.__name__)
-#     #     # func()
-#     #     gc.collect()
-#     #     logging.info(datetime.datetime.now() - timee)
-#     timee = datetime.datetime.now()
-#     post_transform()
+# #     #     # create_parquet_by_colour(col)
+# #     #     # logging.info(datetime.datetime.now() - timee)
+# #     #     data_transforms_dask_vector(col)
+# #     #     # func = data_transforms_orig_vector
+# #     #     # logging.info(func.__name__)
+# #     #     # func()
+# #     #     gc.collect()
+# #     #     logging.info(datetime.datetime.now() - timee)
 
+#     post_transform()
