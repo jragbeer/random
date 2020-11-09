@@ -22,6 +22,7 @@ import requests
 from selenium.webdriver.firefox.options import Options as firefox_options
 from selenium.webdriver.chrome.options import Options as chrome_options
 import datetime, time
+import traceback
 
 #jragbeer
 #better123
@@ -123,7 +124,8 @@ def download_538_data():
 def make_line_source(df_):
     return ColumnDataSource({'x': df_['date'], 'y': df_['prob_win_tie'], 'tooltip': [x.strftime('%Y-%m-%d') for x in df_['date']],
                                     'home_away':df_['team1'] + ' - ' + df_['team2'], 'winner':df_['team1'], 'away':df_['team2'],
-                             'score': df_['score1'].astype(int).astype(str) + ' - ' + df_['score2'].astype(int).astype(str)})
+                             'score': df_['score1'].astype(int).astype(str) + ' - ' + df_['score2'].astype(int).astype(str),
+                             'width': [datetime.timedelta(days=np.random.randint(1,50)) for i in df_.index]})
 def clean_df():
     df = pd.read_parquet(path + "soccer_betting/latest.parquet", )
     df['date'] = pd.to_datetime(df['date'])
@@ -137,31 +139,45 @@ def per_team(df_, team = 'Manchester City', season = (2016, 2020), ):
         df['prob_win_tie'] = [i.prob1 if i.team1 == team else i.prob2 for i in df.itertuples()] + df['probtie']
         df['win_tie'] = [i.score1 >= i.score2 if i.team1 == team else i.score2 >= i.score1 for i in df.itertuples()]
         df['won_bet'] = [i.win_tie if i.prob_win_tie > 0.7 else np.nan for i in df.itertuples()]
-        print(df.to_string())
+        # print(df.to_string())
         df.dropna(inplace=True)
-        print(df.to_string())
-        print()
+        # print(df.to_string())
+        # print()
         output = {'wins':len([x for x in df['won_bet'].dropna() if x ]), 'num_bets':len([x for x in df['won_bet'].dropna()])}
         output['pct'] = output['wins'] / output['num_bets']
         return {team:output}
     except:
         print(team, season)
+        print(error_handling())
         return {}
 def all_teams(df_, season = (2016, 2020), bet = 10, odds = 1.3, win_prob = 0.75):
     odds_bet = odds*bet
     df = df_[(df_['season'] >= season[0]) & (df_['season'] <= season[1])].copy()
-    print(df.to_string())
     df.dropna(inplace=True)
-    df['prob_win_tie'] = df['prob1'] + df['probtie']
+    df['prob1_win_tie'] = df['prob1'] + df['probtie']
     df['team1_win_tie'] = [i.score1 >= i.score2 for i in df.itertuples()]
-    df['won_bet'] = [i.team1_win_tie if i.prob_win_tie > win_prob else np.nan for i in df.itertuples()]
-    df.dropna(inplace=True)
-    df = df.sort_values('date')
-    df_false = df[df["won_bet"]==False].copy()
-    df_true = df[df["won_bet"]==True].copy()
-    line_source = make_line_source(df_false)
-    line_source2 = make_line_source(df_true)
-    print(df.to_string())
+    df['prob2_win_tie'] = df['prob2'] + df['probtie']
+    df['team2_win_tie'] = [i.score1 <= i.score2 for i in df.itertuples()]
+    k = []
+    for i in df.itertuples():
+        if i.prob1_win_tie > i.prob2_win_tie:
+            if i.prob1_win_tie > win_prob:
+                k.append(i.team1_win_tie)
+            else:
+                k.append(np.nan)
+        elif i.prob2_win_tie > i.prob1_win_tie:
+            if i.prob2_win_tie > win_prob:
+                k.append(i.team2_win_tie)
+            else:
+                k.append(np.nan)
+        else:
+            k.append(np.nan)
+    df['won_bet'] = k
+    df['prob_win_tie'] = df[["prob1_win_tie", "prob2_win_tie"]].max(axis=1)
+    df = df.dropna().sort_values('date')
+    line_source = make_line_source(df[df["won_bet"]==False].copy())
+    line_source2 = make_line_source(df[df["won_bet"]==True].copy())
+    # print(df.to_string())
     wow = f"Total Bets: {len(df.index)} <br> Winning Bets: {df['won_bet'].sum()} <br> Win Rate: {100*df['won_bet'].sum()/len(df.index):.1f} %"
     pow = f"Money Spent On Bets: ${bet*len(df.index):.2f}  <br>  Money Won Off Of Bets: ${odds_bet*df['won_bet'].sum():.2f}  <br>  Difference: ${odds_bet*df['won_bet'].sum()-bet*len(df.index):.2f} <br> Return: {100*((odds_bet*df['won_bet'].sum())-(bet*len(df.index)))/(bet*len(df.index)):.2f} %"
     return wow, pow, line_source, line_source2
@@ -179,6 +195,7 @@ def update(years, odds, win_prob, league, bet, team, dom_eur):
     answer1, answer2, line_source_, line_source2_ = all_teams(data_, years, bet, odds, win_prob)
     line_src.data = dict(line_source_.data)
     line_src2.data = dict(line_source2_.data)
+    pprint(line_src.data)
     div.text = wrap_in_paragraphs(answer1)
     div2.text = wrap_in_paragraphs(answer2)
 
@@ -213,7 +230,7 @@ today = datetime.datetime.now()
 data = clean_df()
 # data = data[data['league'] == 'Barclays Premier League']
 
-t = {each: per_team(data, each, 2020)for each in data[data['league']=="Barclays Premier League"].team1.unique()}
+t = {each: per_team(data, each, (2016, 2020))for each in data[data['league']=="Barclays Premier League"].team1.unique()}
 pprint(t)
 button = Button(label="Update", button_type="warning", width=200)
 button.on_click(update_button)
@@ -250,7 +267,7 @@ chart.vbar('x', top='y', source=src, width=0.6, alpha=0.75, name='bars', fill_co
 
 line = figure(plot_width=800, plot_height=600, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],x_axis_type='datetime',
            x_axis_label="Year", y_axis_label="Win Percentage (%)", toolbar_location="right", title=f"Data", y_range = (0.6, 1.01))
-line.vbar('x', top='y', source=line_src, width=datetime.timedelta(days=3), alpha=0.75, name='red_lines', line_color = 'firebrick', fill_color = 'firebrick')
+line.vbar('x', top='y', source=line_src, width='width', alpha=0.75, name='red_lines', line_color = 'firebrick', fill_color = 'firebrick')
 line.vbar('x', top='y', source=line_src2, width=datetime.timedelta(days=3), alpha=0.75, name='green_lines', line_color = 'forestgreen', fill_color = 'forestgreen')
 
 line.add_tools(HoverTool(mode='vline', tooltips=[("Date", "@tooltip"),("Win/Tie Prediction", "@y{(0.00)}"),
