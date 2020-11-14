@@ -235,23 +235,7 @@ def find_index(df, a):
         return wow[['league','date','team1','team2']]
     except:
         print(wow)
-def make_line_source(df_):
-    # dynamic vbar widths
-    low = df_['date'].min()
-    high = df_['date'].max()
-    if (high-low).days <= 80:
-        width = [datetime.timedelta(hours=18) for i in df_.index]
-    elif 80 < (high-low).days <= 365:
-        width = [datetime.timedelta(days=1) for i in df_.index]
-    elif 365 < (high-low).days <= 365*2:
-        width = [datetime.timedelta(days=2) for i in df_.index]
-    elif 365*2 < (high-low).days <= 365*3:
-        width = [datetime.timedelta(days=4) for i in df_.index]
-    else:
-        width = [datetime.timedelta(days=5) for i in df_.index]
-    return ColumnDataSource({'x': df_['date'], 'y': df_['prob_win_tie'], 'tooltip': [x.strftime('%Y-%m-%d') for x in df_['date']],
-                                    'home_away':df_['team1'] + ' - ' + df_['team2'], 'winner':df_['team1'], 'away':df_['team2'],
-                             'score': df_['score1'].astype(int).astype(str) + ' - ' + df_['score2'].astype(int).astype(str), 'width': width})
+
 def get_full_cut_df(data_,odf_, ligue, team_, domestic, season, win_prob_, min_odds, bet):
     data_ = feature_eng(data_, win_prob_)
     fdf= data_[(data_['league'] == ligue) & (data_['prob_win_tie'] >= win_prob_)].copy()

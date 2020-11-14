@@ -16,11 +16,15 @@ doc = curdoc()
 doc.clear()
 doc.title = 'Soccer Predictions'
 
-def update(years, odds_, win_prob_, league_, bet_, team, dom_eur_):
-    answer1, answer2, line_source_, line_source2_, src_ = make_sources(data.copy(), odf.copy(), league_, team, dom_eur_, years, win_prob_, odds_, bet_ )
+def update(years, odds_, win_prob_, league_, bet_, team, dom_eur_,):
+    answer1, answer2, line_source_, line_source2_, src_, gsrc_1, gsrc_2 = make_sources(data.copy(), odf.copy(), league_, team, dom_eur_, years, win_prob_, odds_, bet_ , )
     line_src.data = dict(line_source_.data)
     line_src2.data = dict(line_source2_.data)
     src.data = dict(src_.data)
+
+    gsrc1.data = dict(gsrc_1.data)
+    gsrc2.data = dict(gsrc_2.data)
+
     div.text = wrap_in_paragraphs(answer1)
     div2.text = wrap_in_paragraphs(answer2)
 def update_league(attr, old, new):
@@ -40,16 +44,16 @@ def update_dom_eur(attr, old, new):
     pass
 def update_button():
     update(year_slider.value, odds_spinner.value, win_prob_slider.value, select_league.value, bet_spinner.value, select_team.value, select_dom_eur.value)
-def make_yolo_sure_source(data_, bet):
+def make_yolo_sure_source(data_, bet,):
     huh = {}
     dumb = []
     for i in data_['date'].unique():
         w = data_[data_['date'] == i]
-        huh[i] = w['per_bet'].sum()
+        huh[i] = w['per_bet'].sum() - (len(w)*bet)
         # dumb.append(w['won_bet'])
     pp = pd.DataFrame({'per_bet':huh.values()}, index=huh.keys())
     pp['date'] = pp.index
-    pp['cumsum'] = pp['per_bet'].cumsum()
+    pp['cumsum'] = np.cumsum([bet] + pp['per_bet'].tolist())[1:]
     pp.reset_index(drop=True, inplace=True)
     kk = []
     for t in pp.itertuples():
@@ -63,7 +67,7 @@ def make_yolo_sure_source(data_, bet):
     pp['sure'] = kk
     # tt = [bet]
     # for i in pp.itertuples():
-    #     if i.won_bet:
+    #     if i.per_bet > 0:
     #         if tt[-1] == 0:
     #             tt.append(i.odds * bet)
     #         elif tt[-1] < 0:
@@ -82,15 +86,40 @@ def make_yolo_sure_source(data_, bet):
     # pp['yolo'] = tt[1:]
     print(pp.to_string())
     return ColumnDataSource({'x': pp['date'], 'y': pp['sure'], 'tooltip': [x.strftime('%Y-%m-%d') for x in pp['date']]})
-def make_sources(data_, odf_, ligue_, team_, domestic_, season_, win_prob_,min_odds, bet_ ):
+def make_line_source(df_):
+    # dynamic vbar widths
+    low = df_['date'].min()
+    high = df_['date'].max()
+    if (high-low).days <= 80:
+        width = [datetime.timedelta(hours=18) for i in df_.index]
+    elif 80 < (high-low).days <= 365:
+        width = [datetime.timedelta(days=1) for i in df_.index]
+    elif 365 < (high-low).days <= 365*2:
+        width = [datetime.timedelta(days=2) for i in df_.index]
+    elif 365*2 < (high-low).days <= 365*3:
+        width = [datetime.timedelta(days=4) for i in df_.index]
+    else:
+        width = [datetime.timedelta(days=5) for i in df_.index]
+    return ColumnDataSource({'x': df_['date'], 'y': df_['prob_win_tie'], 'tooltip': [x.strftime('%Y-%m-%d') for x in df_['date']],
+                                    'home_away':df_['team1'] + ' - ' + df_['team2'], 'winner':df_['team1'], 'away':df_['team2'],
+                             'score': df_['score1'].astype(int).astype(str) + ' - ' + df_['score2'].astype(int).astype(str), 'width': width})
+def make_game_source(df_):
+    # df_ = df_.reset_index(drop=True)
+    return ColumnDataSource({'x': np.asarray(df_.index), 'y': np.asarray(df_['odds']), 'tooltip': [x.strftime('%Y-%m-%d') for x in df_['date']],
+                                    'home_away':df_['team1'] + ' - ' + df_['team2'], 'winner':df_['team1'], 'away':df_['team2'],
+                             'score': df_['score1'].astype(int).astype(str) + ' - ' + df_['score2'].astype(int).astype(str), 'width': [0.8 for x in df_.index]})
+def make_sources(data_, odf_, ligue_, team_, domestic_, season_, win_prob_,min_odds, bet_ , ):
     odds_bet = min_odds * bet_
     data_ = get_full_cut_df(data_, odf_, ligue_, team_, domestic_, season_, win_prob_,min_odds, bet_ )
     line_source = make_line_source(data_[data_["won_bet"]==False].copy())
     line_source2 = make_line_source(data_[data_["won_bet"]==True].copy())
-    abc = make_yolo_sure_source(data_, bet_)
+    abc = make_yolo_sure_source(data_, bet_, )
+    data_ = data_.reset_index(drop=True)
+    game_source = make_game_source(data_[data_["won_bet"]==False].copy())
+    game_source2 = make_game_source(data_[data_["won_bet"]==True].copy())
     wow = f"Total Bets: {len(data_.index)} <br> Winning Bets: {data_['won_bet'].sum()} <br> Win Rate: {100*data_['won_bet'].sum()/len(data_.index):.1f} %"
     pow = f"Money Spent On Bets: ${bet_*len(data_.index):.2f}  <br>  Money Won Off Of Bets: ${odds_bet*data_['won_bet'].sum():.2f}  <br>  Difference: ${odds_bet*data_['won_bet'].sum()-bet_*len(data_.index):.2f} <br> Return: {100*((odds_bet*data_['won_bet'].sum())-(bet_*len(data_.index)))/(bet_*len(data_.index)):.2f} %"
-    return wow, pow, line_source, line_source2, abc
+    return wow, pow, line_source, line_source2, abc, game_source, game_source2
 header = {
   "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.75 Safari/537.36",
   "X-Requested-With": "XMLHttpRequest"}
@@ -136,19 +165,26 @@ bet_spinner.on_change('value', update_spinner)
 
 year_slider = RangeSlider(start=2016, end=2020, value=(2016,2020), step=1, title="Season", width=200)
 year_slider.on_change('value', update_year)
+yolo = 'YOLO'
 
+divtext, div2text, line_src, line_src2, src, gsrc1, gsrc2 = make_sources(data,odf, select_league.value, select_team.value, select_dom_eur.value, year_slider.value, win_prob_slider.value, odds_spinner.value,bet_spinner.value, )
 
-divtext, div2text, line_src, line_src2, src = make_sources(data,odf, select_league.value, select_team.value, select_dom_eur.value, year_slider.value, win_prob_slider.value, odds_spinner.value,bet_spinner.value,   )
 chart = figure(plot_width=800, plot_height=600, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()], x_axis_type = 'datetime',
            x_axis_label="Year", y_axis_label="Dollars ($)", toolbar_location="right", title=f"Performance")
-chart.line('x', 'y', source=src,  alpha=0.75, name='lines', color='orangered',  line_width = 3)
-chart.circle('x', 'y', source=src,  alpha=0.75, name='circles', color='orangered',  size = 3)
+chart.line('x', 'y', source=src,  alpha=0.75, name='lines', color='orangered',  line_width = 3.75)
+chart.circle('x', 'y', source=src,  alpha=0.75, name='circles', color='orangered',  size = 3.75)
 
 bar = figure(plot_width=800, plot_height=600, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],x_axis_type='datetime',
            x_axis_label="Year", y_axis_label="Win Percentage (%)", toolbar_location="right", title=f"Data", y_range = (0.6, 1.01))
 bar.vbar('x', top='y', source=line_src, width='width', alpha=0.75, name='red_bars', line_color = 'firebrick', fill_color = 'firebrick')
 bar.vbar('x', top='y', source=line_src2, width='width', alpha=0.75, name='green_bars', line_color = 'forestgreen', fill_color = 'forestgreen')
 
+games = figure(plot_width=800, plot_height=600, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           x_axis_label="Games", y_axis_label="Payout Ratio", toolbar_location="right", title=f"Payout by Game", y_range = (1, 1.7))
+games.vbar('x', top='y', source=gsrc1, width='width', alpha=0.75, name='red_game_bars', line_color = 'firebrick', fill_color = 'firebrick')
+games.vbar('x', top='y', source=gsrc2, width='width', alpha=0.75, name='green_game_bars', line_color = 'forestgreen', fill_color = 'forestgreen')
+
+games.add_tools(HoverTool(mode='vline', tooltips=[("Date", "@tooltip"),("Odds", "@y{(0.00)}"),("Home-Away", "@home_away"),('Score', "@score"), ("Winner", "@winner"),], names = ['red_game_bars', 'green_game_bars']))
 bar.add_tools(HoverTool(mode='vline', tooltips=[("Date", "@tooltip"),("Win/Tie Prediction", "@y{(0.00)}"),
 ("Home-Away", "@home_away"),('Score', "@score"), ("Winner", "@winner"),], names = ['red_bars', 'green_bars']))
 chart.add_tools(HoverTool(mode='vline', tooltips=[("Date", "@tooltip"),("Balance", "@y{(0.00)}"),], names = ['lines']))
@@ -176,9 +212,10 @@ div_separater = Div(text = '__________________________________________')
 div = Div(text = wrap_in_paragraphs(divtext, size = 5), )
 div2 = Div(text = wrap_in_paragraphs(div2text, size = 5))
 
-tab1 = Panel(child=row([bar]), title="Bar Chart")
+tab1 = Panel(child=row([bar]), title="Games by Date")
 tab2 = Panel(child=row([chart]), title="Balance by Date")
-tt = Tabs(tabs=[tab1, tab2, ])
+tab3 = Panel(child=row([games]), title="Games")
+tt = Tabs(tabs=[tab1, tab2, tab3])
 
 widgets = column([select_league, select_team, div_separater, select_dom_eur, year_slider, win_prob_slider, odds_spinner, bet_spinner, button, blank_div, div, div2], width = 300)
 dashboard = row([widgets, tt])
