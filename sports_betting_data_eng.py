@@ -1,11 +1,12 @@
 import numpy as np
 import pandas as pd
-import re, os
+import re, os, sys
 import datetime, time
 import traceback
 import pickle
 from pprint import pprint
 import pyarrow
+from sqlalchemy import create_engine
 import bs4 as bs
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options as firefox_options
@@ -15,7 +16,11 @@ from tqdm import tqdm
 from dask.distributed import Client, LocalCluster
 import dask.delayed
 from bokeh.models import ColumnDataSource
+from credentials import personal_db_engine
+import sqlite3
 
+def convert_unix_timestamp_to_pandas_date(input_date):
+    return pd.to_datetime(datetime.datetime.fromtimestamp(input_date/1000).date())
 def wrap_in_paragraphs(txt, colour="DarkSlateBlue", size=4):
     """
 
@@ -91,21 +96,22 @@ def get_html_from_page(url,):
         sys.exit()
 def download_538_data():
     df = pd.read_csv("https://projects.fivethirtyeight.com/soccer-api/club/spi_matches.csv")
-    df = df[df['league_id'].isin([2411, 1951, 1869, 1843, 1845, 1854, 1818, 1820])] # EPL, Serie A, La Liga, Ligue 1, MLS, Bundesliga, Europa, UCL
+    df = df[df['league_id'].isin([2411, 1869, 1843, 1845, 1854, 1818, 1820])] # EPL, Serie A, La Liga, Ligue 1, Bundesliga, Europa, UCL
     file_name = today.date().strftime("%Y%m%d") + f"_{today.hour}"
     df.to_parquet(data_path + f"538_data_{file_name}.parquet")
-    df.to_parquet(data_path + f"latest.parquet")
+    df.to_parquet(data_path + f"latest_538_data.parquet")
 @dask.delayed
-def get_odds_as_record(df_, test, league):
+def get_odds_as_record(df_, link, league):
     try:
-        a = get_odds_of_game(test, league)
+        a = get_odds_of_game(link, league)
         tmp_odds_df = a['odds']
         # team names may not map, (team 1 in OddsPortal may not be team 1 in 538) this fixes names across the two datasets
-        output = pd.concat([pd.DataFrame(tmp_odds_df.loc['Average', :]).T.rename(columns={i: 'avg_' + i for i in tmp_odds_df.columns}),
+        haha = pd.concat([pd.DataFrame(tmp_odds_df.loc['Average', :]).T.rename(columns={i: 'avg_' + i for i in tmp_odds_df.columns}),
                          pd.DataFrame(tmp_odds_df.loc['Highest', :]).T.rename(columns={i: 'max_' + i for i in tmp_odds_df.columns})],
                         axis=1).fillna(method='ffill').fillna(method='bfill').drop_duplicates(subset=['avg_1X', 'max_1X'])
         ind = find_index(df_, a)
-        output = pd.concat([output, ind], axis=1).fillna(method='ffill').fillna(method='bfill').drop_duplicates(keep = 'last').reset_index(drop=True)
+        output = pd.concat([haha, ind], axis=1).fillna(method='ffill').fillna(method='bfill').drop_duplicates(keep = 'last').reset_index(drop=True)
+        output['link'] = link
         if output.at[0, 'team1'] == a['fixed_team1'] or output.at[0, 'team2'] == a['fixed_team2']:
             pass
         elif output.at[0, 'team1'] == a['fixed_team2']:
@@ -115,7 +121,6 @@ def get_odds_as_record(df_, test, league):
             raise Exception
         return output
     except:
-        print(test)
         print(error_handling())
         pprint(a)
         print()
@@ -155,7 +160,7 @@ def get_odds_of_game(url, league):
             odds_team2 = team_name_mapper[t2]
         except:
             odds_team2 = t2
-        return {'odds':df.set_index("Bookmakers", drop=True), 'game':game, 'date':event_date, 'league':league, 'team1': t1,'team2': t2, "fixed_team2": odds_team2, "fixed_team1": odds_team1}
+        return {'odds':df.set_index("Bookmakers", drop=True), 'game':game, 'date':event_date, 'league':league, 'team1': t1,'team2': t2, "fixed_team2": odds_team2.split("(")[0].strip(), "fixed_team1": odds_team1.split("(")[0].strip(), 'url':url}
     except:
         print('No Data')
         print(url)
@@ -166,10 +171,12 @@ def feature_eng(df, win_prob = 0.75):
     df['prob2_win_tie'] = df['prob2'] + df['probtie']
     df['team2_win_tie'] = [i.score1 <= i.score2 for i in df.itertuples()]
     k = []
+    win = []
     for i in df.itertuples():
         if i.prob1_win_tie > i.prob2_win_tie:
             if i.prob1_win_tie > win_prob:
                 k.append(i.team1_win_tie)
+
             else:
                 k.append(np.nan)
         elif i.prob2_win_tie > i.prob1_win_tie:
@@ -179,13 +186,22 @@ def feature_eng(df, win_prob = 0.75):
                 k.append(np.nan)
         else:
             k.append(np.nan)
+
+        if i.score1 > i.score2:
+            win.append(i.team1)
+        elif i.score1 < i.score2:
+            win.append(i.team2)
+        else:
+            win.append("Tie")
     df['won_bet'] = k
+    df['game_winner'] = win
     df['prob_win_tie'] = df[["prob1_win_tie", "prob2_win_tie"]].max(axis=1)
     # df = df.dropna(subset=[i for i in df.columns if i != 'won_bet']).sort_values('date')
     return df
 def clean_df():
-    df = pd.read_parquet(data_path + "latest.parquet", )
+    df = pd.read_parquet(data_path + "latest_538_data.parquet", )
     df['date'] = pd.to_datetime(df['date'])
+    df['league'] = df['league'].map(league_mapper)
     df.drop(columns = ['league_id', "importance1", "importance2"], inplace=True)
     return df
 def per_team(df_, team = 'Manchester City', season = (2016, 2020), ):
@@ -254,7 +270,7 @@ def get_full_cut_df(data_,odf_, ligue, team_, domestic, season, win_prob_, min_o
     return full_data
 def read_pickles_to_df(ligue):
     fun = []
-    for i, t in enumerate([f"{ligue.lower().replace('-', '_').replace(' ', '_')}_{i.replace('-', '_').replace(' ', '_')}_season.pickle" for i in [f"{a}-{a + 1}" for a in range(2016, 2025)][:5]]):
+    for i, t in enumerate([f"{ligue.lower().replace('-', '_').replace(' ', '_')}_{i.replace('-', '_').replace(' ', '_')}_season.pickle" for i in [f"{yr}-{yr + 1}" for yr in range(2016, 2025)][:5]]):
         # if i == 4:
         pickle_i = open(data_path + t, "rb")
         fun.append(pickle.load(pickle_i))
@@ -323,7 +339,11 @@ data_path = path + 'data/soccer_betting/'
 today = datetime.datetime.now()
 pd.set_option('display.width', 500)
 pd.set_option('display.max_columns', None)
-print(today)
+
+local_engine = sqlite3.connect(data_path + "sports_betting.db")
+# remote_engine = personal_db_engine('sports_betting')
+
+# engine = personal_db_engine()
 
 # download latest data
 # download_538_data()
@@ -333,34 +353,58 @@ nation_league_mapper = {'bundesliga':'germany', 'premier league':'england', 'ser
 league_mapper = {'Barclays Premier League': 'premier league',"French Ligue 1": 'ligue 1', "Italy Serie A":"serie a",
                  "German Bundesliga":"bundesliga", "Spanish Primera Division":'laliga', 'UEFA Europa League': 'europa league', "UEFA Champions League":"champions league"}
 # maps Oddsportal name : 538 name
-team_name_mapper = {'Cadiz CF':'Cadiz','Atl. Madrid':'Atletico Madrid',"Huesca":"SD Huesca","Granada CF":"Granada","Ath Bilbao":"Athletic Bilbao", "Alaves":"Alaves", "Betis":"Real Betis","Valladolid":"Real Valladolid",
+team_name_mapper = {'Cadiz CF':'Cadiz','Atl. Madrid':'Atletico Madrid',"Huesca":"SD Huesca","Granada CF":"Granada","Ath Bilbao":"Athletic Bilbao", "Alavés":"Alaves","Alaves":"Alaves", "Betis":"Real Betis","Valladolid":"Real Valladolid",
                     'Sevilla':'Sevilla FC',
+
+                    "Chievo":"Chievo Verona", "Inter":"Internazionale","Pescara":"US Pescara",
+
+                    "Dijon":"Dijon FCO","Paris SG":"Paris Saint-Germain","Monaco":"AS Monaco","Rennes":"Stade Rennes","Nancy":"AS Nancy Lorraine",
+
+                    "Dortmund":"Borussia Dortmund","Wolfsburg":"VfL Wolfsburg","Freiburg":"SC Freiburg","Darmstadt":"SV Darmstadt 98","Schalke":"Schalke 04","Ingolstadt":"FC Ingolstadt 04","Stuttgart":"VfB Stuttgart",
+                    "B. Monchengladbach":"Borussia Monchengladbach","Hoffenheim":"TSG Hoffenheim","Augsburg":"FC Augsburg","Hamburger SV":"Hamburg SV","FC Koln":"FC Cologne","Hannover":"Hannover 96",
+                    "Dusseldorf":"Fortuna Düsseldorf","Nurnberg":"1. FC Nürnberg","'Union Berlin":"1. FC Union Berlin","Paderborn":"SC Paderborn",
+
 
                     'Stoke':'Stoke City',"Huddersfield":"Huddersfield Town","Cardiff":"Cardiff City","Swansea":"Swansea City", "West Brom":"West Bromwich Albion", "Wolves":"Wolverhampton", "Manchester Utd": "Manchester United", "Leicester": "Leicester City", "Norwich":"Norwich City",
                     "Sheffield Utd": "Sheffield United", "West Ham":"West Ham United", "Tottenham":"Tottenham Hotspur", "Brighton":"Brighton and Hove Albion", "Bournemouth":"AFC Bournemouth"}
 
 # read in 5 seasons (starting in 2016-2017) of URLS for each of the Top 5 leagues + Europa/UCL
-years = [f"{a}-{a+1}" for a in range(2016, 2025)][:4] + ['']
-pickle_in = open(data_path + "soccer_links.pickle","rb")
-data = pickle.load(pickle_in)
-
-win_prob = 0.74
-
-# read in 538 prediction data
-df = clean_df()
-df = feature_eng(df, win_prob)
-
+years = [f"{a}-{a+1}" for a in range(2016, 2025)][:4]
+# pickle_in = open(data_path + "soccer_links.pickle","rb")
+# data = pickle.load(pickle_in)
+#
+# win_prob = 0.70
+#
+# # read in 538 prediction data
+# df = clean_df()
+# df = feature_eng(df, win_prob)
+# print(years)
+# done = []
+# current_year = ['2020-2021']
+# for yrr in current_year:
+#     for p in nation_league_mapper.keys():
+#         pickle_in = open(data_path + f"{p.replace(' ', '_')}_{yrr.replace('-', '_')}_season.pickle", "rb")
+#         tt = pickle.load(pickle_in)
+#         done.append(tt)
+# final = pd.concat(done).reset_index(drop=True)
+# print(final)
+# final.to_sql("current_season_odds", local_engine, if_exists='replace', index=False)
+# print('done')
+pass
+#
 # if __name__ == '__main__':
 #     # Set-up
+#     print(today)
 #     cluster = LocalCluster(threads_per_worker=8,)
 #     client = Client(cluster)
-#     league = 'premier league'
-#     for yrr in [f"{a}-{a+1}" for a in range(2016, 2025)][:4]:
+#     league = 'europa league'
+#     for yrr in years:
+#     # for yrr in ["2020-2021"]:
 #         collect = []
-#         for num, test in enumerate(data[league][yrr]):
-#             if num % 50 == 0 and num > 0:
-#                 time.sleep(30)
-#             collect.append(get_odds_as_record(df, test, league))
+#         for num, url in enumerate(data[league][yrr]):
+#             # if num % 50 == 0 and num > 0:
+#                 # time.sleep(30)
+#             collect.append(get_odds_as_record(df, url, league))
 #         final = pd.concat(dask.compute(collect)[0])
 #         print(final.to_string())
 #         pickle_out = open(data_path + f"{league.replace(' ', '_')}_{yrr.replace('-', '_')}_season.pickle", "wb")
@@ -368,3 +412,4 @@ df = feature_eng(df, win_prob)
 #         pickle_out.close()
 #         print(datetime.datetime.now() - today)
 #     print(datetime.datetime.now()-today)
+
