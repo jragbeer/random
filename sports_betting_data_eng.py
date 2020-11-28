@@ -98,17 +98,16 @@ def download_538_data():
     df = pd.read_csv("https://projects.fivethirtyeight.com/soccer-api/club/spi_matches.csv")
     df = df[df['league_id'].isin([2411, 1869, 1843, 1845, 1854, 1818, 1820])] # EPL, Serie A, La Liga, Ligue 1, Bundesliga, Europa, UCL
     file_name = today.date().strftime("%Y%m%d") + f"_{today.hour}"
-    df.to_parquet(data_path + f"538_data_{file_name}.parquet")
+    df.to_parquet(data_path + f"/538_data_historical/538_data_{file_name}.parquet")
     df.to_parquet(data_path + f"latest_538_data.parquet")
-@dask.delayed
+# @dask.delayed
 def get_odds_as_record(df_, link, league):
     try:
         a = get_odds_of_game(link, league)
         tmp_odds_df = a['odds']
         # team names may not map, (team 1 in OddsPortal may not be team 1 in 538) this fixes names across the two datasets
         haha = pd.concat([pd.DataFrame(tmp_odds_df.loc['Average', :]).T.rename(columns={i: 'avg_' + i for i in tmp_odds_df.columns}),
-                         pd.DataFrame(tmp_odds_df.loc['Highest', :]).T.rename(columns={i: 'max_' + i for i in tmp_odds_df.columns})],
-                        axis=1).fillna(method='ffill').fillna(method='bfill').drop_duplicates(subset=['avg_1X', 'max_1X'])
+                         pd.DataFrame(tmp_odds_df.loc['Highest', :]).T.rename(columns={i: 'max_' + i for i in tmp_odds_df.columns})], axis=1).fillna(method='ffill').fillna(method='bfill').drop_duplicates(subset=['avg_1X', 'max_1X'])
         ind = find_index(df_, a)
         output = pd.concat([haha, ind], axis=1).fillna(method='ffill').fillna(method='bfill').drop_duplicates(keep = 'last').reset_index(drop=True)
         output['link'] = link
@@ -118,6 +117,8 @@ def get_odds_as_record(df_, link, league):
             output.rename(columns={'avg_1X': 'avg_2X', 'high_1X': 'high_2X',
                                 'avg_2X': 'avg_1X', 'high_2X': 'high_1X'}, inplace=True)
         else:
+            print("THIS MEANS NO TEAMS MATCH")
+            outer.append(link)
             raise Exception
         return output
     except:
@@ -153,14 +154,14 @@ def get_odds_of_game(url, league):
         t1 = game.split(' - ')[0]
         t2 = game.split(' - ')[1]
         try:
-            odds_team1 = team_name_mapper[t1]
+            odds_team1 = team_name_mapper[t1.split("(")[0].strip()]
         except:
             odds_team1 = t1
         try:
-            odds_team2 = team_name_mapper[t2]
+            odds_team2 = team_name_mapper[t2.split("(")[0].strip()]
         except:
             odds_team2 = t2
-        return {'odds':df.set_index("Bookmakers", drop=True), 'game':game, 'date':event_date, 'league':league, 'team1': t1,'team2': t2, "fixed_team2": odds_team2.split("(")[0].strip(), "fixed_team1": odds_team1.split("(")[0].strip(), 'url':url}
+        return {'odds':df.set_index("Bookmakers", drop=True), 'game':game, 'date':event_date, 'league':league, 'team1': t1,'team2': t2, "fixed_team2": odds_team2, "fixed_team1": odds_team1, 'url':url}
     except:
         print('No Data')
         print(url)
@@ -251,7 +252,48 @@ def find_index(df, a):
         return wow[['league','date','team1','team2']]
     except:
         print(wow)
-
+def gather_new_game_links():
+    now = datetime.datetime.now()
+    tmp_dict = {}
+    for t in nation_league_mapper.keys():
+        tmp_dict[t] = []
+        for pg in range(1, 10):
+            tmp_dict[t].append(get_games(t, '', pg)) # settings are page 1 and no year (current year)
+            print(pg, ' done')
+        try:
+            tmp_dict[t] = [item for sublist in tmp_dict[t] for item in sublist]
+        except:
+            pass
+        print(t, datetime.datetime.now() - today)
+    output = pd.DataFrame(tmp_dict)
+    print(output.to_string())
+    file_name = now.date().strftime("%Y%m%d") + f"_{now.hour}"
+    pickle_out = open(data_path + f"soccer_links_20201122_20.pickle", "wb")
+    pickle.dump(tmp_dict, pickle_out)
+    pickle_out.close()
+    pickle_in = open(data_path + f"soccer_links_20201122_20.pickle", "rb")
+    lol = pickle.load(pickle_in)
+    pprint(lol)
+    list_ting = []
+    for key, each in lol.items():
+        e = pd.DataFrame({'values': each})
+        e['league'] = key
+        list_ting.append(e)
+    output = pd.concat(list_ting).reset_index(drop=True)
+    print(output.to_string())
+    output.to_sql("last_downloaded_soccer_links", local_engine, index=False, if_exists='replace')
+def reduce_soccer_links_to_only_most_recent():
+    ddf = pd.read_sql("select * from last_downloaded_soccer_links", local_engine)
+    links = pd.read_sql("select link from current_season_odds", local_engine)
+    rr = pd.DataFrame({'yes':pd.concat([ddf['values'], links['link']])})
+    rr.drop_duplicates(keep=False, inplace=True)
+    output = pd.merge(ddf, rr, left_on='values', right_on='yes', how='inner')[['values', 'league']]
+    print(output.to_string())
+    output.to_sql("most_recent_soccer_links", local_engine, index=False, if_exists='replace')
+def update_soccer_betting():
+    gather_new_game_links()
+    reduce_soccer_links_to_only_most_recent()
+    final_step()
 def get_full_cut_df(data_,odf_, ligue, team_, domestic, season, win_prob_, min_odds, bet):
     data_ = feature_eng(data_, win_prob_)
     fdf= data_[(data_['league'] == ligue) & (data_['prob_win_tie'] >= win_prob_)].copy()
@@ -333,7 +375,22 @@ def add_odds_data_to_df(df, rdf, bet, min_odds_):
     final = data.merge(output, left_index=True, right_index=True)
     final = final.drop(columns=['xg1', "xg2", "nsxg1", "nsxg2", "adj_score1", "adj_score2",])
     return final
+def final_step():
 
+    df = clean_df()
+    most_recent = pd.read_sql("select * from most_recent_soccer_links", local_engine)
+    skip = pd.read_sql("select * from links_to_skip", local_engine).iloc[:, 0].drop_duplicates().tolist()
+    collect = []
+    for i in tqdm(most_recent.itertuples()):
+        if i.values not in skip:
+            collect.append(get_odds_as_record(df, i.values, i.league))
+
+    final = pd.concat(collect)
+    print(final.to_string())
+    final.to_sql('current_season_odds', local_engine, index=False, if_exists='append', )
+    links_to_skip = pd.Series(outer)
+    links_to_skip.to_sql("links_to_skip", local_engine, index=False, if_exists='append')
+    print(datetime.datetime.now()-today)
 path = os.getcwd().replace("\\", "/") + "/"
 data_path = path + 'data/soccer_betting/'
 today = datetime.datetime.now()
@@ -341,8 +398,9 @@ pd.set_option('display.width', 500)
 pd.set_option('display.max_columns', None)
 
 local_engine = sqlite3.connect(data_path + "sports_betting.db")
+# local_engine = personal_db_engine('sports_betting')
 # remote_engine = personal_db_engine('sports_betting')
-
+outer = []
 # engine = personal_db_engine()
 
 # download latest data
@@ -370,14 +428,18 @@ team_name_mapper = {'Cadiz CF':'Cadiz','Atl. Madrid':'Atletico Madrid',"Huesca":
 
 # read in 5 seasons (starting in 2016-2017) of URLS for each of the Top 5 leagues + Europa/UCL
 years = [f"{a}-{a+1}" for a in range(2016, 2025)][:4]
+print(today)
+
+
+
+
 # pickle_in = open(data_path + "soccer_links.pickle","rb")
 # data = pickle.load(pickle_in)
 #
 # win_prob = 0.70
 #
 # # read in 538 prediction data
-# df = clean_df()
-# df = feature_eng(df, win_prob)
+
 # print(years)
 # done = []
 # current_year = ['2020-2021']
@@ -391,25 +453,11 @@ years = [f"{a}-{a+1}" for a in range(2016, 2025)][:4]
 # final.to_sql("current_season_odds", local_engine, if_exists='replace', index=False)
 # print('done')
 pass
-#
+
 # if __name__ == '__main__':
 #     # Set-up
 #     print(today)
 #     cluster = LocalCluster(threads_per_worker=8,)
 #     client = Client(cluster)
-#     league = 'europa league'
-#     for yrr in years:
-#     # for yrr in ["2020-2021"]:
-#         collect = []
-#         for num, url in enumerate(data[league][yrr]):
-#             # if num % 50 == 0 and num > 0:
-#                 # time.sleep(30)
-#             collect.append(get_odds_as_record(df, url, league))
-#         final = pd.concat(dask.compute(collect)[0])
-#         print(final.to_string())
-#         pickle_out = open(data_path + f"{league.replace(' ', '_')}_{yrr.replace('-', '_')}_season.pickle", "wb")
-#         pickle.dump(final, pickle_out)
-#         pickle_out.close()
-#         print(datetime.datetime.now() - today)
-#     print(datetime.datetime.now()-today)
+
 

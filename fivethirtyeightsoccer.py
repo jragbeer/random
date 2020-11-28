@@ -15,7 +15,7 @@ import colorcet as cc
 # clear the webpage before visualization
 doc = curdoc()
 doc.clear()
-doc.title = 'Soccer Predictions'
+doc.title = 'Soccer Betting'
 def pay_out_text():
     return wrap_in_paragraphs("This chart displays the payout multiple for each game in the series.", 'black', 2)
 def win_prob_text():
@@ -34,13 +34,14 @@ def update(years, odds_, win_prob_, league_, bet_, team, dom_eur_, pay_out_win_p
     div.text = wrap_in_paragraphs(answer1, 'dimGrey')
     div2.text = wrap_in_paragraphs(answer2, 'dimGrey')
 def update_league(attr, old, new):
-    pp = data[data['league'] == league_mapper[new]]['team1'].unique()
-    print(new, league_mapper[new], pp)
-    print(data.sample(100).to_string())
-    sc = sorted(data[data['league'] == league_mapper[new]]['team1'].unique().tolist())
-    print(sc)
-    select_team.options = ['All'] + sc
-    select_team.value = 'All'
+    if new != 'All':
+        sc = sorted(data[data['league'] == league_mapper[new]]['team1'].unique().tolist())
+        select_team.options = ['All'] + sc
+        select_team.value = 'All'
+    else:
+        sc = sorted(data['team1'].unique().tolist())
+        select_team.options = ['All'] + sc
+        select_team.value = 'All'
 def update_win_prob(attr, old, new):
     pass
 def update_spinner(attr, old, new):
@@ -54,18 +55,28 @@ def update_team(attr, old, new):
 def update_dom_eur(attr, old, new):
     pass
 def update_button():
-    update(date_range_slider.value, odds_spinner.value, win_prob_slider.value, league_mapper[select_league.value].lower(), bet_spinner.value, select_team.value, select_dom_eur.value, select_payout_win_prob.value)
+    if select_league.value != 'All':
+        update(date_range_slider.value, odds_spinner.value, win_prob_slider.value, league_mapper[select_league.value].lower(), bet_spinner.value, select_team.value, select_dom_eur.value, select_payout_win_prob.value)
+    else:
+        update(date_range_slider.value, odds_spinner.value, win_prob_slider.value, select_league.value, bet_spinner.value, select_team.value, select_dom_eur.value, select_payout_win_prob.value)
 def create_text_1(data_):
-    return f"Total Bets: <font size = 5, color='orangered'>{len(data_.index)}</font> <br> Winning Bets: <font size = 5, color='orangered'>{data_['won_bet'].sum()}</font> <br> Win Rate: <font size = 5, color='orangered'>{100*data_['won_bet'].sum()/len(data_.index):.1f} %</font>"
+    try:
+        return f"Total Bets: <font size = 5, color='orangered'>{len(data_.index):,}</font> <br> Winning Bets: <font size = 5, color='orangered'>{int(data_['won_bet'].sum()):,}</font> <br> Win Rate: <font size = 5, color='orangered'>{100*data_['won_bet'].sum()/len(data_.index):.1f} %</font>"
+    except:
+        return "Bad Query: No data available. Please select new parameters."
 def create_text_2(data_, bet_):
-    return f"Money Spent On Bets:<br>  <font size = 5, color='orangered'>${bet_ * len(data_.index):.2f}</font>  <br>  Money Won Off Of Bets:<br>  <font size = 5, color='orangered'>${data_['per_bet'].sum():.2f}</font>  <br>  Difference: <font size = 5, color='orangered'>${data_['per_bet'].sum() - bet_ * len(data_.index):.2f}</font> <br> Return: <font size = 5, color='orangered'>{100 * ((data_['per_bet'].sum()) - (bet_ * len(data_.index))) / (bet_ * len(data_.index)):.2f} %</font>"
+    try:
+        return f"Money Spent On Bets:<br>  <font size = 5, color='orangered'>${bet_ * len(data_.index):,.2f}</font>  <br>  Money Won Off Of Bets:<br>  <font size = 5, color='orangered'>${(data_['actual_per_game_return']+bet_).sum():,.2f}</font>  <br>  Difference: <font size = 5, color='orangered'>${(data_['actual_per_game_return']+bet_).sum() - bet_ * len(data_.index):,.2f}</font> <br> Return: <font size = 5, color='orangered'>{100 * (((data_['actual_per_game_return']+bet_).sum()) - (bet_ * len(data_.index))) / (bet_ * len(data_.index)):.2f} %</font>"
+    except:
+        return ''
 def make_balance_by_date_source(data_, bet,):
     huh = {}
-    dumb = []
     for i in data_['date'].unique():
         w = data_[data_['date'] == i]
-        huh[i] = w['per_bet'].sum() - (len(w)*bet)
-        # dumb.append(w['won_bet'])
+        # print(w)
+        # huh[i] = w['actual_per_game_return'].sum() - (len(w)*bet)
+
+        huh[i] = w['actual_per_game_return'].sum()
     pp = pd.DataFrame({'per_bet':huh.values()}, index=huh.keys())
     pp['date'] = pp.index
     pp['cumsum'] = np.cumsum([bet] + pp['per_bet'].tolist())[1:]
@@ -171,19 +182,29 @@ def get_full_cut_df(data_,odf_, ligue, team_, domestic, season, win_prob_, min_o
     data_ = feature_eng(data_, win_prob_)
     fdf = data_[data_['prob_win_tie'] >= win_prob_].copy()
     fdf = fdf[(fdf['date'] >= convert_unix_timestamp_to_pandas_date(season[0])) & (fdf['date'] <= convert_unix_timestamp_to_pandas_date(season[1]))].copy()
-    list_of_all_teams = list(data[data['league'] == ligue]['team1'].unique())
+    if ligue != 'all':
+        list_of_all_teams = list(data[data['league'] == ligue]['team1'].unique())
+    else:
+        list_of_all_teams = data['team1'].unique().tolist()
     if domestic == 'Domestic':
-        fdf = fdf[fdf['league'] == ligue]
+        if ligue != 'all':
+            fdf = fdf[fdf['league'] == ligue]
+        else:
+            fdf = fdf
         if team_ != 'All':
             fdf = fdf[(fdf['team1'] == team_) | (fdf['team2'] == team_)]
         else:
             fdf = fdf[fdf['team1'].isin(list_of_all_teams) | (fdf['team2'].isin(list_of_all_teams))]
     elif domestic == 'Domestic + Europe':
-        fdf = fdf[(fdf['league'] == ligue) | (fdf['league'] == "champions league") | (fdf['league'] == "europa league")]
+        if ligue != "all":
+            fdf = fdf[(fdf['league'] == ligue) | (fdf['league'] == "champions league") | (fdf['league'] == "europa league")]
         if team_ != 'All':
             fdf = fdf[(fdf['team1'] == team_) | (fdf['team2'] == team_)]
         else:
-            list_of_all_teams = list(data[data['league'] == ligue]['team1'].unique())
+            if ligue != "all":
+                list_of_all_teams = list(data[data['league'] == ligue]['team1'].unique())
+            else:
+                list_of_all_teams = list(data['team1'].unique())
             fdf = fdf[(fdf['team1'].isin(list_of_all_teams)) | (fdf['team2'].isin(list_of_all_teams))]
     else:
         fdf = fdf[(fdf['league'] == "champions league") | (fdf['league'] == "europa league")]
@@ -272,10 +293,15 @@ def add_odds_data_to_df(df, rdf, bet, min_odds_):
     final = data.merge(output, left_index=True, right_index=True)
     # np.where --- if (first arg) then (second arg) else (third arg)
     final['actual_per_game_return'] = np.where(final['per_bet'] < 0, final['per_bet'], final['per_bet'] - bet)
+    final['cumsum'] = final['actual_per_game_return'].cumsum()
     final = final.drop(columns=['xg1', "xg2", "nsxg1", "nsxg2", "adj_score1", "adj_score2",])
     return final
 def update_payout_win_prob(attr, old, new):
-    data_ = get_full_cut_df(data.copy(), odf.copy(), league_mapper[select_league.value].lower(), select_team.value, select_dom_eur.value, date_range_slider.value, win_prob_slider.value,odds_spinner.value, bet_spinner.value )
+    if select_league.value != 'All':
+        data_ = get_full_cut_df(data.copy(), odf.copy(), league_mapper[select_league.value].lower(), select_team.value, select_dom_eur.value, date_range_slider.value, win_prob_slider.value,odds_spinner.value, bet_spinner.value )
+    else:
+        data_ = get_full_cut_df(data.copy(), odf.copy(), select_league.value.lower(), select_team.value, select_dom_eur.value, date_range_slider.value, win_prob_slider.value,
+                                odds_spinner.value, bet_spinner.value)
     data_ = data_.reset_index(drop=True)
     game_source = make_game_source(data_[data_["won_bet"]==False].copy(), new)
     game_source2 = make_game_source(data_[data_["won_bet"]==True].copy(), new)
@@ -317,12 +343,15 @@ data = feature_eng(idata, win_prob)
 
 # odds data
 odf = pd.concat([pd.read_sql('select * from historical_odds', local_engine, parse_dates=['date']),pd.read_sql('select * from current_season_odds', local_engine, parse_dates=['date'])])
+odf.replace("-", np.nan, inplace=True)
+odf.dropna(inplace=True)
+
 
 button = Button(label="Update", button_type="warning", width=200)
 button.on_click(update_button)
 
 # select_league = Select(title='League', value=f"Barclays Premier League", options=sorted(data['league'].unique().tolist()), width=200)
-select_league = Select(title='League', value="Barclays Premier League", options=list(league_mapper.keys()), width=200)
+select_league = Select(title='League', value="Barclays Premier League", options=['All'] + list(league_mapper.keys()), width=200)
 select_league.on_change('value', update_league)
 
 select_dom_eur = Select(title='Competition: Domestic / Europe', value=f"Domestic", options=['Domestic', "Domestic + Europe", "Europe"], width=200)
@@ -350,7 +379,7 @@ yolo = 'YOLO'
 
 divtext, div2text, line_src, line_src2, src, gsrc1, gsrc2 = make_sources(data,odf, league_mapper[select_league.value].lower(), select_team.value, select_dom_eur.value, date_range_slider.value, win_prob_slider.value, odds_spinner.value,bet_spinner.value, select_payout_win_prob.value )
 
-chart = figure(plot_width=800, plot_height=600, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()], x_axis_type = 'datetime',
+chart = figure(plot_width=900, plot_height=750, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()], x_axis_type = 'datetime',
            x_axis_label="Datetime", y_axis_label="Dollars ($)", toolbar_location="right", title=f"Performance")
 chart.line('x', 'y', source=src,  alpha=0.75, name='lines', color='orangered',  line_width = 5)
 chart.circle('x', 'y', source=src,  alpha=0.75, name='circles', color='orangered',  size = 6)
@@ -358,12 +387,12 @@ chart.circle('x', 'y', source=src,  alpha=0.75, name='circles', color='orangered
 zero_line = Span(location=0, dimension='width', line_color='black', line_width=2, line_alpha=0.78)
 chart.add_layout(zero_line)
 
-bar = figure(plot_width=800, plot_height=600, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],x_axis_type='datetime',
+bar = figure(plot_width=900, plot_height=750, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],x_axis_type='datetime',
            x_axis_label="Datetime", y_axis_label="Number of Games", toolbar_location="right", title=f"Games by Date", )
 bar.vbar('x', top='top', bottom = 'bottom',source=line_src, width='width', alpha=0.75, name='red_bars', line_color = 'firebrick', fill_color = 'firebrick')
 bar.vbar('x', top='top', bottom = 'bottom',source=line_src2, width='width', alpha=0.75, name='green_bars', line_color = 'forestgreen', fill_color = 'forestgreen')
 
-games = figure(plot_width=800, plot_height=600, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+games = figure(plot_width=900, plot_height=750, tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            x_axis_label="Games", y_axis_label="Payout Multiple", toolbar_location="right", title=f"Payout Multiple by Game", )
 games.vbar('x', top='y', bottom = 'bottom', source=gsrc1, width='width', alpha=0.75, name='red_game_bars', line_color = 'firebrick', fill_color = 'firebrick')
 games.vbar('x', top='y', bottom = 'bottom', source=gsrc2, width='width', alpha=0.75, name='green_game_bars', line_color = 'forestgreen', fill_color = 'forestgreen')
@@ -397,8 +426,8 @@ for plot in [bar, chart, games]:
 
 blank_div = Div(text = ' ')
 div_separater = Div(text = '__________________________________________')
-div = Div(text = wrap_in_paragraphs(divtext,'dimGrey'))
-div2 = Div(text = wrap_in_paragraphs(div2text, 'dimGrey'))
+div = Div(text = wrap_in_paragraphs(divtext,'dimGrey', 3))
+div2 = Div(text = wrap_in_paragraphs(div2text, 'dimGrey', 3))
 games_explanation_div = Div(text =pay_out_text(), width = 500)
 
 tab3 = Panel(child=row([bar]), title="Games by Date")
