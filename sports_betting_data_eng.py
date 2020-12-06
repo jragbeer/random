@@ -13,11 +13,10 @@ from selenium.webdriver.firefox.options import Options as firefox_options
 from selenium.webdriver.chrome.options import Options as chrome_options
 from dateutil import parser
 from tqdm import tqdm
-from dask.distributed import Client, LocalCluster
-import dask.delayed
 from bokeh.models import ColumnDataSource
-from credentials import personal_db_engine
+from credentials import db_credentials, personal_db_engine
 import sqlite3
+import logging
 
 def convert_unix_timestamp_to_pandas_date(input_date):
     return pd.to_datetime(datetime.datetime.fromtimestamp(input_date/1000).date())
@@ -62,7 +61,7 @@ def get_html_from_page(url,):
             chromeOptions.add_argument("--headless")
             chromeOptions.add_argument('--no-sandbox')
             chromeOptions.add_argument('--disable-dev-shm-usage')
-            driver = webdriver.Chrome('C:/Users/Julien/PycharmProjects/practice/chromedriver85', options=chromeOptions)
+            driver = webdriver.Chrome("C:/Users/Julien/PycharmProjects/practice/chromedriver85", options=chromeOptions)
         else:
             firefoxOptions = firefox_options()
             firefoxOptions.set_preference("browser.download.folderList", 2)
@@ -81,7 +80,7 @@ def get_html_from_page(url,):
     try:
         soup, web_driver = grab_soup(url, "chrome" )
         # allow all elements to load
-        time.sleep(1)
+        time.sleep(6)
         # reload html after JS interaction
         html_ = web_driver.page_source
         soup = bs.BeautifulSoup(html_, 'html.parser')
@@ -117,14 +116,14 @@ def get_odds_as_record(df_, link, league):
             output.rename(columns={'avg_1X': 'avg_2X', 'high_1X': 'high_2X',
                                 'avg_2X': 'avg_1X', 'high_2X': 'high_1X'}, inplace=True)
         else:
-            print("THIS MEANS NO TEAMS MATCH")
+            logging.info("THIS MEANS NO TEAMS MATCH")
             outer.append(link)
             raise Exception
         return output
     except:
-        print(error_handling())
-        pprint(a)
-        print()
+        logging.info(error_handling())
+        logging.info(a)
+        logging.info(' ')
         return pd.DataFrame()
 def get_games(league, szn, page):
     try:
@@ -139,11 +138,12 @@ def get_games(league, szn, page):
         hrefs = [x.find('a',href=True)['href'] for x in links]
         return hrefs
     except:
-        print('No Data')
-        print(url)
+        logging.info(error_handling())
+        logging.info('No Data')
+        logging.info(url)
         return []
 def get_odds_of_game(url, league):
-    try:
+    def inner_func(url, league):
         URL = "https://www.oddsportal.com" + url + "#double;2"
         soup = get_html_from_page(URL)
         table = soup.find('div', {'id': 'odds-data-table'})
@@ -161,11 +161,16 @@ def get_odds_of_game(url, league):
             odds_team2 = team_name_mapper[t2.split("(")[0].strip()]
         except:
             odds_team2 = t2
+        logging.info(f"{URL} is parsed")
         return {'odds':df.set_index("Bookmakers", drop=True), 'game':game, 'date':event_date, 'league':league, 'team1': t1,'team2': t2, "fixed_team2": odds_team2, "fixed_team1": odds_team1, 'url':url}
-    except:
-        print('No Data')
-        print(url)
-        return []
+    for z in range(1,6):
+        try:
+            return inner_func(url, league)
+        except:
+            logging.info(f'No Data (attempt {z})')
+            logging.info(url)
+            logging.info(error_handling())
+    return []
 def feature_eng(df, win_prob = 0.75):
     df['prob1_win_tie'] = df['prob1'] + df['probtie']
     df['team1_win_tie'] = [i.score1 >= i.score2 for i in df.itertuples()]
@@ -252,48 +257,6 @@ def find_index(df, a):
         return wow[['league','date','team1','team2']]
     except:
         print(wow)
-def gather_new_game_links():
-    now = datetime.datetime.now()
-    tmp_dict = {}
-    for t in nation_league_mapper.keys():
-        tmp_dict[t] = []
-        for pg in range(1, 10):
-            tmp_dict[t].append(get_games(t, '', pg)) # settings are page 1 and no year (current year)
-            print(pg, ' done')
-        try:
-            tmp_dict[t] = [item for sublist in tmp_dict[t] for item in sublist]
-        except:
-            pass
-        print(t, datetime.datetime.now() - today)
-    output = pd.DataFrame(tmp_dict)
-    print(output.to_string())
-    file_name = now.date().strftime("%Y%m%d") + f"_{now.hour}"
-    pickle_out = open(data_path + f"soccer_links_20201122_20.pickle", "wb")
-    pickle.dump(tmp_dict, pickle_out)
-    pickle_out.close()
-    pickle_in = open(data_path + f"soccer_links_20201122_20.pickle", "rb")
-    lol = pickle.load(pickle_in)
-    pprint(lol)
-    list_ting = []
-    for key, each in lol.items():
-        e = pd.DataFrame({'values': each})
-        e['league'] = key
-        list_ting.append(e)
-    output = pd.concat(list_ting).reset_index(drop=True)
-    print(output.to_string())
-    output.to_sql("last_downloaded_soccer_links", local_engine, index=False, if_exists='replace')
-def reduce_soccer_links_to_only_most_recent():
-    ddf = pd.read_sql("select * from last_downloaded_soccer_links", local_engine)
-    links = pd.read_sql("select link from current_season_odds", local_engine)
-    rr = pd.DataFrame({'yes':pd.concat([ddf['values'], links['link']])})
-    rr.drop_duplicates(keep=False, inplace=True)
-    output = pd.merge(ddf, rr, left_on='values', right_on='yes', how='inner')[['values', 'league']]
-    print(output.to_string())
-    output.to_sql("most_recent_soccer_links", local_engine, index=False, if_exists='replace')
-def update_soccer_betting():
-    gather_new_game_links()
-    reduce_soccer_links_to_only_most_recent()
-    final_step()
 def get_full_cut_df(data_,odf_, ligue, team_, domestic, season, win_prob_, min_odds, bet):
     data_ = feature_eng(data_, win_prob_)
     fdf= data_[(data_['league'] == ligue) & (data_['prob_win_tie'] >= win_prob_)].copy()
@@ -375,36 +338,61 @@ def add_odds_data_to_df(df, rdf, bet, min_odds_):
     final = data.merge(output, left_index=True, right_index=True)
     final = final.drop(columns=['xg1', "xg2", "nsxg1", "nsxg2", "adj_score1", "adj_score2",])
     return final
+def update_soccer_betting():
+    gather_new_game_links()
+    reduce_soccer_links_to_only_most_recent()
+    final_step()
+def gather_new_game_links():
+    now = datetime.datetime.now()
+    tmp_dict = {}
+    # for each league, get a flat list of recent game links
+    for t in nation_league_mapper.keys():
+        tmp_dict[t] = [get_games(t, '', 1)] # settings are page 1 and no year (current year)
+        try:
+            tmp_dict[t] = [item for sublist in tmp_dict[t] for item in sublist]
+        except:
+            pass
+        logging.info(f"{t}, {datetime.datetime.now() - today}")
+    file_name = now.date().strftime("%Y%m%d") + f"_{now.hour}"
+    pickle_out = open(data_path + f"soccer_links_{file_name}.pickle", "wb")
+    pickle.dump(tmp_dict, pickle_out)
+    pickle_out.close()
+    list_ting = []
+    for key, each in tmp_dict.items():
+        e = pd.DataFrame({'values': each})
+        e['league'] = key
+        list_ting.append(e)
+    output = pd.concat(list_ting).reset_index(drop=True)
+    output.to_sql("last_downloaded_soccer_links", local_engine, index=False, if_exists='replace')
+    logging.info('latest_download_soccer_links table updated!') # all links, whether already parsed or not
+def reduce_soccer_links_to_only_most_recent():
+    ddf = pd.read_sql("select * from last_downloaded_soccer_links", local_engine) # get all links from latest batch of available links
+    links = pd.read_sql("select link from current_season_odds", local_engine) # get links that have already been parsed
+    stacked_dfs = pd.DataFrame({'yes':pd.concat([ddf['values'], links['link']])})
+    stacked_dfs.drop_duplicates(keep=False, inplace=True) # only links that haven't been used remain
+    output = pd.merge(ddf, stacked_dfs, left_on='values', right_on='yes', how='inner')[['values', 'league']]
+    output.to_sql("most_recent_soccer_links", local_engine, index=False, if_exists='replace') # links to visit and download from
+    logging.info('most_recent_soccer_links table updated!') # only links that haven't been parsed
 def final_step():
-
     df = clean_df()
-    most_recent = pd.read_sql("select * from most_recent_soccer_links", local_engine)
-    skip = pd.read_sql("select * from links_to_skip", local_engine).iloc[:, 0].drop_duplicates().tolist()
-    collect = []
-    for i in tqdm(most_recent.itertuples()):
-        if i.values not in skip:
-            collect.append(get_odds_as_record(df, i.values, i.league))
-
+    most_recent = pd.read_sql("select * from most_recent_soccer_links", local_engine) # links to visit
+    skip = pd.read_sql("select * from links_to_skip", local_engine).iloc[:, 0].drop_duplicates().tolist() # links that may be in *most_recent* that shouldn't be visited
+    collect = [get_odds_as_record(df, i.values, i.league) for i in most_recent.itertuples() if i.values not in skip] # get the odds
     final = pd.concat(collect)
-    print(final.to_string())
-    final.to_sql('current_season_odds', local_engine, index=False, if_exists='append', )
+    final.to_sql('current_season_odds', local_engine, index=False, if_exists='append', ) # add odds data to current season odds
     links_to_skip = pd.Series(outer)
     links_to_skip.to_sql("links_to_skip", local_engine, index=False, if_exists='append')
-    print(datetime.datetime.now()-today)
+    logging.info(datetime.datetime.now()-today)
 path = os.getcwd().replace("\\", "/") + "/"
 data_path = path + 'data/soccer_betting/'
 today = datetime.datetime.now()
 pd.set_option('display.width', 500)
 pd.set_option('display.max_columns', None)
 
-local_engine = sqlite3.connect(data_path + "sports_betting.db")
-# local_engine = personal_db_engine('sports_betting')
-# remote_engine = personal_db_engine('sports_betting')
-outer = []
-# engine = personal_db_engine()
 
-# download latest data
-# download_538_data()
+local_engine = sqlite3.connect(data_path + "sports_betting.db")
+
+outer = []
 # map league to country for URL
 nation_league_mapper = {'bundesliga':'germany', 'premier league':'england', 'serie a':'italy', 'ligue 1':'france', 'europa league':'europe', 'champions league':'europe', 'laliga':'spain'}
 # maps 538 league : oddsportal name
@@ -425,39 +413,6 @@ team_name_mapper = {'Cadiz CF':'Cadiz','Atl. Madrid':'Atletico Madrid',"Huesca":
 
                     'Stoke':'Stoke City',"Huddersfield":"Huddersfield Town","Cardiff":"Cardiff City","Swansea":"Swansea City", "West Brom":"West Bromwich Albion", "Wolves":"Wolverhampton", "Manchester Utd": "Manchester United", "Leicester": "Leicester City", "Norwich":"Norwich City",
                     "Sheffield Utd": "Sheffield United", "West Ham":"West Ham United", "Tottenham":"Tottenham Hotspur", "Brighton":"Brighton and Hove Albion", "Bournemouth":"AFC Bournemouth"}
-
 # read in 5 seasons (starting in 2016-2017) of URLS for each of the Top 5 leagues + Europa/UCL
 years = [f"{a}-{a+1}" for a in range(2016, 2025)][:4]
-print(today)
-
-
-
-
-# pickle_in = open(data_path + "soccer_links.pickle","rb")
-# data = pickle.load(pickle_in)
-#
-# win_prob = 0.70
-#
-# # read in 538 prediction data
-
-# print(years)
-# done = []
-# current_year = ['2020-2021']
-# for yrr in current_year:
-#     for p in nation_league_mapper.keys():
-#         pickle_in = open(data_path + f"{p.replace(' ', '_')}_{yrr.replace('-', '_')}_season.pickle", "rb")
-#         tt = pickle.load(pickle_in)
-#         done.append(tt)
-# final = pd.concat(done).reset_index(drop=True)
-# print(final)
-# final.to_sql("current_season_odds", local_engine, if_exists='replace', index=False)
-# print('done')
-pass
-
-# if __name__ == '__main__':
-#     # Set-up
-#     print(today)
-#     cluster = LocalCluster(threads_per_worker=8,)
-#     client = Client(cluster)
-
 

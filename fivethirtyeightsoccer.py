@@ -426,6 +426,7 @@ for plot in [bar, chart, games]:
 
 blank_div = Div(text = ' ')
 div_separater = Div(text = '__________________________________________')
+div_separater2 = Div(text = '__________________________________________')
 div = Div(text = wrap_in_paragraphs(divtext,'dimGrey', 3))
 div2 = Div(text = wrap_in_paragraphs(div2text, 'dimGrey', 3))
 games_explanation_div = Div(text =pay_out_text(), width = 500)
@@ -435,7 +436,7 @@ tab2 = Panel(child=row([chart]), title="Balance by Date")
 tab1 = Panel(child=column([row(select_payout_win_prob, games_explanation_div), games]), title="Games")
 tt = Tabs(tabs=[tab1, tab2, tab3])
 
-widgets = column([select_league, select_team, div_separater, select_dom_eur, date_range_slider, win_prob_slider, odds_spinner, bet_spinner, button, blank_div, div, div2], width = 300)
+widgets = column([select_league, select_team, div_separater, select_dom_eur, date_range_slider, win_prob_slider, odds_spinner, bet_spinner, button, div_separater2, div, div2], width = 300)
 dashboard = row([widgets, tt])
 curdoc().add_root(dashboard)
 show(dashboard)
