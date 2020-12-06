@@ -16,6 +16,7 @@ from tqdm import tqdm
 from bokeh.models import ColumnDataSource
 from credentials import db_credentials, personal_db_engine
 import sqlite3
+import calendar
 import logging
 
 def convert_unix_timestamp_to_pandas_date(input_date):
@@ -259,19 +260,41 @@ def find_index(df, a):
         print(wow)
 def get_full_cut_df(data_,odf_, ligue, team_, domestic, season, win_prob_, min_odds, bet):
     data_ = feature_eng(data_, win_prob_)
-    fdf= data_[(data_['league'] == ligue) & (data_['prob_win_tie'] >= win_prob_)].copy()
-    if domestic == 'Domestic':
-        fdf = fdf[fdf['league'] == ligue]
-    elif domestic == 'Domestic + Europe':
-        fdf = fdf[(fdf['league'] == ligue) | (fdf['league'] == "UEFA Champions League") | (fdf['league'] == "UEFA Europa League")]
+    fdf = data_[data_['prob_win_tie'] >= win_prob_].copy()
+    fdf = fdf[(fdf['date'] >= convert_unix_timestamp_to_pandas_date(season[0])) & (fdf['date'] <= convert_unix_timestamp_to_pandas_date(season[1]))].copy()
+    if ligue != 'all':
+        list_of_all_teams = list(data_[data_['league'] == ligue]['team1'].unique())
     else:
-        fdf = fdf[(fdf['league'] == "UEFA Champions League") | (fdf['league'] == "UEFA Europa League")]
-    if team_ != 'All':
-        fdf = fdf[(fdf['team1'] == team_) | (fdf['team2'] == team_)]
-    fdf = fdf[(fdf['season'] >= season[0]) & (fdf['season'] <= season[1])].copy()
+        list_of_all_teams = data_['team1'].unique().tolist()
+    if domestic == 'Domestic':
+        if ligue != 'all':
+            fdf = fdf[fdf['league'] == ligue]
+        else:
+            fdf = fdf
+        if team_ != 'All':
+            fdf = fdf[(fdf['team1'] == team_) | (fdf['team2'] == team_)]
+        else:
+            fdf = fdf[fdf['team1'].isin(list_of_all_teams) | (fdf['team2'].isin(list_of_all_teams))]
+    elif domestic == 'Domestic + Europe':
+        if ligue != "all":
+            fdf = fdf[(fdf['league'] == ligue) | (fdf['league'] == "champions league") | (fdf['league'] == "europa league")]
+        if team_ != 'All':
+            fdf = fdf[(fdf['team1'] == team_) | (fdf['team2'] == team_)]
+        else:
+            if ligue != "all":
+                list_of_all_teams = list(data[data['league'] == ligue]['team1'].unique())
+            else:
+                list_of_all_teams = list(data['team1'].unique())
+            fdf = fdf[(fdf['team1'].isin(list_of_all_teams)) | (fdf['team2'].isin(list_of_all_teams))]
+    else:
+        fdf = fdf[(fdf['league'] == "champions league") | (fdf['league'] == "europa league")]
+        if team_ != 'All':
+            fdf = fdf[(fdf['team1'] == team_) | (fdf['team2'] == team_)]
+        else:
+            fdf = fdf[fdf['team1'].isin(list_of_all_teams) | (fdf['team2'].isin(list_of_all_teams))]
     fdf.dropna(inplace=True)
-    full_data = add_odds_data_to_df(fdf, odf_, bet, min_odds)
-    print(full_data.to_string())
+    full_data = add_odds_data_to_df(fdf, odf_, bet, min_odds).sort_values('date')
+    # print(full_data.to_string())
     return full_data
 def read_pickles_to_df(ligue):
     fun = []
@@ -336,6 +359,9 @@ def add_odds_data_to_df(df, rdf, bet, min_odds_):
     data['yolo'] = tt[1:]
     data = data.drop(columns=['won_bet'])
     final = data.merge(output, left_index=True, right_index=True)
+    # np.where --- if (first arg) then (second arg) else (third arg)
+    final['actual_per_game_return'] = np.where(final['per_bet'] < 0, final['per_bet'], final['per_bet'] - bet)
+    final['cumsum'] = final['actual_per_game_return'].cumsum()
     final = final.drop(columns=['xg1', "xg2", "nsxg1", "nsxg2", "adj_score1", "adj_score2",])
     return final
 def update_soccer_betting():
@@ -383,6 +409,41 @@ def final_step():
     links_to_skip = pd.Series(outer)
     links_to_skip.to_sql("links_to_skip", local_engine, index=False, if_exists='append')
     logging.info(datetime.datetime.now()-today)
+
+def find_total_return(data_, bet_):
+    r = (data_['actual_per_game_return']+bet_).sum() - bet_ * len(data_.index)
+    return r
+def datetime_to_timestamp(dt):
+    """Converts a datetime object to UTC timestamp
+
+    naive datetime will be considered UTC.
+
+    """
+    return calendar.timegm(dt.utctimetuple())
+def get_season_results(data, odf, date1 = datetime.datetime(2019, 8,1), date2=datetime.datetime(2020, 8,1), league = 'premier league', bet=10, win_prob=0.75):
+    first = datetime_to_timestamp(date1)*1000
+    second = datetime_to_timestamp(date2)*1000
+    results = {}
+    wow = data[(data['league']== league) & (data['date'] >= convert_unix_timestamp_to_pandas_date(first)) & (data['date'] <= convert_unix_timestamp_to_pandas_date(second))]
+    for team in wow['team1'].unique():
+        data_ = get_full_cut_df(data, odf, league, team, 'Domestic', (first, second), win_prob, 1.01, bet)
+        results[team] = find_total_return(data_, bet)
+    qq = [i for i in results.values() if i > 0]
+    return len(qq), len(results), len(qq)/len(results), sum(results.values())/len(results), results
+def make_data_tables(data,odf, date1 = datetime.datetime(2019, 8,1), date2=datetime.datetime(2020, 8,1)):
+    w = []
+    for each in nation_league_mapper.keys():
+        try:
+            a, b, c, d, _ = get_season_results(data,odf, date1, date2, league=each)
+            w.append({'League':' '.join([i.capitalize() for i in each.split()]), 'Teams with (+) Return':a,'Total Teams':b,'Percentage (%)':c*100, 'Average Return ($)': np.round(d, 2)})
+        except:
+            pass
+    print(pd.DataFrame(w))
+    # print(pd.DataFrame(w).to_html(index = False))
+    print()
+    print()
+
+
 path = os.getcwd().replace("\\", "/") + "/"
 data_path = path + 'data/soccer_betting/'
 today = datetime.datetime.now()
