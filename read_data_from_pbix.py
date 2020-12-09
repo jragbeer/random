@@ -10,6 +10,8 @@ import colorsys
 from collections import Counter
 import numpy as np
 import datetime
+import pymongo
+import sqlite3
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -21,10 +23,17 @@ import logging
 import re
 from power_bi_aoda_viz import make_dashboards
 
-# website with default info
-# https://docs.microsoft.com/en-us/power-bi/create-reports/desktop-report-themes#:~:text=Select%20File%20%3E%20Options%20and%20settings,preview%20feature%20to%20be%20enabled
 path = os.getcwd().replace('\\', "/") + "/"
-report_path = path + 'original_dashboards/socio/'
+# report_path = path + 'original_dashboards/socio/'
+report_path = path + 'reports/'
+engine = sqlite3.connect(path + 'power_bi_database.db')
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s, %(message)s', handlers=[logging.FileHandler("power_bi_parser_log.txt"), logging.StreamHandler()])
+
+mongo_db = pymongo.MongoClient('localhost', 27017)
+pbi_mongo = mongo_db['power_bi']
+pbi_mongo_dashboards = pbi_mongo['dashboards']
+pbi_mongo_uploads = pbi_mongo['uploads']
 
 # misc functions
 def error_handling():
@@ -920,7 +929,7 @@ def get_data_label_background(overall_bkg, visual_data, shades):
 # create / run report functions
 def run(input_list, email_address=None, ):
     # make the xlsx and csv files
-    make_report(input_list)
+    upload_ID = make_report(input_list, email_address)
     # create README.txt and zip files together
     create_readme()
     with zipfile.ZipFile("output.zip", 'w') as zipf:
@@ -928,6 +937,7 @@ def run(input_list, email_address=None, ):
         zipf.write("output.xlsx")
         zipf.write("README.txt")
         [zipf.write(x) for x in [report + ".html" for report in make_dashboards()]]
+    logging.info(f"The zip file for upload {upload_ID} has been created.")
     if email_address:
         email_output="""<h2>Thank you!</h2>
                    <p>Hello,<br>
@@ -935,20 +945,28 @@ def run(input_list, email_address=None, ):
                    Please read the <b>README</b> thoroughly.<br>
                     If there are any questions / comments / concerns, please contact the HHBI team.</p>"""
         # send email
-        send_email(email_address, 'This is the output from the dashboard documentation request.',email_output)
-def make_report(input_list):
+        # send_email(email_address, 'This is the output from the dashboard documentation request.',email_output)
+def make_report(input_list, email):
     """
     Parse reports, create a summary based off of those reports, and then create an excel file with all of the data.
 
     :param input_list: list of reports to parse
     :return: N/A
     """
+    current_time = datetime.datetime.now()
     parsed_reports = {str(report).replace(".pbix", ""): parse_data_from_report(report) for report in input_list}
     df = pd.concat(parsed_reports.values())
     print(df.to_string())
-    summary_table = df.groupby('report_name').agg({'page_number': 'max', "chart_type": list, "dims_measures": list, 'base_theme': 'max'})
+    logging.info(f"All {len(parsed_reports.values())} report(s) for {email}'s upload are parsed.")
+    summary_table = df.groupby('report_name').agg({'page_number': 'max', "chart_type": list, "dims_measures": list, 'base_theme': 'max', 'pass_aoda':list})
     summary_table["pages"] = summary_table["page_number"] + 1
     summary_table['chart_types'] = [dict(Counter(i)) for i in summary_table['chart_type']]
+    for x in summary_table['pass_aoda']:
+        p = list(set(x))
+        pass_fail = 'Pass'
+        if 'Fail' in p:
+            pass_fail = 'Fail'
+    summary_table['aoda_compliance'] = pass_fail
     dims_measures = []
     for row in summary_table['dims_measures']:
         # flatten list and count the items
@@ -959,7 +977,25 @@ def make_report(input_list):
             pass
         dims_measures.append(tmp)
     summary_table['dimensions_and_measures'] = dims_measures
-    summary_table = summary_table.drop(columns=["chart_type", 'dims_measures', "page_number"]).reset_index()
+    summary_table = summary_table.drop(columns=["chart_type", 'dims_measures', "page_number", 'pass_aoda']).reset_index()
+    # downcast to least expensive number or convert to string (so it can be written into SQL DB)
+    for table in [summary_table, df]:
+        for col in table.columns:
+            try:
+                table[col] = pd.to_numeric(table[col], downcast="integer")
+            except:
+                table[col] = table[col].astype(str)
+
+    # upload to MongoDB and get Upload_ID
+    result = pbi_mongo_uploads.insert_one({"dashboards":df['dashboard_id'].unique().tolist(), 'email':email, 'upload_datetime':current_time})
+    upload_id = str(result.inserted_id)
+    logging.info(f"The dashboards were uploaded to the MongoDB Upload database with Upload_Id: {upload_id}")
+    summary_table['upload_id'] = upload_id
+    df['upload_id'] = upload_id
+    # write to SQL
+    summary_table.to_sql(f'summary_{str(current_time.month)}_{str(current_time.year)}', engine, if_exists='append', index=False)
+    df.to_sql(f'output_{str(current_time.month)}_{str(current_time.year)}', engine, if_exists='append', index=False)
+    # write to XLSX/CSV
     try:
         with pd.ExcelWriter('output.xlsx') as writer:
             summary_table.to_excel(writer, sheet_name='dashboard_summary', index=False)
@@ -967,10 +1003,13 @@ def make_report(input_list):
             for k, v in parsed_reports.items():
                 v.to_excel(writer, sheet_name=k[:30], index=False)
         df.to_csv('output.csv', index=False)
-        print("Reports have been written to the directory.")
+        logging.info(f"Upload {upload_id} has been written to the SQL databases.")
     except:
-        print(error_handling())
-        print(k,v)
+        logging.info(f'Upload {upload_id} could not be written to the SQL databases.')
+        logging.info(error_handling())
+        logging.info(f"{k} | {v}")
+    return upload_id
+
 def send_email(to, TEXT, HTML, ):
     """
     This function sends emails to the email list depending on the para
@@ -1017,7 +1056,7 @@ def send_email(to, TEXT, HTML, ):
     try:
         # send email and confirm email is sent / time it is sent
         server.sendmail(gmail_sender, TO, msg.as_string())
-        print(str(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + ' email was sent.')
+        logging.info(str(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + f' email was sent to {str(TO)}.')
     except Exception as e:
         # print error if not sent, and confirm it wasn't sent
         logging.info(str(e))
@@ -1094,7 +1133,6 @@ def get_data(visual, theme, shades):
         print()
     return {'data_label_background_colour':data_label_background_colour, 'category_axis_title':cat_axis_text,'value_axis_title':value_axis_text, 'fonts':fonts, 'chart_type':chart_type,'title': title, 'tab_order': tab_order, "width": width, "height": height, "x_position": x_pos, "y_position": y_pos,'background_colour':background, "alt_text": alt_text, 'dims_measures':measures, 'filters':filters,}
 def parse_data_from_report(report):
-    # print(report)
     try:
         pbix_file = report_path + report
         zip_file = pbix_file.replace('.pbix', ".zip")
@@ -1113,12 +1151,10 @@ def parse_data_from_report(report):
             theme_file = "CY18SU07.json"
             theme = {}
         shades = pd.read_csv(f'{theme_file.replace(".json", "")}_shades.csv')
-        # # default colour scheme
-        # try:
-        #     data_colours = ['white', 'black'] + theme['dataColors']
-        # except:
-        #     data_colours = ['white', 'black'] + ['#01b8aa', '#374649', '#fd625e', '#f2c80f', '#5f6b6d', '#8ad4eb', '#fe9666', '#a66999']
         json_file = json.loads(open(new_dir_name + '/Report/Layout', 'r',).read().replace("\x00", ""))
+        mongo_output = pbi_mongo_dashboards.insert_one(json_file)
+        dashboard_id = str(mongo_output.inserted_id)
+        logging.info(f"""Dashboard "{report}" has been uploaded to MongoDB Dashboard database with dashboard_id: {dashboard_id}""")
         dfs = []
         for num, val in enumerate(json_file['sections']):
             df = pd.DataFrame([get_data(visual, theme, shades) for visual in val['visualContainers']])
@@ -1132,12 +1168,13 @@ def parse_data_from_report(report):
         final = pd.concat(dfs)
         final['report_name'] = report.replace(".pbix", "")
         final['base_theme'] = theme_file.replace(".json","")
-        print(final.to_string())
+
         final = add_default_fonts(final)
-        print(final.to_string())
+
         final = check_contrast(final)
-        print(final.to_string())
+
         final = fails_aoda_because(final)
+        final['dashboard_id'] = dashboard_id
 
         os.remove(zip_file) # destroy zip file
         shutil.rmtree(new_dir_name) # destroy folder from zip file
@@ -1223,11 +1260,17 @@ def fails_aoda_because(df_, ratio = 4.5):
     df_['pass_aoda'] = pass_fail
     return df_
 
+
+
+# website with default info
+# https://docs.microsoft.com/en-us/power-bi/create-reports/desktop-report-themes#:~:text=Select%20File%20%3E%20Options%20and%20settings,preview%20feature%20to%20be%20enabled
 pbi_defaults = pd.read_csv('pbi_defaults.csv').set_index("visual_objects")
+email = 'jragbeer@github.com'
 # pbix_files_in_directory = [p for p in os.listdir(report_path) if p == 'tabular_rs03_mod.pbix']
 # pbix_files_in_directory = [p for p in os.listdir(report_path) if p == 'tabular_rs05_mod.pbix']
-# pbix_files_in_directory = [p for p in os.listdir(report_path) if p == 'tabular_urb03_mod.pbix']
+pbix_files_in_directory = [p for p in os.listdir(report_path) if p == 'MMAH_Report_Server_Usage_Statistics.pbix']
 # pbix_files_in_directory = [p for p in os.listdir(report_path) if p == 'RS05_MMAH_SMA_Income_Households_Population.pbix']
-pbix_files_in_directory = [p for p in os.listdir(report_path) if p.endswith('.pbix')]
-run(pbix_files_in_directory)
+# pbix_files_in_directory = [p for p in os.listdir(report_path) if p.endswith('.pbix')]
+# pbix_files_in_directory = [p for p in os.listdir(report_path) if p in ['tabular_rs05_mod.pbix', 'tabular_rs03_mod.pbix']]
+run(pbix_files_in_directory, email)
 
