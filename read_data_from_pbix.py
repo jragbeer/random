@@ -104,7 +104,28 @@ def get_data_value_font(visual_data, shades):
     return {'font_family': get_font_family(visual_data, indicator = 'labels'), 'font_size':get_font_size(visual_data, indicator = 'labels'), 'font_colour':get_font_colour(visual_data, shades, indicator = 'labels'),  }
 def get_card_font(visual_data, shades):
     return {'font_family': get_font_family(visual_data, indicator = 'dataLabels'), 'font_size':get_font_size(visual_data, indicator = 'dataLabels'), 'font_colour':get_font_colour(visual_data, shades, indicator = 'dataLabels'),}
-
+def get_slicer_date_font(visual_data, shades):
+    try:
+        val = final_text_clean(visual_data['objects']['date'][0]['properties']['fontColor']['solid']['color']['expr']['Literal']['Value'])
+    except:
+        try:
+            col = visual_data['objects']['date'][0]['properties']['fontColor']['solid']['color']['expr']['ThemeDataColor']['ColorId']
+            opacity = visual_data['objects']['date'][0]['properties']['fontColor']['solid']['color']['expr']['ThemeDataColor']['Percent']
+            val = get_colour_from_theme(col, opacity, shades)
+        except:
+            val = 'default'
+    try:
+        back = final_text_clean(visual_data['objects']['date'][0]['properties']['background']['solid']['color']['expr']['Literal']['Value'])
+    except:
+        try:
+            col = visual_data['objects']['date'][0]['properties']['background']['solid']['color']['expr']['ThemeDataColor']['ColorId']
+            opacity = visual_data['objects']['date'][0]['properties']['background']['solid']['color']['expr']['ThemeDataColor']['Percent']
+            back = get_colour_from_theme(col, opacity, shades)
+        except:
+            back = 'default'
+    font_size = get_font_size(visual_data, 'date')
+    font_family = get_font_family(visual_data, 'date')
+    return {'font_colour':val, "background_colour":back, 'font_size':font_size, 'font_family':font_family}
 def get_font_colour(visual_data, shades, indicator = 'dataLabels'):
     try:
         val = final_text_clean(visual_data['objects'][indicator][0]['properties']['color']['solid']['color']['expr']['Literal']['Value'])
@@ -416,8 +437,13 @@ def get_font(chart_type, visual_data, shades):
             return get_gauge_font(visual_data, shades)
         elif chart_type == 'slicer':
             title = get_slicer_title_font(visual_data, shades)
-            items = get_slicer_items_font(visual_data, shades)
-            return {"title":title, 'items': items}
+            mode = visual_data['objects']['data'][0]['properties']['mode']['expr']['Literal']['Value'].lower()
+            if mode == "'dropdown'":
+                items = get_slicer_items_font(visual_data, shades)
+                return {"title": title, 'items': items}
+            elif mode == "'between'":
+                dates = get_slicer_date_font(visual_data, shades)
+                return {"title":title, 'dates': dates}
         elif chart_type == 'actionButton':
             data_labels = get_button_font(visual_data, shades)
             if data_labels:
@@ -515,6 +541,16 @@ def add_default_fonts(df_):
                         if vv == 'default':
                             tmp_dict[kk] = pbi_defaults.at['Slicer items', kk]
                         else:
+                            tmp_dict[kk] = vv
+                    new_font[k] = tmp_dict
+                elif k == 'dates':
+                    for kk, vv in v.items():
+                        try:
+                            if vv == 'default':
+                                tmp_dict[kk] = pbi_defaults.at['Slicer date range labels', kk]
+                            else:
+                                tmp_dict[kk] = vv
+                        except:
                             tmp_dict[kk] = vv
                     new_font[k] = tmp_dict
                 elif k == 'title':
@@ -720,10 +756,16 @@ def get_title(chart_type, visual_data,):
                 title = "Not Found or Dynamic"
             else:
                 try:
-                    title = visual_data['projections']['Values'][0]["queryRef"].split('.')[2]
-
+                    if ' ' in visual_data['projections']['Values'][0]["queryRef"]:
+                        split = visual_data['projections']['Values'][0]["queryRef"].split(' ')[0]
+                        title = split.split('.')[-1]
+                    else:
+                        title = visual_data['projections']['Values'][0]["queryRef"].split('.')[-1]
                 except:
-                    title = visual_data['projections']['Values'][0]["queryRef"].split('.')[1]
+                    try:
+                        title = visual_data['projections']['Values'][0]["queryRef"].split('.')[2]
+                    except:
+                        title = visual_data['projections']['Values'][0]["queryRef"].split('.')[1]
         # worst-case scenario, output not found
         except:
             title = 'Not Found or Dynamic'
@@ -1122,7 +1164,7 @@ def get_data(visual, theme, shades):
     value_axis_text = get_axis_title(visual_data, 'valueAxis')
     cat_axis_text = get_axis_title(visual_data, 'categoryAxis')
     data_label_background_colour = get_data_label_background(background, visual_data, shades)
-    if chart_type == 'card':
+    if chart_type == 'slicer':
         print(title)
         print(alt_text, chart_type, background)
         try:
