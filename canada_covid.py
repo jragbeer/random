@@ -36,8 +36,6 @@ def update(metric, day):
         source2020.data = {'x': ['2019/20'], 'deaths': [total_canadian_deaths/days_], "info": ['A/Wuhan/2019'], 'pop': [canada_population]}
         mean_line.text=wrap_in_paragraphs(f"Average Deaths per day: {int(np.nanmean(p))}", 'firebrick', 3)
         my_label.y = np.nanmean(p) + 0.5
-    print(data.describe())
-    print(pd.Series(p).describe())
     source.data = {'x': data['Season'], 'info':data['Strain'], 'deaths': p, 'pop': data['Pop']}
     span.location = np.nanmean(p)
 def update_day(attr, old, new):
