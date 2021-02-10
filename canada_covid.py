@@ -24,8 +24,7 @@ def update(metric, day):
             p = data[metric.replace(" ", "_")]
         else:
             p = data['Adjusted_Deaths']
-        source2020.data = {'x': ['2019/20'], 'deaths': [total_canadian_deaths], "info": ['A/Wuhan/2019'],
-                                            'pop': [canada_population]}
+        source2020.data = {'x': ['2019/20'], 'deaths': [total_canadian_deaths], "info": ['A/Wuhan/2019'], 'pop': [canada_population]}
         mean_line.text = wrap_in_paragraphs(f"Average Deaths per year: {int(np.nanmean(p))}", 'firebrick', 3)
         my_label.y = np.nanmean(p) + 10
     elif day == "Per Day":
@@ -33,11 +32,12 @@ def update(metric, day):
             p = data[metric.replace(" ", "_")]/season_length
         else:
             p = data['Adjusted_Deaths']/season_length
-
-        source2020.data = {'x': ['2019/20'], 'deaths': [total_canadian_deaths/(day_num-15)], "info": ['A/Wuhan/2019'],
-                                            'pop': [canada_population]}
+        days_ = day_num - 15 + 365 # data collection started January 15, 2020 - so accounting for 15th day of year and 1 year ago
+        source2020.data = {'x': ['2019/20'], 'deaths': [total_canadian_deaths/days_], "info": ['A/Wuhan/2019'], 'pop': [canada_population]}
         mean_line.text=wrap_in_paragraphs(f"Average Deaths per day: {int(np.nanmean(p))}", 'firebrick', 3)
         my_label.y = np.nanmean(p) + 0.5
+    print(data.describe())
+    print(pd.Series(p).describe())
     source.data = {'x': data['Season'], 'info':data['Strain'], 'deaths': p, 'pop': data['Pop']}
     span.location = np.nanmean(p)
 def update_day(attr, old, new):
