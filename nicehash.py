@@ -318,9 +318,8 @@ class nh_private_api:
         query = f"size={size}&page={page}"
         return self.request('GET', f"/main/api/v2/mining/rigs2",query, None)
 
-    def active_workers(self, size=5000, page=1, sort_dir = 'ASC', sort_param='RIG_NAME',):
-        query = f"size={size}&page={page}"
-        return self.request('GET', f"/main/api/v2/mining/rigs/activeWorkers",query, None)
+    def active_workers(self,):
+        return self.request('GET', f"/main/api/v2/mining/rigs/activeWorkers",'', None)
 
 def convert_unix_timestamp_to_pandas_date(input_date):
     return pd.to_datetime(datetime.datetime.fromtimestamp(int(input_date)/1000),)
@@ -335,6 +334,8 @@ def get_payout_data():
     df['net_amount'] = df['gross_amount'] - df['nh_fee']
     df['created_datetime'] = [convert_unix_timestamp_to_pandas_date(i) for i in df['created']]
     df['timestamp'] = df['created_datetime'].dt.round('H')
+    df = df.sort_values('timestamp', ascending=True,)
+    df['net_amount_cumsum'] = df['net_amount'].cumsum()
     return df
 def miner_statistics():
     rr = private_api.miner_stats()
@@ -351,10 +352,11 @@ def miner_statistics():
     idf['diff'] = idf['speed_accepted'] - idf['rejected']
     idf.drop_duplicates(inplace=True)
     return idf
-def abc():
+def get_active_workers_stats():
     rr = private_api.active_workers()
-    idf = pd.DataFrame()
-    return idf
+    for each in rr['workers']:
+        each['algorithm'] = each['algorithm']['description']
+    return pd.DataFrame(rr['workers'])
 
 path = os.getcwd().replace("\\", "/")+ "/"
 data_path = path + 'data/'
