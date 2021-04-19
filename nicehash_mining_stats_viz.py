@@ -11,6 +11,16 @@ import time
 import yfinance as yf
 
 
+def wrap_in_paragraphs(text, colour="DarkSlateBlue", size=4):
+    """
+    This function wraps text in paragraph, bold and font tags - according to the colour and size given.
+    :param text: text to wrap in tags
+    :param colour: colour of the font
+    :param size: size of the font
+    :return: string wrapped in html tags
+    """
+    return """<p><b><font color={} size={}>{}</font></b></p>""".format(colour, size, text)
+
 # clear the webpage before visualization
 doc = curdoc()
 doc.clear()
@@ -40,9 +50,8 @@ miner_stats_df_hourly = miner_stats_df.set_index('time_datetime').resample('H').
 miner_stats_df_hourly['avg_24'] = miner_stats_df_hourly['speed_accepted'].rolling(24).mean()
 miner_stats_df_hourly['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in miner_stats_df_hourly['time_datetime']]
 
-payout_chart = figure(plot_width=1200, plot_height=800,x_axis_type='datetime',
-           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           x_axis_label="Datetime", y_axis_label="BTC", toolbar_location="right", title= 'Payout')
+payout_chart = figure(plot_width=1200, plot_height=800,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           x_axis_label=None, y_axis_label="BTC", toolbar_location="right", title= 'Payout')
 payout_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.00000")
 payout_chart.y_range.start = 0
 
@@ -56,7 +65,7 @@ gross_circle.visible = False
 gross_line.visible = False
 
 nh_fee = payout_chart.circle(x="timestamp", y='nh_fee', source=source, size = 4, color = 'green', legend_label= 'NH Fee')
-avg_6 = payout_chart.line(x="timestamp", y='avg_6', source=source, line_width=3, color = 'darkorange', legend_label= '24-hr Rolling Avg')
+avg_6 = payout_chart.line(x="timestamp", y='avg_6', source=source, line_width=3, color = 'mediumvioletred', legend_label= '24-hr Rolling Avg')
 
 payout_chart.legend.location = 'top_left'
 payout_chart.legend.click_policy = 'hide'
@@ -65,9 +74,8 @@ payout_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("Net", "@net_am
 payout_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("Gross", "@gross_amount{(0.000000)}")], mode='vline', renderers=[gross_line]))
 payout_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("Avg 6", "@avg_6{(0.000000)}")], mode='vline', renderers=[avg_6]))
 
-miner_stats_chart = figure(plot_width=650, plot_height=400,x_axis_type='datetime',
-           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           x_axis_label="Datetime", y_axis_label="Speed (MH/s)", toolbar_location="right", title= 'Hashrate (MH/s)')
+miner_stats_chart = figure(plot_width=650, plot_height=400,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           x_axis_label=None, y_axis_label="Speed (MH/s)", toolbar_location="right", title= 'Hashrate (MH/s)')
 miner_stats_chart.yaxis[0].formatter = NumeralTickFormatter(format="0,0")
 miner_stats_chart.y_range.start = 50
 
@@ -81,13 +89,12 @@ miner_stats_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("24-hr Rol
 miner_stats_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("Hashrate", "@speed_accepted{(0,0.0)}"),], mode='vline', renderers=[speed_accepted]))
 
 total_mined_chart = figure(plot_width=650, plot_height=400,x_axis_type='datetime',
-           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           x_axis_label="Datetime", y_axis_label="BTC", toolbar_location="right", title= 'Payout')
+           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()], x_axis_label=None, y_axis_label="BTC", toolbar_location="right", title= 'Payout')
 total_mined_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0000")
 total_mined_chart.y_range.start = 0
 
-net_cumsum_line = total_mined_chart.line(x="timestamp", y='net_amount_cumsum', source=source, line_width=4, line_dash='dotted', alpha = 0.3, color = 'goldenrod')
-total_mined_chart.circle(x="timestamp", y='net_amount_cumsum', source=source, size = 3, color = 'goldenrod')
+net_cumsum_line = total_mined_chart.line(x="timestamp", y='net_amount_cumsum', source=source, line_width=4, line_dash='dotted', alpha = 0.3, color = 'gold')
+total_mined_chart.circle(x="timestamp", y='net_amount_cumsum', source=source, size = 3, color = 'gold')
 total_mined_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("Collected BTC", "@net_amount_cumsum{(0,0.00000)}"),("Collected BTC * BTC Price", "@total_mined_dollars_converted_now{(0,0)}"),], mode='vline', renderers=[net_cumsum_line]))
 
 # pretty up the dashboard
@@ -110,6 +117,18 @@ for p in [payout_chart, total_mined_chart, miner_stats_chart]:
     p.xaxis.axis_label_text_font_style = "bold"
     p.toolbar.active_scroll = "auto"
 
-dashboard = row([ payout_chart, column([miner_stats_chart, total_mined_chart])])
+
+blank_divs = {x:Div(text='', width = 1) for x in range(10)}
+div0 = Div(text=wrap_in_paragraphs(f'BTCCAD: ${int(cur_BTCCAD):,} <br>BTCUSD: ${int(cur_BTCUSD):,}', 'black'), width=200)
+div1 = Div(text = wrap_in_paragraphs(f'Last BTC Payout:<br><font size=7>{payout_data["net_amount"].iloc[max(payout_data.index)]:.6f}</font>', 'blue'), width = 200)
+div2 = Div(text=wrap_in_paragraphs(f'24hr Avg Amt/Payout:<br><font size=7>{payout_data["avg_6"].iloc[max(payout_data.index)]:.6f}</font>', 'mediumvioletred'), width = 200)
+div3 = Div(text=wrap_in_paragraphs(f'Total BTC Collected:<br><font size=7>{payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]:,.5f}</font>', 'gold',), width=200)
+div4 = Div(text=wrap_in_paragraphs(f'Collected BTC*CAD Price:<br><font size=7>${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]:,.2f}</font>',size=3), width=200)
+div5 = Div(text=wrap_in_paragraphs(f'Most Recent Hashrate:<br><font size=7>{miner_stats_df_hourly["speed_accepted"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'green'))
+div6 = Div(text=wrap_in_paragraphs(f'24hr Rolling Hashrate:<br><font size=7>{miner_stats_df_hourly["avg_24"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'darkorange'))
+
+divs = row([div0, blank_divs[0], div1, blank_divs[1], div2, blank_divs[2], div3, blank_divs[3], div4, blank_divs[4], div5,blank_divs[5], div6,])
+charts = row([payout_chart, column([miner_stats_chart, total_mined_chart])])
+dashboard = column([divs, charts])
 curdoc().add_root(dashboard)
 show(dashboard)
