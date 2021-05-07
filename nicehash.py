@@ -474,6 +474,17 @@ def get_public_data_long_term():
 
     logging.info(f"Public Data Long Term Pull done!")
 
+def clean_coinbase_data():
+    coinbase_path = data_path + '/coinbase/'
+    all_csv_files = [i for i in os.listdir(coinbase_path) if '.csv' in i]
+    most_recent_time = sorted([i.split('Report')[-1][1:].split('.')[0] for i in all_csv_files])[-1]
+    most_recent_csv_file_name = [i for i in all_csv_files if most_recent_time in i][0]
+    df = pd.read_csv(coinbase_path + most_recent_csv_file_name, skiprows = 7, )
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+    df.rename(columns = {'CAD Subtotal':"Subtotal", "CAD Total (inclusive of fees)": "Total", "CAD Fees":"Fees", 'Quantity Transacted': "Quantity",
+                         "Transaction Type":"Transaction", "CAD Spot Price at Transaction":"Price", }, inplace=True)
+    return df
+
 path = os.getcwd().replace("\\", "/")+ "/"
 data_path = path + 'data/'
 

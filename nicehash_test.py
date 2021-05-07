@@ -1,7 +1,6 @@
 from nicehash import *
 
-# algo_history()
-
+import os
 rig_status_collection = mongodb['rig_status']
 
 def build_basic_rig_stats_df():
@@ -34,13 +33,16 @@ def build_basic_rig_stats_df():
         big.append(ww)
     return pd.concat(big)
 
-damn = build_basic_rig_stats_df()
 
-for i in damn['rig_name'].unique():
-    aa = damn[damn['rig_name']==i].copy()
-    aa = aa.sort_values('timestamp', ascending=False,).set_index('timestamp')
-    bb = aa.resample('15min').mean()
-    bb['rig_name'] = i
-    print(bb)
+pprint(coinbase_sell_transactions())
+
+# damn = build_basic_rig_stats_df()
+# print(damn.to_string())
+# for i in damn['rig_name'].unique():
+#     aa = damn[damn['rig_name']==i].copy()
+#     aa = aa.sort_values('timestamp', ascending=False,).set_index('timestamp')
+#     bb = aa.resample('15min').mean()
+#     bb['rig_name'] = i
+#     print(bb)
 
 
