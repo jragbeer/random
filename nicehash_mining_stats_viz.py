@@ -104,8 +104,8 @@ total_mined_chart = figure(plot_width=650, plot_height=350,x_axis_type='datetime
 total_mined_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0000")
 total_mined_chart.y_range.start = 0
 
-net_cumsum_line = total_mined_chart.line(x="timestamp", y='net_amount_cumsum', source=source, line_width=4, line_dash='dotted', alpha = 0.3, color = 'gold')
-total_mined_chart.circle(x="timestamp", y='net_amount_cumsum', source=source, size = 3, color = 'gold')
+net_cumsum_line = total_mined_chart.line(x="timestamp", y='net_amount_cumsum', source=source, line_width=4, line_dash='dotted', alpha = 0.3, color = 'firebrick')
+total_mined_chart.circle(x="timestamp", y='net_amount_cumsum', source=source, size = 3, color = 'firebrick')
 total_mined_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("Collected BTC", "@net_amount_cumsum{(0,0.00000)}"),("Collected BTC * BTC Price", "@total_mined_dollars_converted_now{(0,0)}"),], mode='vline', renderers=[net_cumsum_line]))
 
 # pretty up the dashboard
@@ -134,21 +134,21 @@ div0 = Div(text=wrap_in_paragraphs(f"""BTC: ${int(cur_BTCUSD):,} / ${int(cur_BTC
 <br>ETH: ${int(cur_ETHUSD):,} / ${int(cur_ETHCAD):,}
 <br>Coinbase Fees: ${kk['Fees']}
 """, 'black', ), width=200)
-div1 = Div(text = wrap_in_paragraphs(f'Last BTC Payout:<br><font size=7>{payout_data["net_amount"].iloc[max(payout_data.index)]:.6f}</font>', 'blue'), width = 200)
-div2 = Div(text=wrap_in_paragraphs(f'24hr Avg Amt/Payout:<br><font size=7>{payout_data["avg_6"].iloc[max(payout_data.index)]:.6f}</font>', 'mediumvioletred'), width = 200)
-div5 = Div(text=wrap_in_paragraphs(f'Most Recent Hashrate:<br><font size=7>{miner_stats_df_hourly["speed_accepted"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'green'))
-div6 = Div(text=wrap_in_paragraphs(f'24hr Rolling Hashrate:<br><font size=7>{miner_stats_df_hourly["avg_24"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'darkorange'))
+div1 = Div(text = wrap_in_paragraphs(f'Last BTC Payout:<br><font size=7>{payout_data["net_amount"].iloc[max(payout_data.index)]:.6f}</font>', 'blue'), width = 250)
+div2 = Div(text=wrap_in_paragraphs(f'24hr Avg Amt/Payout:<br><font size=7>{payout_data["avg_6"].iloc[max(payout_data.index)]:.6f}</font>', 'mediumvioletred'), width = 250)
+div5 = Div(text=wrap_in_paragraphs(f'Most Recent Hashrate:<br><font size=7>{miner_stats_df_hourly["speed_accepted"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'green'), width = 250)
+div6 = Div(text=wrap_in_paragraphs(f'24hr Rolling Hashrate:<br><font size=7>{miner_stats_df_hourly["avg_24"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'darkorange'), width = 250)
 div7 = Div(text=wrap_in_paragraphs(f'Current BTC:<br><font size=7>{payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-kk["Quantity"]:.7f}</font>', 'gold'))
 div8 = Div(text=wrap_in_paragraphs(f'Current BTC * Current Price:<br><font size=7>{(payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-kk["Quantity"])*int(cur_BTCCAD):.2f}</font>', ))
 div3 = Div(text=wrap_in_paragraphs(f"""Total BTC Collected: {payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]:,.7f} / Collected BTC*CAD Price: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]:,.2f}
 <br>Total BTC Sold: ${kk["Quantity"]:.7f} / Total Sold Amount: ${kk["Total"]:.2f}
 """, 'firebrick', ), width=575)
 
-div9 = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_data_daily[f'rolling_5']:,.7f} / ${payout_data_daily[f'rolling_5_price']:,.2f}
-<br>5-day Daily Avg: {payout_data_daily[f'rolling_10']:,.7f} / ${payout_data_daily[f'rolling_10_price']:,.2f}
-<br>2-week Daily Avg: {payout_data_daily[f'rolling_14']:,.7f} / ${payout_data_daily[f'rolling_14_price']:,.2f}
-<br>1 Month Daily Avg: {payout_data_daily[f'rolling_28']:,.7f} / ${payout_data_daily[f'rolling_28_price']:,.2f}
-""", ), width=575)
+div9 = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_data_daily[f'rolling_5'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_5_price'][-1]:,.2f}
+<br>10-day Daily Avg: {payout_data_daily[f'rolling_10'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_10_price'][-1]:,.2f}
+<br>2-week Daily Avg: {payout_data_daily[f'rolling_14'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_14_price'][-1]:,.2f}
+<br>1 Month Daily Avg: {payout_data_daily[f'rolling_28'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_28_price'][-1]:,.2f}
+""", ), width=400)
 widgets = column([])
 divs1 = row([div3, div7, blank_divs[3], div8, div0])
 divs2 = row([div1, blank_divs[1], div2,blank_divs[4],div9, div5,blank_divs[5], div6,])
