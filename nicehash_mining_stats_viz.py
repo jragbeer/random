@@ -1,6 +1,4 @@
 from nicehash import *
-import matplotlib.pyplot as plt
-import seaborn
 from bokeh.plotting import figure, show
 from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, OpenURL, Range1d, CustomJS, Button, DatePicker
 from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, FactorRange, Label, Legend, LabelSet
@@ -39,9 +37,11 @@ cur_ETHUSD = yf.Ticker("ETH-USD").history(period="5d")['Close'][-1]
 sql_table_info = get_names_of_latest_tables(sql_engine)
 
 coinbase_data = clean_coinbase_data()
-coinbase_data = coinbase_data[(coinbase_data['Transaction'] == 'Sell') & (coinbase_data['Asset'] == 'BTC')]
-kk = coinbase_data.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
+coinbase_sell_data = coinbase_data[(coinbase_data['Transaction'] == 'Sell') & (coinbase_data['Asset'] == 'BTC')]
+coinbase_buy_data = coinbase_data[(coinbase_data['Transaction'] == 'Buy') & (coinbase_data['Asset'] == 'BTC')]
 
+kk = coinbase_sell_data.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
+qqq = coinbase_buy_data.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
 # payout data
 payout_data = get_payout_data_df(sql_table_info)
 payout_data['avg_6'] = payout_data['net_amount'].rolling(6).mean()
@@ -130,28 +130,29 @@ for p in [payout_chart, total_mined_chart, miner_stats_chart]:
 
 blank_divs = {x:Div(text='', width = 1) for x in range(10)}
 
-div0 = Div(text=wrap_in_paragraphs(f"""BTC: ${int(cur_BTCUSD):,} / ${int(cur_BTCCAD):,}
-<br>ETH: ${int(cur_ETHUSD):,} / ${int(cur_ETHCAD):,}
-<br>Coinbase Fees: ${kk['Fees']}
-""", 'black', ), width=200)
-div1 = Div(text = wrap_in_paragraphs(f'Last BTC Payout:<br><font size=7>{payout_data["net_amount"].iloc[max(payout_data.index)]:.6f}</font>', 'blue'), width = 250)
+div1 = Div(text=wrap_in_paragraphs(f'Last BTC Payout:<br><font size=7>{payout_data["net_amount"].iloc[max(payout_data.index)]:.6f}</font>', 'blue'), width = 250)
 div2 = Div(text=wrap_in_paragraphs(f'24hr Avg Amt/Payout:<br><font size=7>{payout_data["avg_6"].iloc[max(payout_data.index)]:.6f}</font>', 'mediumvioletred'), width = 250)
 div5 = Div(text=wrap_in_paragraphs(f'Most Recent Hashrate:<br><font size=7>{miner_stats_df_hourly["speed_accepted"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'green'), width = 250)
 div6 = Div(text=wrap_in_paragraphs(f'24hr Rolling Hashrate:<br><font size=7>{miner_stats_df_hourly["avg_24"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'darkorange'), width = 250)
-div7 = Div(text=wrap_in_paragraphs(f'Current BTC:<br><font size=7>{payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-kk["Quantity"]:.7f}</font>', 'gold'))
-div8 = Div(text=wrap_in_paragraphs(f'Current BTC * Current Price:<br><font size=7>{(payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-kk["Quantity"])*int(cur_BTCCAD):.2f}</font>', ))
-div3 = Div(text=wrap_in_paragraphs(f"""Total BTC Collected: {payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]:,.7f} / Collected BTC*CAD Price: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]:,.2f}
-<br>Total BTC Sold: ${kk["Quantity"]:.7f} / Total Sold Amount: ${kk["Total"]:.2f}
-""", 'firebrick', ), width=575)
+div7 = Div(text=wrap_in_paragraphs(f'Current BTC:<br><font size=7>{payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-kk["Quantity"] + qqq["Quantity"]:.7f}</font>', 'gold'))
+div8 = Div(text=wrap_in_paragraphs(f'Current BTC * Current Price:<br><font size=7>{(payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-kk["Quantity"]+qqq["Quantity"])*int(cur_BTCCAD):.2f}</font>', ))
 
-div9 = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_data_daily[f'rolling_5'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_5_price'][-1]:,.2f}
+btc_collected_sold_div = Div(text=wrap_in_paragraphs(f"""Total BTC Collected: {payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]:,.7f} / Collected BTC*CAD Price: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]:,.2f}
+<br>Total BTC Sold: ${kk["Quantity"]:.7f} / Total Sold Amount: ${kk["Total"]:.2f}
+<br>Total BTC Bought: ${qqq["Quantity"]:.7f} / Total Bought Amount: ${qqq["Total"]:.2f}""", 'firebrick', ), width=600)
+btc_eth_price_div = Div(text=wrap_in_paragraphs(f"""BTC: ${int(cur_BTCUSD):,} / ${int(cur_BTCCAD):,}
+<br>ETH: ${int(cur_ETHUSD):,} / ${int(cur_ETHCAD):,}
+<br>Coinbase Fees: ${kk['Fees'] + qqq['Fees']}
+""", 'black', ), width=200)
+rolling_payout_div = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_data_daily[f'rolling_5'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_5_price'][-1]:,.2f}
 <br>10-day Daily Avg: {payout_data_daily[f'rolling_10'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_10_price'][-1]:,.2f}
 <br>2-week Daily Avg: {payout_data_daily[f'rolling_14'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_14_price'][-1]:,.2f}
 <br>1 Month Daily Avg: {payout_data_daily[f'rolling_28'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_28_price'][-1]:,.2f}
 """, ), width=400)
+
 widgets = column([])
-divs1 = row([div3, div7, blank_divs[3], div8, div0])
-divs2 = row([div1, blank_divs[1], div2,blank_divs[4],div9, div5,blank_divs[5], div6,])
+divs1 = row([btc_collected_sold_div, div7, blank_divs[3], div8, btc_eth_price_div])
+divs2 = row([div1, blank_divs[1], div2,blank_divs[4], rolling_payout_div, div5,blank_divs[5], div6,])
 charts = row([payout_chart, column([miner_stats_chart, total_mined_chart])])
 dashboard = column([divs1, divs2, charts])
 curdoc().add_root(dashboard)
