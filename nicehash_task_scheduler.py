@@ -14,6 +14,7 @@ if __name__ == '__main__':
     sched.add_job(get_data_1hr, 'cron', minute=11, misfire_grace_time=60 * 5, max_instances=6)  # run the short-term public api hourly
     sched.add_job(get_data_4hr, 'cron', minute=13, hour='1,5,9,13,17,21', misfire_grace_time=60 * 5, max_instances=6)  # run the short-term public api 4-hourly
     sched.add_job(get_data_5mins, 'cron', minute=', '.join([str(i) for i in range(0,56,5)]),  misfire_grace_time=60*5, max_instances=6) #run every 5 mins
+    sched.add_job(add_most_recent_rig_device_stats_table, 'cron', minute=', '.join([str(i) for i in range(0,56,5)]),  misfire_grace_time=60*5, max_instances=6) #run every 5 mins
     sched.start() #start the scheduler
 
     # Shut down the scheduler when exiting the app

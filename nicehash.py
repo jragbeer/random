@@ -1,5 +1,5 @@
 import datetime
-from time import mktime
+from time import mktime, sleep as time_sleep
 import uuid
 import hmac
 import requests
@@ -15,6 +15,7 @@ import numpy as np
 import sqlite3
 import logging
 import pymongo
+import traceback
 
 class nh_public_api:
 
@@ -329,6 +330,14 @@ class nh_private_api:
 
     def rig_status(self,):
         return self.request('GET', f"/main/api/v2/mining/rigs2",'', None)
+def error_handling():
+    """
+
+    This function returns a string with all of the information regarding the error
+
+    :return: string with the error information
+    """
+    return traceback.format_exc()
 
 def convert_unix_timestamp_to_pandas_date(input_date):
     return pd.to_datetime(datetime.datetime.fromtimestamp(int(input_date)/1000),)
@@ -379,7 +388,8 @@ def get_algo_history_data_dict():
 def get_miner_stats_df(sql_table_info):
     ok = []
     for i in sql_table_info[sql_table_info['table_cat'] == 'miner_stats']['table_name']:
-        ok.append(pd.read_sql(f"select * from {i}", sql_engine))
+        ok.append(pd.read_sql(f""
+                              f"select * from {i}", sql_engine))
     idf = pd.concat(ok).drop_duplicates()
     idf['time_datetime'] = pd.to_datetime(idf['time_datetime'])
     idf.sort_values('time_datetime', ascending=False, inplace=True)
@@ -412,6 +422,9 @@ def get_names_of_latest_tables(eng1):
     cur = eng1.cursor()
     result = cur.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()
     table = pd.DataFrame({'table_name':[i[0] for i in result]})
+
+    rr = table[table['table_name'] == "most_recent_rig_device_stats"].index[0]
+    table.drop(index=[rr], inplace=True)
     table['table_cat'] = table['table_name'].str.split('__').str.get(0)
     table['query_date'] = table['table_name'].str.split('__').str.get(1).str.split('_')
     table_append = pd.DataFrame(table['query_date'].to_list(), columns=['year', 'month', 'day', 'hour', 'minute'])
@@ -427,16 +440,30 @@ def get_newest_tables(sql_table_info):
         tmp_dict[each]['mrt'] = sql_table_info[sql_table_info['table_cat'] == each].sort_values('query_date', ascending=False)['table_name'].iloc[0] # most recent table
     return tmp_dict
 
+def remove_duplicates_from_table(table_name="miner_stats_data",):
+    cur_time = datetime.datetime.now()
+    engine = sqlite3.connect(data_path + "nicehash_data_new.db")
+
+    idf = pd.read_sql(f'select * from {table_name}', engine)
+    idf.drop_duplicates(inplace=True)
+    idf.sort_values('time', inplace=True)
+    idf.to_sql(table_name, engine, index=False, if_exists='replace')
+
 def get_data_5mins():
     cur_time = datetime.datetime.now()
     engine = sqlite3.connect(data_path + "nicehash_data.db")
+    new_engine = sqlite3.connect(data_path + "nicehash_data_new.db")
 
     miner_stats_df = miner_statistics()
     miner_stats_df.to_sql(f"miner_stats__{cur_time.strftime('%Y_%m_%d_%H_%M')}", engine, if_exists='replace', index=False,)
+    miner_stats_df['query_time'] = cur_time
+    miner_stats_df.to_sql(f"miner_stats_data", new_engine, if_exists='append', index=False)
     logging.info(f"Miner Stats table added {cur_time}")
 
     active_workers = get_active_workers_stats()
     active_workers.to_sql(f"active_workers__{cur_time.strftime('%Y_%m_%d_%H_%M')}", engine, if_exists='replace', index=False)
+    active_workers['query_time'] = cur_time
+    active_workers.to_sql(f"active_workers_data", new_engine, if_exists='append', index=False)
     logging.info(f"Active Workers table added {cur_time}")
 
     rig_status_collection = mongodb['rig_status']
@@ -452,8 +479,8 @@ def get_data_4hr():
     payout_data = get_payout_data()
     payout_data.to_sql(f"payout_data__{cur_time.strftime('%Y_%m_%d_%H_%M')}", engine, if_exists='replace', index=False)
     logging.info(f"Payout Data table added {cur_time}")
-
-    logging.info(f"1-hr Data Pull done!")
+    remove_duplicates_from_table(table_name="miner_stats_data", )
+    logging.info(f"4-hr Data Pull done!")
 def get_data_1hr():
     cur_time = datetime.datetime.now()
 
@@ -484,6 +511,56 @@ def clean_coinbase_data():
     df.rename(columns = {'CAD Subtotal':"Subtotal", "CAD Total (inclusive of fees)": "Total", "CAD Fees":"Fees", 'Quantity Transacted': "Quantity",
                          "Transaction Type":"Transaction", "CAD Spot Price at Transaction":"Price", }, inplace=True)
     return df
+
+def build_basic_rig_stats_df():
+    rig_status_collection = mongodb['rig_status']
+    big = []
+    for document in list(rig_status_collection.find({})):
+        huh = []
+        for kk in document['miningRigs']:
+            cool = {'name':kk['name'], 'devices':{}}
+            cool['devices']['device_name'] = [t['name'] for t in kk['devices'] if t['status']['description'] != 'Disabled']
+            cool['devices']['power_usage'] = [t['powerUsage'] for t in kk['devices'] if t['powerUsage'] >= 0]
+            cool['devices']['speed'] = []
+            for t in kk['devices']:
+                try:
+                    cool['devices']['speed'].append(t['speeds'][0]['speed'])
+                except:
+                    pass
+            if len(cool['devices']['device_name']) > len(cool['devices']['power_usage']):
+                cool['devices']['device_name'] = cool['devices']['device_name'][1:]
+
+            if len(cool['devices']['speed']) < len(cool['devices']['device_name']) and len(cool['devices']['device_name']) > 0:
+                cool['devices']['speed'] = cool['devices']['speed']+[0 for _ in range(len(cool['devices']['device_name'])-len(cool['devices']['speed']))]
+
+            if len(cool['devices']['power_usage']) < len(cool['devices']['device_name']) and len(cool['devices']['device_name']) > 0:
+                cool['devices']['power_usage'] = cool['devices']['power_usage']+[0 for _ in range(len(cool['devices']['device_name'])-len(cool['devices']['power_usage']))]
+            try:
+                ttt = pd.DataFrame(cool['devices'])
+                ttt['rig_name'] = cool['name']
+                huh.append(ttt)
+            except:
+                print(error_handling())
+                pprint(cool)
+                time_sleep(3)
+        ww = pd.concat(huh).reset_index(drop=True)
+        ww['device_id'] = (ww['rig_name'] + '_' + ww['device_name'].str.replace(' ', '_')).str.lower()
+        for xx in ww.columns:
+            try:
+                ww[xx] = pd.to_numeric(ww[xx])
+            except:
+                pass
+        ww['timestamp'] = pd.to_datetime(document['query_date'])
+        big.append(ww)
+    return pd.concat(big).sort_values(['timestamp','rig_name', 'device_name']).reset_index(drop=True)
+
+def add_most_recent_rig_device_stats_table():
+    time_sleep(15)
+    engine = sqlite3.connect(data_path + "nicehash_data.db")
+    damn = build_basic_rig_stats_df()
+    cur_time = datetime.datetime.now()
+    damn.to_sql('most_recent_rig_device_stats', engine, if_exists='replace', index=False)
+    logging.info(f"most_recent_rig_device_stats SQL table updated {cur_time}")
 
 path = os.getcwd().replace("\\", "/")+ "/"
 data_path = path + 'data/'
