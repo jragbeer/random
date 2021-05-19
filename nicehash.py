@@ -395,6 +395,14 @@ def get_miner_stats_df(sql_table_info):
     idf.sort_values('time_datetime', ascending=False, inplace=True)
     # idf=idf.drop_duplicates(subset=['time_datetime',])
     return idf
+
+def get_miner_stats_df2():
+    idf = pd.read_sql(f"select * from miner_stats_data", new_sql_engine)
+    idf.drop_duplicates(subset=['speed_accepted', 'profitability'], inplace=True)
+    idf = idf.reset_index(drop=True)
+    idf['time_datetime'] = pd.to_datetime(idf['time_datetime'])
+    idf.sort_values('time_datetime', ascending=False, inplace=True)
+    return idf
 def get_payout_data_df(sql_table_info):
     ok = []
     for i in sql_table_info[sql_table_info['table_cat'] == 'payout_data']['table_name']:
@@ -404,6 +412,13 @@ def get_payout_data_df(sql_table_info):
     idf['created_datetime'] = pd.to_datetime(idf['created_datetime'])
     idf.sort_values('created_datetime', ascending=True, inplace=True)
     idf = idf.drop_duplicates(subset=['id', 'created'])
+    return idf
+
+def get_payout_data_df2():
+    idf = pd.read_sql(f"select * from payout_data", new_sql_engine)
+    idf.drop_duplicates(subset=['id', 'created'], inplace=True)
+    idf['timestamp'] = pd.to_datetime(idf['timestamp'])
+    idf= idf.reset_index(drop=True).sort_values('timestamp')
     return idf
 
 def create_new_db_with_table_name_changes(eng1, eng2):
@@ -445,7 +460,7 @@ def remove_duplicates_from_table(table_name="miner_stats_data",):
     engine = sqlite3.connect(data_path + "nicehash_data_new.db")
 
     idf = pd.read_sql(f'select * from {table_name}', engine)
-    idf.drop_duplicates(inplace=True)
+    idf.drop_duplicates(subset=[i for i in idf.columns if i != 'query_time'], inplace=True)
     idf.sort_values('time', inplace=True)
     idf.to_sql(table_name, engine, index=False, if_exists='replace')
 
@@ -475,9 +490,13 @@ def get_data_5mins():
 def get_data_4hr():
     cur_time = datetime.datetime.now()
     engine = sqlite3.connect(data_path + "nicehash_data.db")
+    new_engine = sqlite3.connect(data_path + "nicehash_data_new.db")
 
     payout_data = get_payout_data()
     payout_data.to_sql(f"payout_data__{cur_time.strftime('%Y_%m_%d_%H_%M')}", engine, if_exists='replace', index=False)
+    payout_data['query_time'] = cur_time
+    payout_data.to_sql(f"payout_data", new_engine, if_exists='append', index=False)
+
     logging.info(f"Payout Data table added {cur_time}")
     remove_duplicates_from_table(table_name="miner_stats_data", )
     logging.info(f"4-hr Data Pull done!")
@@ -493,10 +512,13 @@ def get_data_1hr():
 def get_public_data_long_term():
     cur_time = datetime.datetime.now()
     engine = sqlite3.connect(data_path + "nicehash_data.db")
+    new_engine = sqlite3.connect(data_path + "nicehash_data_new.db")
 
     algos = public_api.get_algorithms()
     algos_df = pd.DataFrame(algos['miningAlgorithms'])
     algos_df.to_sql(f"mining_algorithms__{cur_time.strftime('%Y_%m_%d_%H_%M')}", engine, if_exists='replace', index=False)
+    algos_df['query_time'] = cur_time
+    algos_df.to_sql(f"mining_algorithms_data", new_engine, if_exists='append', index=False)
     logging.info(f"Mining Algorithm table added {cur_time}")
 
     logging.info(f"Public Data Long Term Pull done!")
@@ -556,7 +578,7 @@ def build_basic_rig_stats_df():
 
 def add_most_recent_rig_device_stats_table():
     time_sleep(15)
-    engine = sqlite3.connect(data_path + "nicehash_data.db")
+    engine = sqlite3.connect(data_path + "nicehash_data_new.db")
     damn = build_basic_rig_stats_df()
     cur_time = datetime.datetime.now()
     damn.to_sql('most_recent_rig_device_stats', engine, if_exists='replace', index=False)
@@ -578,6 +600,7 @@ all_algos = ["SCRYPT", "SHA256", "SCRYPTNF", "X11", "X13", "KECCAK", "X15", "NIS
               "GRINCUCKAROOD29", "BEAMV2", "X16RV2", "RANDOMXMONERO", "EAGLESONG", "CUCKAROOM", "GRINCUCKATOO32", "HANDSHAKE", "KAWPOW", "CUCKAROO29BFC", "BEAMV3", "CUCKAROOZ29", "OCTOPUS" ]
 # SQL DB (SQLITE3)
 sql_engine = sqlite3.connect(data_path + "nicehash_data.db")
+new_sql_engine = sqlite3.connect(data_path + "nicehash_data_new.db")
 
 # MONGODB DATABASE
 mongo_client = pymongo.MongoClient('localhost', 27017)

@@ -7,16 +7,5 @@ from bokeh.io import curdoc
 from bokeh.layouts import row, column, gridplot, layout
 import time
 
-# clear the webpage before visualization
-doc = curdoc()
-doc.clear()
-doc.title = 'NiceHash Mining Rig Performance'
 
-pd.set_option('display.float_format', lambda x: '%.10f' % x)
-pd.set_option('display.width', 500)
-pd.set_option('display.max_columns', None)
-
-today = datetime.datetime.now()
-
-curdoc().add_root(dashboard)
-show(dashboard)
+print(1)

@@ -34,16 +34,14 @@ cur_ETHCAD = yf.Ticker("ETH-CAD").history(period="5d")['Close'][-1]
 cur_BTCUSD = yf.Ticker("BTC-USD").history(period="5d")['Close'][-1]
 cur_ETHUSD = yf.Ticker("ETH-USD").history(period="5d")['Close'][-1]
 
-sql_table_info = get_names_of_latest_tables(sql_engine)
-
 coinbase_data = clean_coinbase_data()
 coinbase_sell_data = coinbase_data[(coinbase_data['Transaction'] == 'Sell') & (coinbase_data['Asset'] == 'BTC')]
 coinbase_buy_data = coinbase_data[(coinbase_data['Transaction'] == 'Buy') & (coinbase_data['Asset'] == 'BTC')]
 
-kk = coinbase_sell_data.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
-qqq = coinbase_buy_data.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
+coinbase_sell_data_sum = coinbase_sell_data.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
+coinbase_buy_data_sum = coinbase_buy_data.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
 # payout data
-payout_data = get_payout_data_df(sql_table_info)
+payout_data = get_payout_data_df2()
 payout_data['avg_6'] = payout_data['net_amount'].rolling(6).mean()
 payout_data['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in payout_data['timestamp']]
 payout_data['net_amount_cumsum'] = payout_data['net_amount'].cumsum()  # total bitcoin recieved
@@ -55,7 +53,7 @@ for x in [5,10, 14, 28]:
     payout_data_daily[f'rolling_{x}_price'] = payout_data_daily[f'rolling_{x}']*67000 #55000 USD
 
 # miner statistics data
-miner_stats_df = get_miner_stats_df(sql_table_info)
+miner_stats_df = get_miner_stats_df2()
 miner_stats_df_hourly = miner_stats_df.set_index('time_datetime').resample('H').mean().reset_index()
 miner_stats_df_hourly['speed_accepted'] = miner_stats_df_hourly['speed_accepted'].fillna(0)
 miner_stats_df_hourly['avg_24'] = miner_stats_df_hourly['speed_accepted'].rolling(24).mean()
@@ -134,15 +132,15 @@ div1 = Div(text=wrap_in_paragraphs(f'Last BTC Payout:<br><font size=7>{payout_da
 div2 = Div(text=wrap_in_paragraphs(f'24hr Avg Amt/Payout:<br><font size=7>{payout_data["avg_6"].iloc[max(payout_data.index)]:.6f}</font>', 'mediumvioletred'), width = 250)
 div5 = Div(text=wrap_in_paragraphs(f'Most Recent Hashrate:<br><font size=7>{miner_stats_df_hourly["speed_accepted"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'green'), width = 250)
 div6 = Div(text=wrap_in_paragraphs(f'24hr Rolling Hashrate:<br><font size=7>{miner_stats_df_hourly["avg_24"].iloc[max(miner_stats_df_hourly.index)]:.1f}</font> MH/s', 'darkorange'), width = 250)
-div7 = Div(text=wrap_in_paragraphs(f'Current BTC:<br><font size=7>{payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-kk["Quantity"] + qqq["Quantity"]:.7f}</font>', 'gold'))
-div8 = Div(text=wrap_in_paragraphs(f'Current BTC * Current Price:<br><font size=7>{(payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-kk["Quantity"]+qqq["Quantity"])*int(cur_BTCCAD):.2f}</font>', ))
+div7 = Div(text=wrap_in_paragraphs(f'Current BTC:<br><font size=7>{payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-coinbase_sell_data_sum["Quantity"] + coinbase_buy_data_sum["Quantity"]:.7f}</font>', 'gold'))
+div8 = Div(text=wrap_in_paragraphs(f'Current BTC * Current Price:<br><font size=7>{(payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-coinbase_sell_data_sum["Quantity"]+coinbase_buy_data_sum["Quantity"])*int(cur_BTCCAD):.2f}</font>', ))
 
 btc_collected_sold_div = Div(text=wrap_in_paragraphs(f"""Total BTC Collected: {payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]:,.7f} / Collected BTC*CAD Price: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]:,.2f}
-<br>Total BTC Sold: ${kk["Quantity"]:.7f} / Total Sold Amount: ${kk["Total"]:.2f}
-<br>Total BTC Bought: ${qqq["Quantity"]:.7f} / Total Bought Amount: ${qqq["Total"]:.2f}""", 'firebrick', ), width=600)
+<br>Total BTC Sold: ${coinbase_sell_data_sum["Quantity"]:.7f} / Total Sold Amount: ${coinbase_sell_data_sum["Total"]:.2f}
+<br>Total BTC Bought: ${coinbase_buy_data_sum["Quantity"]:.7f} / Total Bought Amount: ${coinbase_buy_data_sum["Total"]:.2f}""", 'firebrick', ), width=600)
 btc_eth_price_div = Div(text=wrap_in_paragraphs(f"""BTC: ${int(cur_BTCUSD):,} / ${int(cur_BTCCAD):,}
 <br>ETH: ${int(cur_ETHUSD):,} / ${int(cur_ETHCAD):,}
-<br>Coinbase Fees: ${kk['Fees'] + qqq['Fees']}
+<br>Coinbase Fees: ${coinbase_sell_data_sum['Fees'] + coinbase_buy_data_sum['Fees']}
 """, 'black', ), width=200)
 rolling_payout_div = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_data_daily[f'rolling_5'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_5_price'][-1]:,.2f}
 <br>10-day Daily Avg: {payout_data_daily[f'rolling_10'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_10_price'][-1]:,.2f}
@@ -160,9 +158,8 @@ tab1 = Panel(child = column([divs1, divs2, charts]), title='BTC Report')
 
 # PAGE 2
 
-df = pd.read_sql('select * from most_recent_rig_device_stats', sql_engine, parse_dates='timestamp')
+df = pd.read_sql('select * from most_recent_rig_device_stats', new_sql_engine, parse_dates='timestamp')
 df = df[df['timestamp'] > pd.to_datetime(datetime.datetime(2021,4,24))]
-print(df.tail().to_string())
 
 def make_data(fdf, rig_nm, resample='H'):
     if rig_nm:
@@ -245,8 +242,8 @@ total_hours_data['y_pos_ops'] = [(x,0.15) for x in total_hours_data.index]
 
 scce = ColumnDataSource(total_hours_data)
 plott = figure(plot_width=300, plot_height=300, toolbar_location=None, title="Total Operational %", x_range = [80,100], y_range = [i for i in total_hours_data.index])
-plott.hbar(right='on_pct', y='y_pos_on', height=0.3, source=scce, color='navy')
-plott.hbar(right='ops_pct', y='y_pos_ops', height=0.3, source=scce, color = 'green')
+plott.hbar(right='on_pct', y='y_pos_on', height=0.3, source=scce, color='firebrick')
+plott.hbar(right='ops_pct', y='y_pos_ops', height=0.3, source=scce, color = 'black')
 plott.ygrid.grid_line_color = None
 plott.add_tools(HoverTool(tooltips=[("Timeframe", "@time_period"), ("ON PCT", "@on_pct{(0.0)}"), ("Operational PCT", "@ops_pct{(0.0)}")], mode='hline', ))
 
@@ -272,8 +269,8 @@ power_chart = figure(x_range=amd_speed_chart.x_range,plot_width=600, plot_height
 power_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0")
 power_chart.y_range.start = 0
 
-power_line = power_chart.line(x="timestamp", y='power_usage', source=source_power,  alpha = 0.3, color = 'green',  line_width = 3)
-power_circle = power_chart.circle(x="timestamp", y='power_usage', source=source_power, size = 3, color = 'green')
+power_line = power_chart.line(x="timestamp", y='power_usage', source=source_power,  alpha = 0.3, color = 'goldenrod',  line_width = 3)
+power_circle = power_chart.circle(x="timestamp", y='power_usage', source=source_power, size = 3, color = 'goldenrod')
 
 power_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Power W", "@power_usage{(0.0)}"),], mode='vline', ))
 
