@@ -161,7 +161,7 @@ tab1 = Panel(child = column([divs1, divs2, charts]), title='BTC Report')
 df = pd.read_sql('select * from most_recent_rig_device_stats', new_sql_engine, parse_dates='timestamp')
 df = df[df['timestamp'] > pd.to_datetime(datetime.datetime(2021,4,24))]
 
-def make_data(fdf, rig_nm, resample='H'):
+def make_data(fdf, rig_nm, resample='H', col = 'speed'):
     if rig_nm:
         idf = fdf[fdf['rig_name'] == rig_nm.lower()].copy()
     else:
@@ -171,7 +171,7 @@ def make_data(fdf, rig_nm, resample='H'):
     idf = idf.resample(resample).mean()
     idf.fillna(0, inplace=True)
     for x in [5, 10, 14, 28]:
-        idf[f'rolling_{x}'] = idf['speed'].rolling(x).mean()
+        idf[f'rolling_{x}'] = idf[col].rolling(x).mean()
     for i in idf.itertuples():
         if i.speed > 5*i.rolling_10:
             idf.at[i.Index, 'speed'] = i.speed/1000
@@ -181,7 +181,6 @@ def make_data(fdf, rig_nm, resample='H'):
 source_amd = ColumnDataSource(make_data(df, 'AMDBuster'))
 amd_speed_chart = figure(plot_width=800, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            x_axis_label=None, y_axis_label="MH/S", toolbar_location="right", title= 'AMDBuster MH/s')
-amd_speed_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0")
 amd_speed_chart.y_range.start = 0
 
 amd_line = amd_speed_chart.line(x="timestamp", y='speed', source=source_amd,  alpha = 0.3, color = 'firebrick', line_width = 3)
@@ -192,7 +191,6 @@ amd_speed_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Speed 
 source_leader = ColumnDataSource(make_data(df, 'Leader'))
 leader_speed_chart = figure(x_range=amd_speed_chart.x_range,plot_width=800, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            x_axis_label=None, y_axis_label="MH/S", toolbar_location="right", title= 'Leader MH/s')
-leader_speed_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0")
 leader_speed_chart.y_range.start = 0
 
 leader_line = leader_speed_chart.line(x="timestamp", y='speed', source=source_leader,  alpha = 0.3, color = 'navy', line_width = 3)
@@ -203,7 +201,6 @@ leader_speed_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Spe
 source_wh = ColumnDataSource(make_data(df, 'Workhorse1080'))
 wh_speed_chart = figure(x_range=amd_speed_chart.x_range,plot_width=800, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            x_axis_label=None, y_axis_label="MH/S", toolbar_location="right", title= 'Workhorse1080 MH/s')
-wh_speed_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0")
 wh_speed_chart.y_range.start = 0
 
 wh_line = wh_speed_chart.line(x="timestamp", y='speed', source=source_wh,  alpha = 0.3, color = 'green',  line_width = 3)
@@ -262,11 +259,10 @@ for i in bar_charts.keys():
     bar_charts[i].legend.location = 'top_right'
     bar_charts[i].add_tools(HoverTool(tooltips=[("Timeframe", "@time_period"), ("ON PCT", "@on_pct{(0.0)}"), ("Operational PCT", "@ops_pct{(0.0)}")], mode='hline', ))
 
-
-source_power = ColumnDataSource(make_data(df, None, 'H'))
+power_data = make_data(df, None, 'H', 'power_usage')
+source_power = ColumnDataSource(power_data)
 power_chart = figure(x_range=amd_speed_chart.x_range,plot_width=600, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            x_axis_label=None, y_axis_label="W", toolbar_location="right", title= 'Total Power used by GPUs')
-power_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0")
 power_chart.y_range.start = 0
 
 power_line = power_chart.line(x="timestamp", y='power_usage', source=source_power,  alpha = 0.3, color = 'goldenrod',  line_width = 3)
@@ -274,8 +270,7 @@ power_circle = power_chart.circle(x="timestamp", y='power_usage', source=source_
 
 power_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Power W", "@power_usage{(0.0)}"),], mode='vline', ))
 
-
-for p in [amd_speed_chart, leader_speed_chart, wh_speed_chart, plott, power_chart]:
+for p in [amd_speed_chart, leader_speed_chart, wh_speed_chart, power_chart]:
     p.xaxis.major_label_orientation = np.pi / 4
 # pretty up the dashboard
 for p in [amd_speed_chart, leader_speed_chart, wh_speed_chart, plott, power_chart] + [i for i in bar_charts.values()]:
@@ -295,8 +290,12 @@ for p in [amd_speed_chart, leader_speed_chart, wh_speed_chart, plott, power_char
     p.xaxis.axis_label_text_font_style = "bold"
     p.toolbar.active_scroll = "auto"
 
-tab2 = Panel(child = row([column([amd_speed_chart, leader_speed_chart, wh_speed_chart]), column([i for i in bar_charts.values()]), column([power_chart, plott])]), title = 'Miner Stability')
-
+power_div = Div(text = wrap_in_paragraphs(f"Past Month of energy consumption: <br>"
+                                            f"All GPUs Avg Energy: {power_data['rolling_28'][-1]:.1f} KWh <br>"
+                                          f"Total PCs Avg Energy: {power_data['rolling_28'][-1] + 650:.1f} KWh <br>"
+                                          f"Expected Hourly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12:.2f} <br>"
+                                          f"Expected Monthly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12*24*31:.2f} <br>"))
+tab2 = Panel(child = row([column([amd_speed_chart, leader_speed_chart, wh_speed_chart]), column([i for i in bar_charts.values()]), column([row([plott, power_div]), power_chart,])]), title = 'Miner Stability')
 dashboard = Tabs(tabs=[tab1, tab2])
 curdoc().add_root(dashboard)
 show(dashboard)
