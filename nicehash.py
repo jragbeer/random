@@ -495,7 +495,7 @@ def get_data_4hr():
     payout_data = get_payout_data()
     payout_data.to_sql(f"payout_data__{cur_time.strftime('%Y_%m_%d_%H_%M')}", engine, if_exists='replace', index=False)
     payout_data['query_time'] = cur_time
-    payout_data.to_sql(f"payout_data", new_engine, if_exists='append', index=False)
+    payout_data[[i for i in payout_data.columns if i != "net_amount_cumsum"]].to_sql(f"payout_data", new_engine, if_exists='append', index=False)
 
     logging.info(f"Payout Data table added {cur_time}")
     remove_duplicates_from_table(table_name="miner_stats_data", )

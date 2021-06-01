@@ -7,5 +7,5 @@ from bokeh.io import curdoc
 from bokeh.layouts import row, column, gridplot, layout
 import time
 
-
-print(1)
+rr = private_api.rig_status()
+pprint(rr)

@@ -16,7 +16,7 @@ def wrap_in_paragraphs(text, colour="DarkSlateBlue", size=4):
     :param size: size of the font
     :return: string wrapped in html tags
     """
-    return """<p><b><font color={} size={}>{}</font></b></p>""".format(colour, size, text)
+    return f"""<p><b><font color={colour} size={size}>{text}</font></b></p>"""
 
 # clear the webpage before visualization
 doc = curdoc()
@@ -137,7 +137,8 @@ div8 = Div(text=wrap_in_paragraphs(f'Current BTC * Current Price:<br><font size=
 
 btc_collected_sold_div = Div(text=wrap_in_paragraphs(f"""Total BTC Collected: {payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]:,.7f} / Collected BTC*CAD Price: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]:,.2f}
 <br>Total BTC Sold: ${coinbase_sell_data_sum["Quantity"]:.7f} / Total Sold Amount: ${coinbase_sell_data_sum["Total"]:.2f}
-<br>Total BTC Bought: ${coinbase_buy_data_sum["Quantity"]:.7f} / Total Bought Amount: ${coinbase_buy_data_sum["Total"]:.2f}""", 'firebrick', ), width=600)
+<br>Total BTC Bought: ${coinbase_buy_data_sum["Quantity"]:.7f} / Total Bought Amount: ${coinbase_buy_data_sum["Total"]:.2f}
+<br>Bought-Sold Diff: ${coinbase_buy_data_sum["Quantity"]-coinbase_sell_data_sum["Quantity"]:.7f} / Bought-Sold Diff Amount: ${coinbase_buy_data_sum["Total"]-coinbase_sell_data_sum["Total"]:.2f}""", 'firebrick', ), width=600)
 btc_eth_price_div = Div(text=wrap_in_paragraphs(f"""BTC: ${int(cur_BTCUSD):,} / ${int(cur_BTCCAD):,}
 <br>ETH: ${int(cur_ETHUSD):,} / ${int(cur_ETHCAD):,}
 <br>Coinbase Fees: ${coinbase_sell_data_sum['Fees'] + coinbase_buy_data_sum['Fees']}
@@ -153,8 +154,6 @@ divs1 = row([btc_collected_sold_div, div7, blank_divs[3], div8, btc_eth_price_di
 divs2 = row([div1, blank_divs[1], div2,blank_divs[4], rolling_payout_div, div5,blank_divs[5], div6,])
 charts = row([payout_chart, column([miner_stats_chart, total_mined_chart])])
 tab1 = Panel(child = column([divs1, divs2, charts]), title='BTC Report')
-
-
 
 # PAGE 2
 
@@ -290,11 +289,11 @@ for p in [amd_speed_chart, leader_speed_chart, wh_speed_chart, plott, power_char
     p.xaxis.axis_label_text_font_style = "bold"
     p.toolbar.active_scroll = "auto"
 
-power_div = Div(text = wrap_in_paragraphs(f"Past Month of energy consumption: <br>"
+power_div = Div(text = wrap_in_paragraphs(f"<u><i>Since April 25, 2021</i></u><br><br>Past Month of energy consumption: <br>"
                                             f"All GPUs Avg Energy: {power_data['rolling_28'][-1]:.1f} KWh <br>"
                                           f"Total PCs Avg Energy: {power_data['rolling_28'][-1] + 650:.1f} KWh <br>"
                                           f"Expected Hourly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12:.2f} <br>"
-                                          f"Expected Monthly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12*24*31:.2f} <br>"))
+                                          f"Expected Monthly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12*24*31:.2f} <br>"), width = 375)
 tab2 = Panel(child = row([column([amd_speed_chart, leader_speed_chart, wh_speed_chart]), column([i for i in bar_charts.values()]), column([row([plott, power_div]), power_chart,])]), title = 'Miner Stability')
 dashboard = Tabs(tabs=[tab1, tab2])
 curdoc().add_root(dashboard)
