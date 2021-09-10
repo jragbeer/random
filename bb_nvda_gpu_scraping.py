@@ -120,10 +120,10 @@ def get_newest_best_buy_page():
         except:
             error_handling()
     output_df = pd.DataFrame({'query_time':str(datetime.datetime.now()), 'drop_date':drop_date, 'post_views':post_views, 'posted_dates':repr(posted_dates)}, index = [0])
-    print(output_df.to_string())
+    # print(output_df.to_string())
     output_df.to_sql('scraped_data', engine, if_exists='append', index=False)
 def verify_if_new_drop_date():
-    df = pd.read_sql('select * from scraped_data order by query_time limit 3', engine).sort_values('query_time')
+    df = pd.read_sql('select * from scraped_data order by query_time desc limit 3', engine).sort_values('query_time', ascending=True)
     assert df.iloc[len(df.index)-1, df.columns.get_loc('post_views')] >= df.iloc[len(df.index)-2, df.columns.get_loc('post_views')]
     prev_date = parser.parse(df.iloc[len(df.index)-2, df.columns.get_loc('drop_date')])
     next_date = parser.parse(df.iloc[len(df.index)-1, df.columns.get_loc('drop_date')])
@@ -192,8 +192,6 @@ def sendemail_(TEXT, HTML):
 
     server.quit()
 
-
 get_newest_best_buy_page()
 verify_if_new_drop_date()
-
 
