@@ -38,8 +38,15 @@ coinbase_data = clean_coinbase_data()
 coinbase_sell_data = coinbase_data[(coinbase_data['Transaction'] == 'Sell') & (coinbase_data['Asset'] == 'BTC')]
 coinbase_buy_data = coinbase_data[(coinbase_data['Transaction'] == 'Buy') & (coinbase_data['Asset'] == 'BTC')]
 
+coinbase_sell_data_eth = coinbase_data[(coinbase_data['Transaction'] == 'Sell') & (coinbase_data['Asset'] == 'ETH')]
+coinbase_buy_data_eth = coinbase_data[(coinbase_data['Transaction'] == 'Buy') & (coinbase_data['Asset'] == 'ETH')]
+
 coinbase_sell_data_sum = coinbase_sell_data.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
 coinbase_buy_data_sum = coinbase_buy_data.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
+
+coinbase_sell_data_eth_sum = coinbase_sell_data_eth.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
+coinbase_buy_data_eth_sum = coinbase_buy_data_eth.sum()[['Quantity','Subtotal', 'Total', "Fees"]]
+
 # payout data
 payout_data = get_payout_data_df2()
 payout_data['avg_6'] = payout_data['net_amount'].rolling(6).mean()
@@ -50,7 +57,7 @@ payout_data['total_mined_dollars_converted_now'] = payout_data['net_amount_cumsu
 payout_data_daily = payout_data.set_index("timestamp").resample('D').sum()[['gross_amount', 'net_amount']]
 for x in [5,10, 14, 28]:
     payout_data_daily[f'rolling_{x}'] = payout_data_daily['net_amount'].rolling(x).mean()
-    payout_data_daily[f'rolling_{x}_price'] = payout_data_daily[f'rolling_{x}']*67000 #55000 USD
+    payout_data_daily[f'rolling_{x}_price'] = payout_data_daily[f'rolling_{x}']*cur_BTCCAD #55000 USD
 
 # miner statistics data
 miner_stats_df = get_miner_stats_df2()
@@ -136,13 +143,19 @@ div7 = Div(text=wrap_in_paragraphs(f'Current BTC:<br><font size=7>{payout_data["
 div8 = Div(text=wrap_in_paragraphs(f'Current BTC * Current Price:<br><font size=7>{(payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-coinbase_sell_data_sum["Quantity"]+coinbase_buy_data_sum["Quantity"])*int(cur_BTCCAD):.2f}</font>', ))
 
 btc_collected_sold_div = Div(text=wrap_in_paragraphs(f"""Total BTC Collected: {payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]:,.7f} / Collected BTC*CAD Price: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]:,.2f}
-<br>Total BTC Sold: ${coinbase_sell_data_sum["Quantity"]:.7f} / Total Sold Amount: ${coinbase_sell_data_sum["Total"]:.2f}
-<br>Total BTC Bought: ${coinbase_buy_data_sum["Quantity"]:.7f} / Total Bought Amount: ${coinbase_buy_data_sum["Total"]:.2f}
-<br>Bought-Sold Diff: ${coinbase_buy_data_sum["Quantity"]-coinbase_sell_data_sum["Quantity"]:.7f} / Bought-Sold Diff Amount: ${coinbase_buy_data_sum["Total"]-coinbase_sell_data_sum["Total"]:.2f}""", 'firebrick', ), width=600)
+<br>Total BTC Sold: {coinbase_sell_data_sum["Quantity"]:.7f} / Total Sold Amount: ${coinbase_sell_data_sum["Total"]:.2f}
+<br>Total BTC Bought: {coinbase_buy_data_sum["Quantity"]:.7f} / Total Bought Amount: ${coinbase_buy_data_sum["Total"]:.2f}
+<br>Bought-Sold Diff: {coinbase_buy_data_sum["Quantity"]-coinbase_sell_data_sum["Quantity"]:.7f} / Bought-Sold Diff Amount: ${coinbase_buy_data_sum["Total"]-coinbase_sell_data_sum["Total"]:.2f}""", 'firebrick', ), width=600)
 btc_eth_price_div = Div(text=wrap_in_paragraphs(f"""BTC: ${int(cur_BTCUSD):,} / ${int(cur_BTCCAD):,}
 <br>ETH: ${int(cur_ETHUSD):,} / ${int(cur_ETHCAD):,}
-<br>Coinbase Fees: ${coinbase_sell_data_sum['Fees'] + coinbase_buy_data_sum['Fees']}
+<br>Coinbase Fees: ${coinbase_sell_data_sum['Fees'] + coinbase_buy_data_sum['Fees']:,.2f}
 """, 'black', ), width=200)
+
+eth_collected_sold_div = Div(text=wrap_in_paragraphs(f"""Total ETH Sold: {coinbase_sell_data_eth_sum["Quantity"]:.7f} / Total Sold Amount: ${coinbase_sell_data_eth_sum["Total"]:.2f}
+<br>Total ETH Bought: {coinbase_buy_data_eth_sum["Quantity"]:.7f} / Total Bought Amount: ${coinbase_buy_data_eth_sum["Total"]:.2f}
+<br>Bought-Sold Diff: {coinbase_buy_data_eth_sum["Quantity"]-coinbase_sell_data_eth_sum["Quantity"]:.7f} / Bought-Sold Diff Amount: ${coinbase_buy_data_eth_sum["Total"]-coinbase_sell_data_eth_sum["Total"]:.2f}
+<br>Current ETH wallet: ${(coinbase_buy_data_eth_sum["Quantity"]-coinbase_sell_data_eth_sum["Quantity"])*cur_ETHCAD:,.2f} / ETH Profit to date: ${((coinbase_buy_data_eth_sum["Quantity"]-coinbase_sell_data_eth_sum["Quantity"])*cur_ETHCAD)-(coinbase_buy_data_eth_sum["Total"]-coinbase_sell_data_eth_sum["Total"]):,.2f}""", 'forestgreen', ), width=600)
+
 rolling_payout_div = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_data_daily[f'rolling_5'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_5_price'][-1]:,.2f}
 <br>10-day Daily Avg: {payout_data_daily[f'rolling_10'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_10_price'][-1]:,.2f}
 <br>2-week Daily Avg: {payout_data_daily[f'rolling_14'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_14_price'][-1]:,.2f}
@@ -150,7 +163,7 @@ rolling_payout_div = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_da
 """, ), width=400)
 
 widgets = column([])
-divs1 = row([btc_collected_sold_div, div7, blank_divs[3], div8, btc_eth_price_div])
+divs1 = row([btc_collected_sold_div, div7, blank_divs[3], div8, btc_eth_price_div, eth_collected_sold_div])
 divs2 = row([div1, blank_divs[1], div2,blank_divs[4], rolling_payout_div, div5,blank_divs[5], div6,])
 charts = row([payout_chart, column([miner_stats_chart, total_mined_chart])])
 tab1 = Panel(child = column([divs1, divs2, charts]), title='BTC Report')
@@ -159,6 +172,7 @@ tab1 = Panel(child = column([divs1, divs2, charts]), title='BTC Report')
 
 df = pd.read_sql('select * from most_recent_rig_device_stats', new_sql_engine, parse_dates='timestamp')
 df = df[df['timestamp'] > pd.to_datetime(datetime.datetime(2021,4,24))]
+df['rig_name'] = df['rig_name'].str.lower()
 
 def make_data(fdf, rig_nm, resample='H', col = 'speed'):
     if rig_nm:
@@ -177,7 +191,7 @@ def make_data(fdf, rig_nm, resample='H', col = 'speed'):
     idf['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in idf.index]
     return idf
 
-source_amd = ColumnDataSource(make_data(df, 'AMDBuster'))
+source_amd = ColumnDataSource(make_data(df, 'AMDBuster').drop_duplicates())
 amd_speed_chart = figure(plot_width=800, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            x_axis_label=None, y_axis_label="MH/S", toolbar_location="right", title= 'AMDBuster MH/s')
 amd_speed_chart.y_range.start = 0
