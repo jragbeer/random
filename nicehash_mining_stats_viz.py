@@ -29,6 +29,8 @@ pd.set_option('display.max_columns', None)
 
 today = datetime.datetime.now()
 
+mining_costs = pd.read_csv(data_path + "mining_costs.csv")
+
 cur_BTCCAD = yf.Ticker("BTC-CAD").history(period="5d")['Close'][-1]
 cur_ETHCAD = yf.Ticker("ETH-CAD").history(period="5d")['Close'][-1]
 cur_BTCUSD = yf.Ticker("BTC-USD").history(period="5d")['Close'][-1]
@@ -94,6 +96,8 @@ miner_stats_chart = figure(plot_width=650, plot_height=325,x_axis_type='datetime
            x_axis_label=None, y_axis_label="Speed (MH/s)", toolbar_location="right", title= 'Hashrate (MH/s)')
 miner_stats_chart.yaxis[0].formatter = NumeralTickFormatter(format="0,0")
 miner_stats_chart.y_range.start = 100
+miner_stats_chart.y_range.end = 550
+miner_stats_chart.x_range.start = today - datetime.timedelta(days = 30)
 
 source2 = ColumnDataSource(data=miner_stats_df_hourly)
 speed_accepted = miner_stats_chart.line(x="time_datetime", y='speed_accepted', source=source2, line_width=4, line_dash='dotted', alpha = 0.37 , color = 'green', legend_label= 'Hashrate')
@@ -143,9 +147,16 @@ div7 = Div(text=wrap_in_paragraphs(f'Current BTC:<br><font size=7>{payout_data["
 div8 = Div(text=wrap_in_paragraphs(f'Current BTC * Current Price:<br><font size=7>{(payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]-coinbase_sell_data_sum["Quantity"]+coinbase_buy_data_sum["Quantity"])*int(cur_BTCCAD):.2f}</font>', ))
 
 btc_collected_sold_div = Div(text=wrap_in_paragraphs(f"""Total BTC Collected: {payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]:,.7f} / Collected BTC*CAD Price: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]:,.2f}
-<br>Total BTC Sold: {coinbase_sell_data_sum["Quantity"]:.7f} / Total Sold Amount: ${coinbase_sell_data_sum["Total"]:.2f}
-<br>Total BTC Bought: {coinbase_buy_data_sum["Quantity"]:.7f} / Total Bought Amount: ${coinbase_buy_data_sum["Total"]:.2f}
-<br>Bought-Sold Diff: {coinbase_buy_data_sum["Quantity"]-coinbase_sell_data_sum["Quantity"]:.7f} / Bought-Sold Diff Amount: ${coinbase_buy_data_sum["Total"]-coinbase_sell_data_sum["Total"]:.2f}""", 'firebrick', ), width=600)
+<br>Cost of Parts: {mining_costs[mining_costs["Item_type"] != "Electricity"]["Cost"].sum():,.0f} /
+Electricity: ${mining_costs[mining_costs["Item_type"] == "Electricity"]["Cost"].sum():,.0f} / Total : ${mining_costs["Cost"].sum():,.0f}
+<br>ROI: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]-mining_costs["Cost"].sum():,.2f} ({100*payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]/mining_costs["Cost"].sum():.0f}%)
+<br><font color=black>
+<br>Total BTC Sold: {coinbase_sell_data_sum["Quantity"]:.7f} / Total Sold Amount: ${coinbase_sell_data_sum["Total"]:,.2f} 
+<br>(avg: {coinbase_sell_data_sum["Total"]/coinbase_sell_data_sum["Quantity"]:,.2f})
+<br>Total BTC Bought: {coinbase_buy_data_sum["Quantity"]:.7f} / Total Bought Amount: ${coinbase_buy_data_sum["Total"]:,.2f} 
+<br>(avg: {coinbase_buy_data_sum["Total"]/coinbase_buy_data_sum["Quantity"]:,.2f})
+<br>Bought-Sold Diff: {coinbase_buy_data_sum["Quantity"]-coinbase_sell_data_sum["Quantity"]:.7f} / Bought-Sold Diff Amount: ${coinbase_buy_data_sum["Total"]-coinbase_sell_data_sum["Total"]:,.2f}</font>""", 'firebrick', ), width=600)
+
 btc_eth_price_div = Div(text=wrap_in_paragraphs(f"""BTC: ${int(cur_BTCUSD):,} / ${int(cur_BTCCAD):,}
 <br>ETH: ${int(cur_ETHUSD):,} / ${int(cur_ETHCAD):,}
 <br>Coinbase Fees: ${coinbase_sell_data_sum['Fees'] + coinbase_buy_data_sum['Fees']:,.2f}
@@ -163,10 +174,12 @@ rolling_payout_div = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_da
 """, ), width=400)
 
 widgets = column([])
-divs1 = row([btc_collected_sold_div, div7, blank_divs[3], div8, btc_eth_price_div, eth_collected_sold_div])
-divs2 = row([div1, blank_divs[1], div2,blank_divs[4], rolling_payout_div, div5,blank_divs[5], div6,])
+
+divs1 = row([div7, blank_divs[3], div8, btc_eth_price_div, eth_collected_sold_div])
+divs2 = row([rolling_payout_div, blank_divs[1], div1,blank_divs[4], div2, div5,blank_divs[5], div6,])
+divs0 = row([btc_collected_sold_div,column([divs1, divs2])])
 charts = row([payout_chart, column([miner_stats_chart, total_mined_chart])])
-tab1 = Panel(child = column([divs1, divs2, charts]), title='BTC Report')
+tab1 = Panel(child = column([divs0, charts]), title='BTC Report')
 
 # PAGE 2
 
@@ -174,7 +187,7 @@ df = pd.read_sql('select * from most_recent_rig_device_stats', new_sql_engine, p
 df = df[df['timestamp'] > pd.to_datetime(datetime.datetime(2021,4,24))]
 df['rig_name'] = df['rig_name'].str.lower()
 
-def make_data(fdf, rig_nm, resample='H', col = 'speed'):
+def make_data(fdf, rig_nm=None, resample='H', col = 'speed'):
     if rig_nm:
         idf = fdf[fdf['rig_name'] == rig_nm.lower()].copy()
     else:
@@ -191,38 +204,43 @@ def make_data(fdf, rig_nm, resample='H', col = 'speed'):
     idf['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in idf.index]
     return idf
 
-source_amd = ColumnDataSource(make_data(df, 'AMDBuster').drop_duplicates())
-amd_speed_chart = figure(plot_width=800, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           x_axis_label=None, y_axis_label="MH/S", toolbar_location="right", title= 'AMDBuster MH/s')
-amd_speed_chart.y_range.start = 0
+# rr = make_data(df)
+# print(rr.to_string())
+rig_colours = {"Leader":'orange', "AMDBuster":"firebrick", "Workhorse1080":'forestgreen', "Earlybird":'black', 'Oddballs':'gold'}
 
-amd_line = amd_speed_chart.line(x="timestamp", y='speed', source=source_amd,  alpha = 0.3, color = 'firebrick', line_width = 3)
-amd_circle = amd_speed_chart.circle(x="timestamp", y='speed', source=source_amd, size = 3, color = 'firebrick')
+page_2_objects = {}
+for num, rg in enumerate(sorted(list(rig_colours.keys()))):
+    if num == 0:
+        page_2_objects[rg] = {'source': ColumnDataSource(make_data(df, rg).drop_duplicates()),
+                             "chart_1": figure(plot_width=700, plot_height=200,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+               x_axis_label=None, y_axis_label="MH/S", toolbar_location="right", title= f'{rg} MH/s')}
 
-amd_speed_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Speed MH/S", "@speed{(0.0)}"),], mode='vline', ))
+    else:
+        page_2_objects[rg] = {'source': ColumnDataSource(make_data(df, rg).drop_duplicates()),
+                             "chart_1": figure(x_range=page_2_objects[sorted(list(rig_colours.keys()))[0]]['chart_1'].x_range, plot_width=700, plot_height=200,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+               x_axis_label=None, y_axis_label="MH/S", toolbar_location="right", title= f'{rg} MH/s')}
 
-source_leader = ColumnDataSource(make_data(df, 'Leader'))
-leader_speed_chart = figure(x_range=amd_speed_chart.x_range,plot_width=800, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           x_axis_label=None, y_axis_label="MH/S", toolbar_location="right", title= 'Leader MH/s')
-leader_speed_chart.y_range.start = 0
+    page_2_objects[rg]['chart_1'].y_range.start = 0
+    page_2_objects[rg]['chart_1'].y_range.end = 200
+    page_2_objects[rg]['chart_1'].x_range.start = today-datetime.timedelta(days=10)
+    page_2_objects[rg]['line_1'] = page_2_objects[rg]['chart_1'].line(x="timestamp", y='speed', source=page_2_objects[rg]['source'],  alpha = 0.3, color = rig_colours[rg], line_width = 3)
+    page_2_objects[rg]['circle_1'] = page_2_objects[rg]['chart_1'].circle(x="timestamp", y='speed', source=page_2_objects[rg]['source'], size = 3, color = rig_colours[rg])
+    page_2_objects[rg]['chart_1'].add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Speed MH/S", "@speed{(0.0)}"), ], mode='vline', ))
 
-leader_line = leader_speed_chart.line(x="timestamp", y='speed', source=source_leader,  alpha = 0.3, color = 'navy', line_width = 3)
-leader_circle = leader_speed_chart.circle(x="timestamp", y='speed', source=source_leader, size = 3, color = 'navy')
-
-leader_speed_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Speed MH/S", "@speed{(0.0)}"),], mode='vline', ))
-
-source_wh = ColumnDataSource(make_data(df, 'Workhorse1080'))
-wh_speed_chart = figure(x_range=amd_speed_chart.x_range,plot_width=800, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           x_axis_label=None, y_axis_label="MH/S", toolbar_location="right", title= 'Workhorse1080 MH/s')
-wh_speed_chart.y_range.start = 0
-
-wh_line = wh_speed_chart.line(x="timestamp", y='speed', source=source_wh,  alpha = 0.3, color = 'green',  line_width = 3)
-wh_circle = wh_speed_chart.circle(x="timestamp", y='speed', source=source_wh, size = 3, color = 'green')
-
-wh_speed_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Speed MH/S", "@speed{(0.0)}"),], mode='vline', ))
+    if num == 0:
+        page_2_objects[rg]['chart_2'] = figure(plot_width=700, plot_height=200,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+               x_axis_label=None, y_axis_label="W", toolbar_location="right", title= f'{rg} Power Usage')
+    else:
+        page_2_objects[rg]["chart_2"] = figure(x_range=page_2_objects[sorted(list(rig_colours.keys()))[0]]['chart_1'].x_range, plot_width=700, plot_height=200,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+               x_axis_label=None, y_axis_label="W", toolbar_location="right", title= f'{rg} Power Usage')
+    page_2_objects[rg]['chart_2'].y_range.start = 0
+    page_2_objects[rg]['chart_2'].x_range.start = today-datetime.timedelta(days=10)
+    page_2_objects[rg]['line_2'] = page_2_objects[rg]['chart_2'].line(x="timestamp", y='power_usage', source=page_2_objects[rg]['source'],  alpha = 0.3, color = rig_colours[rg], line_width = 3)
+    page_2_objects[rg]['circle_2'] = page_2_objects[rg]['chart_2'].circle(x="timestamp", y='power_usage', source=page_2_objects[rg]['source'], size = 3, color = rig_colours[rg])
+    page_2_objects[rg]['chart_2'].add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("W", "@power_usage{(0.0)}"), ], mode='vline', ))
 
 
-bigger = {"Leader": {}, "AMDBuster":{}, "Workhorse1080":{}}
+bigger = {x: {} for x in list(sorted(rig_colours.keys()))}
 for k, v in bigger.items():
     for minss in ['15min', '30min', 'H', '4H']:
         cool=make_data(df, k, resample=minss)
@@ -250,13 +268,6 @@ for x in [total_hours_data, zz]:
 total_hours_data['y_pos_on'] = [(x,-0.15) for x in total_hours_data.index]
 total_hours_data['y_pos_ops'] = [(x,0.15) for x in total_hours_data.index]
 
-scce = ColumnDataSource(total_hours_data)
-plott = figure(plot_width=300, plot_height=300, toolbar_location=None, title="Total Operational %", x_range = [80,100], y_range = [i for i in total_hours_data.index])
-plott.hbar(right='on_pct', y='y_pos_on', height=0.3, source=scce, color='firebrick')
-plott.hbar(right='ops_pct', y='y_pos_ops', height=0.3, source=scce, color = 'black')
-plott.ygrid.grid_line_color = None
-plott.add_tools(HoverTool(tooltips=[("Timeframe", "@time_period"), ("ON PCT", "@on_pct{(0.0)}"), ("Operational PCT", "@ops_pct{(0.0)}")], mode='hline', ))
-
 bar_charts = {i:{} for i in sorted(zz.rig.unique())}
 for i in bar_charts.keys():
     inner_df = zz[zz['rig'] == i].copy()
@@ -264,7 +275,7 @@ for i in bar_charts.keys():
     inner_df['y_pos_on'] = [(x, -0.15) for x in inner_df.index]
     inner_df['y_pos_ops'] = [(x, 0.15) for x in inner_df.index]
     srce = ColumnDataSource(inner_df)
-    bar_charts[i] = figure(plot_width=300, plot_height=300, toolbar_location=None, title=f"{i} Operational %", x_range=[80, 100], y_range=[i for i in inner_df.index])
+    bar_charts[i] = figure(plot_width=300, plot_height=200, toolbar_location=None, title=f"{i} Operational %", x_range=[60, 100], y_range=[i for i in inner_df.index])
     bar_charts[i].hbar(right='on_pct', y='y_pos_on', height=0.3, source=srce, legend_label='ON', color='navy', alpha=0.85)
     bar_charts[i].hbar(right='ops_pct', y='y_pos_ops', height=0.3, source=srce, color='green', legend_label='OPS', alpha=0.85)
     bar_charts[i].ygrid.grid_line_color = None
@@ -272,9 +283,17 @@ for i in bar_charts.keys():
     bar_charts[i].legend.location = 'top_right'
     bar_charts[i].add_tools(HoverTool(tooltips=[("Timeframe", "@time_period"), ("ON PCT", "@on_pct{(0.0)}"), ("Operational PCT", "@ops_pct{(0.0)}")], mode='hline', ))
 
+# Page 3
+scce = ColumnDataSource(total_hours_data)
+plott = figure(plot_width=300, plot_height=300, toolbar_location=None, title="Total Operational %", x_range = [80,100], y_range = [i for i in total_hours_data.index])
+plott.hbar(right='on_pct', y='y_pos_on', height=0.3, source=scce, color='firebrick')
+plott.hbar(right='ops_pct', y='y_pos_ops', height=0.3, source=scce, color = 'black')
+plott.ygrid.grid_line_color = None
+plott.add_tools(HoverTool(tooltips=[("Timeframe", "@time_period"), ("ON PCT", "@on_pct{(0.0)}"), ("Operational PCT", "@ops_pct{(0.0)}")], mode='hline', ))
+
 power_data = make_data(df, None, 'H', 'power_usage')
 source_power = ColumnDataSource(power_data)
-power_chart = figure(x_range=amd_speed_chart.x_range,plot_width=600, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+power_chart = figure(x_range=page_2_objects[sorted(list(rig_colours.keys()))[0]]['chart_1'].x_range,plot_width=600, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            x_axis_label=None, y_axis_label="W", toolbar_location="right", title= 'Total Power used by GPUs')
 power_chart.y_range.start = 0
 
@@ -283,10 +302,16 @@ power_circle = power_chart.circle(x="timestamp", y='power_usage', source=source_
 
 power_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Power W", "@power_usage{(0.0)}"),], mode='vline', ))
 
-for p in [amd_speed_chart, leader_speed_chart, wh_speed_chart, power_chart]:
+power_div = Div(text = wrap_in_paragraphs(f"<u><i>Since April 25, 2021</i></u><br><br>Past Month of energy consumption: <br>"
+                                            f"All GPUs Avg Energy: {power_data['rolling_28'][-1]:.1f} KWh <br>"
+                                          f"Total PCs Avg Energy: {power_data['rolling_28'][-1] + 175*(len(rig_colours.keys())-1):.1f} KWh <br>"
+                                          f"Expected Hourly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12:.2f} <br>"
+                                          f"Expected Monthly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12*24*31:.2f} <br>"), width = 375)
+
+for p in [page_2_objects[i]['chart_1'] for i in list(sorted(rig_colours.keys()))] + [page_2_objects[i]['chart_2'] for i in list(sorted(rig_colours.keys()))] + [power_chart]:
     p.xaxis.major_label_orientation = np.pi / 4
 # pretty up the dashboard
-for p in [amd_speed_chart, leader_speed_chart, wh_speed_chart, plott, power_chart] + [i for i in bar_charts.values()]:
+for p in [page_2_objects[i]['chart_1'] for i in list(sorted(rig_colours.keys()))] + [page_2_objects[i]['chart_2'] for i in list(sorted(rig_colours.keys()))] + [plott, power_chart] + [i for i in bar_charts.values()]:
     p.axis.minor_tick_line_alpha = 0
     p.axis.major_tick_in = -1
     p.yaxis.axis_label_text_font_size = "13pt"
@@ -303,12 +328,9 @@ for p in [amd_speed_chart, leader_speed_chart, wh_speed_chart, plott, power_char
     p.xaxis.axis_label_text_font_style = "bold"
     p.toolbar.active_scroll = "auto"
 
-power_div = Div(text = wrap_in_paragraphs(f"<u><i>Since April 25, 2021</i></u><br><br>Past Month of energy consumption: <br>"
-                                            f"All GPUs Avg Energy: {power_data['rolling_28'][-1]:.1f} KWh <br>"
-                                          f"Total PCs Avg Energy: {power_data['rolling_28'][-1] + 650:.1f} KWh <br>"
-                                          f"Expected Hourly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12:.2f} <br>"
-                                          f"Expected Monthly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12*24*31:.2f} <br>"), width = 375)
-tab2 = Panel(child = row([column([amd_speed_chart, leader_speed_chart, wh_speed_chart]), column([i for i in bar_charts.values()]), column([row([plott, power_div]), power_chart,])]), title = 'Miner Stability')
-dashboard = Tabs(tabs=[tab1, tab2])
+
+tab2 = Panel(child = row([column([page_2_objects[i]['chart_1'] for i in list(sorted(rig_colours.keys()))]), column([page_2_objects[i]['chart_2'] for i in list(sorted(rig_colours.keys()))]), column([i for i in bar_charts.values()]), ]), title = 'Rig Stability')
+tab3 = Panel(child = column([row([plott, power_div]), power_chart,]), title = "Aggregate Miner Stats")
+dashboard = Tabs(tabs=[tab1, tab2, tab3])
 curdoc().add_root(dashboard)
 show(dashboard)
