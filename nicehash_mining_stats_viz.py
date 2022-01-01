@@ -17,6 +17,22 @@ def wrap_in_paragraphs(text, colour="DarkSlateBlue", size=4):
     :return: string wrapped in html tags
     """
     return f"""<p><b><font color={colour} size={size}>{text}</font></b></p>"""
+def make_data(fdf, rig_nm=None, resample='H', col = 'speed'):
+    if rig_nm:
+        idf = fdf[fdf['rig_name'] == rig_nm.lower()].copy()
+    else:
+        idf = fdf.copy()
+    idf = idf.groupby('timestamp').agg({'speed':np.sum, 'power_usage':np.sum,})
+    idf.index = pd.to_datetime(idf.index)
+    idf = idf.resample(resample).mean()
+    idf.fillna(0, inplace=True)
+    for x in [5, 10, 14, 28]:
+        idf[f'rolling_{x}'] = idf[col].rolling(x).mean()
+    for i in idf.itertuples():
+        if i.speed > 5*i.rolling_10:
+            idf.at[i.Index, 'speed'] = i.speed/1000
+    idf['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in idf.index]
+    return idf
 
 # clear the webpage before visualization
 doc = curdoc()
@@ -28,6 +44,12 @@ pd.set_option('display.width', 500)
 pd.set_option('display.max_columns', None)
 
 today = datetime.datetime.now()
+
+rig_colours = {"Leader":'orange', "AMDBuster":"firebrick", "Workhorse1080":'forestgreen', "Earlybird":'black', 'Oddballs':'gold'}
+
+df = pd.read_sql('select * from most_recent_rig_device_stats', new_sql_engine, parse_dates='timestamp')
+df = df[df['timestamp'] > pd.to_datetime(datetime.datetime(2021,4,24))]
+df['rig_name'] = df['rig_name'].str.lower()
 
 mining_costs = pd.read_csv(data_path + "mining_costs.csv")
 
@@ -51,6 +73,7 @@ coinbase_buy_data_eth_sum = coinbase_buy_data_eth.sum()[['Quantity','Subtotal', 
 
 # payout data
 payout_data = get_payout_data_df2()
+
 payout_data['avg_6'] = payout_data['net_amount'].rolling(6).mean()
 payout_data['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in payout_data['timestamp']]
 payout_data['net_amount_cumsum'] = payout_data['net_amount'].cumsum()  # total bitcoin recieved
@@ -108,14 +131,71 @@ miner_stats_chart.legend.click_policy = 'hide'
 miner_stats_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("24-hr Rolling", "@avg_24{(0,0.0)}"),], mode='vline', renderers=[avg_24]))
 miner_stats_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("Hashrate", "@speed_accepted{(0,0.0)}"),], mode='vline', renderers=[speed_accepted]))
 
-total_mined_chart = figure(plot_width=650, plot_height=325,x_axis_type='datetime',
-           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()], x_axis_label=None, y_axis_label="BTC", toolbar_location="right", title= 'Payout')
+power_data = make_data(df, None, 'H', 'power_usage')
+source_power = ColumnDataSource(power_data)
+power_chart = figure(x_range=miner_stats_chart.x_range, plot_width=600, plot_height=325,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+           x_axis_label=None, y_axis_label="W", toolbar_location="right", title= 'Total Power used by GPUs')
+power_chart.y_range.start = 0
+
+power_line = power_chart.line(x="timestamp", y='power_usage', source=source_power,  alpha = 0.3, color = 'goldenrod',  line_width = 3)
+power_circle = power_chart.circle(x="timestamp", y='power_usage', source=source_power, size = 3, color = 'goldenrod')
+
+power_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Power W", "@power_usage{(0.0)}"),], mode='vline', ))
+
+def make_btc_profit_source(payout_data_, cb_buy, cb_sell):
+    other = payout_data_.set_index('timestamp').resample('H').mean().reset_index()
+    other['timestamp'] = other['timestamp'].dt.tz_localize('EST', ambiguous='infer')
+    new_cb_buy_data = cb_buy.set_index('Timestamp').resample('H').mean().reset_index()
+    new_cb_buy_data.columns = [i.lower() for i in new_cb_buy_data.columns]
+    fun = pd.merge(other, new_cb_buy_data[['quantity', 'timestamp']], on='timestamp', how='left')
+    fun['timestamp'] = pd.to_datetime(fun['timestamp'])
+
+    new_cb_sell_data = cb_sell.set_index('Timestamp').resample('H').mean().reset_index()
+    new_cb_sell_data.columns = [i.lower()+'_s' for i in new_cb_sell_data.columns]
+    new_cb_sell_data.rename(columns={'timestamp_s':'timestamp'}, inplace=True)
+    fun = pd.merge(fun, new_cb_sell_data[['quantity_s', 'timestamp']], on='timestamp', how='left')
+
+    fun['net_amount'] = fun['net_amount'].fillna(0)
+    fun['new_net_amount_cumsum'] = fun['net_amount'].cumsum()
+    fun['quantity'] = fun['quantity'].fillna(0)
+    fun['quantity_cumsum'] = fun['quantity'].cumsum()
+    fun['quantity_s'] = fun['quantity_s'].fillna(0)
+    fun['quantity_s_cumsum'] = fun['quantity_s'].cumsum()
+
+    fun['total_btc_now'] = fun['new_net_amount_cumsum'] - fun['quantity_s_cumsum'] + fun['quantity_cumsum']
+    fun['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in fun['timestamp']]
+    return ColumnDataSource(fun)
+
+fun_source = make_btc_profit_source(payout_data, coinbase_buy_data, coinbase_sell_data)
+
+total_mined_chart = figure(plot_width=850, plot_height=525,x_axis_type='datetime',
+           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()], x_axis_label=None, y_axis_label="BTC", toolbar_location="right", title= 'BTC Holdings')
 total_mined_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0000")
 total_mined_chart.y_range.start = 0
 
-net_cumsum_line = total_mined_chart.line(x="timestamp", y='net_amount_cumsum', source=source, line_width=4, line_dash='dotted', alpha = 0.3, color = 'firebrick')
-total_mined_chart.circle(x="timestamp", y='net_amount_cumsum', source=source, size = 3, color = 'firebrick')
-total_mined_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("Collected BTC", "@net_amount_cumsum{(0,0.00000)}"),("Collected BTC * BTC Price", "@total_mined_dollars_converted_now{(0,0)}"),], mode='vline', renderers=[net_cumsum_line]))
+net_cumsum_line3 = total_mined_chart.line(x="timestamp", y='total_btc_now', source=fun_source, line_width=4,  alpha = 0.7, color = 'black', legend_label='Total BTC Now')
+net_cumsum_circle3 = total_mined_chart.circle(x="timestamp", y='total_btc_now', source=fun_source, size = 3, color = 'black', legend_label='Total BTC Now')
+
+net_cumsum_line = total_mined_chart.line(x="timestamp", y='new_net_amount_cumsum', source=fun_source, line_width=4, line_dash='dotted', alpha = 0.3, color = 'firebrick', legend_label='BTC Ever Mined')
+total_mined_chart.circle(x="timestamp", y='new_net_amount_cumsum', source=fun_source, size = 3, color = 'firebrick', legend_label='BTC Ever Mined')
+
+net_cumsum_line2 = total_mined_chart.line(x="timestamp", y='quantity_cumsum', source=fun_source, line_width=4,  alpha = 0.7, color = 'blue', legend_label='BTC Purchases')
+net_cumsum_circle2 = total_mined_chart.circle(x="timestamp", y='quantity_cumsum', source=fun_source,  size = 3, color = 'blue', legend_label='BTC Purchases')
+net_cumsum_circle2.visible = False
+net_cumsum_line2.visible = False
+
+net_cumsum_line4 = total_mined_chart.line(x="timestamp", y='quantity_s_cumsum', source=fun_source, line_width=4,  alpha = 0.7, color = 'gold', legend_label='BTC Sales')
+net_cumsum_circle4 = total_mined_chart.circle(x="timestamp", y='quantity_s_cumsum', source=fun_source,  size = 3, color = 'gold', legend_label='BTC Sales')
+net_cumsum_circle4.visible = False
+net_cumsum_line4.visible = False
+
+total_mined_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("BTC", "@quantity_s_cumsum{(0,0.00000)}"),], mode='vline', renderers=[net_cumsum_line4]))
+total_mined_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("BTC", "@quantity_cumsum{(0,0.00000)}"),], mode='vline', renderers=[net_cumsum_line2]))
+total_mined_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("BTC", "@total_btc_now{(0,0.00000)}"),], mode='vline', renderers=[net_cumsum_line3]))
+total_mined_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("BTC", "@new_net_amount_cumsum{(0,0.00000)}"),], mode='vline', renderers=[net_cumsum_line]))
+total_mined_chart.legend.location = 'top_left'
+total_mined_chart.legend.click_policy = 'hide'
+
 
 # pretty up the dashboard
 for p in [payout_chart, total_mined_chart, miner_stats_chart]:
@@ -178,35 +258,10 @@ widgets = column([])
 divs1 = row([div7, blank_divs[3], div8, btc_eth_price_div, eth_collected_sold_div])
 divs2 = row([rolling_payout_div, blank_divs[1], div1,blank_divs[4], div2, div5,blank_divs[5], div6,])
 divs0 = row([btc_collected_sold_div,column([divs1, divs2])])
-charts = row([payout_chart, column([miner_stats_chart, total_mined_chart])])
+charts = row([payout_chart, column([miner_stats_chart, power_chart])])
 tab1 = Panel(child = column([divs0, charts]), title='BTC Report')
 
 # PAGE 2
-
-df = pd.read_sql('select * from most_recent_rig_device_stats', new_sql_engine, parse_dates='timestamp')
-df = df[df['timestamp'] > pd.to_datetime(datetime.datetime(2021,4,24))]
-df['rig_name'] = df['rig_name'].str.lower()
-
-def make_data(fdf, rig_nm=None, resample='H', col = 'speed'):
-    if rig_nm:
-        idf = fdf[fdf['rig_name'] == rig_nm.lower()].copy()
-    else:
-        idf = fdf.copy()
-    idf = idf.groupby('timestamp').agg({'speed':np.sum, 'power_usage':np.sum,})
-    idf.index = pd.to_datetime(idf.index)
-    idf = idf.resample(resample).mean()
-    idf.fillna(0, inplace=True)
-    for x in [5, 10, 14, 28]:
-        idf[f'rolling_{x}'] = idf[col].rolling(x).mean()
-    for i in idf.itertuples():
-        if i.speed > 5*i.rolling_10:
-            idf.at[i.Index, 'speed'] = i.speed/1000
-    idf['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in idf.index]
-    return idf
-
-# rr = make_data(df)
-# print(rr.to_string())
-rig_colours = {"Leader":'orange', "AMDBuster":"firebrick", "Workhorse1080":'forestgreen', "Earlybird":'black', 'Oddballs':'gold'}
 
 page_2_objects = {}
 for num, rg in enumerate(sorted(list(rig_colours.keys()))):
@@ -291,17 +346,6 @@ plott.hbar(right='ops_pct', y='y_pos_ops', height=0.3, source=scce, color = 'bla
 plott.ygrid.grid_line_color = None
 plott.add_tools(HoverTool(tooltips=[("Timeframe", "@time_period"), ("ON PCT", "@on_pct{(0.0)}"), ("Operational PCT", "@ops_pct{(0.0)}")], mode='hline', ))
 
-power_data = make_data(df, None, 'H', 'power_usage')
-source_power = ColumnDataSource(power_data)
-power_chart = figure(x_range=page_2_objects[sorted(list(rig_colours.keys()))[0]]['chart_1'].x_range,plot_width=600, plot_height=300,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
-           x_axis_label=None, y_axis_label="W", toolbar_location="right", title= 'Total Power used by GPUs')
-power_chart.y_range.start = 0
-
-power_line = power_chart.line(x="timestamp", y='power_usage', source=source_power,  alpha = 0.3, color = 'goldenrod',  line_width = 3)
-power_circle = power_chart.circle(x="timestamp", y='power_usage', source=source_power, size = 3, color = 'goldenrod')
-
-power_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Power W", "@power_usage{(0.0)}"),], mode='vline', ))
-
 power_div = Div(text = wrap_in_paragraphs(f"<u><i>Since April 25, 2021</i></u><br><br>Past Month of energy consumption: <br>"
                                             f"All GPUs Avg Energy: {power_data['rolling_28'][-1]:.1f} KWh <br>"
                                           f"Total PCs Avg Energy: {power_data['rolling_28'][-1] + 175*(len(rig_colours.keys())-1):.1f} KWh <br>"
@@ -328,9 +372,9 @@ for p in [page_2_objects[i]['chart_1'] for i in list(sorted(rig_colours.keys()))
     p.xaxis.axis_label_text_font_style = "bold"
     p.toolbar.active_scroll = "auto"
 
+tab2 = Panel(child = column([row([plott, power_div]), total_mined_chart,]), title = "Aggregate Miner Stats")
+tab3 = Panel(child = row([column([page_2_objects[i]['chart_1'] for i in list(sorted(rig_colours.keys()))]), column([page_2_objects[i]['chart_2'] for i in list(sorted(rig_colours.keys()))]), column([i for i in bar_charts.values()]), ]), title = 'Rig Stability')
 
-tab2 = Panel(child = row([column([page_2_objects[i]['chart_1'] for i in list(sorted(rig_colours.keys()))]), column([page_2_objects[i]['chart_2'] for i in list(sorted(rig_colours.keys()))]), column([i for i in bar_charts.values()]), ]), title = 'Rig Stability')
-tab3 = Panel(child = column([row([plott, power_div]), power_chart,]), title = "Aggregate Miner Stats")
 dashboard = Tabs(tabs=[tab1, tab2, tab3])
 curdoc().add_root(dashboard)
 show(dashboard)
