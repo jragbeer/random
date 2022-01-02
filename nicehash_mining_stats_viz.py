@@ -145,15 +145,15 @@ power_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Power W", 
 def make_btc_profit_source(payout_data_, cb_buy, cb_sell):
     other = payout_data_.set_index('timestamp').resample('H').mean().reset_index()
     other['timestamp'] = other['timestamp'].dt.tz_localize('EST', ambiguous='infer')
-    new_cb_buy_data = cb_buy.set_index('Timestamp').resample('H').mean().reset_index()
+    new_cb_buy_data = cb_buy.set_index('Timestamp').resample('H').sum().reset_index()
     new_cb_buy_data.columns = [i.lower() for i in new_cb_buy_data.columns]
-    fun = pd.merge(other, new_cb_buy_data[['quantity', 'timestamp']], on='timestamp', how='left')
+    fun = pd.merge(other, new_cb_buy_data[['quantity', 'timestamp', 'total']], on='timestamp', how='left')
     fun['timestamp'] = pd.to_datetime(fun['timestamp'])
 
-    new_cb_sell_data = cb_sell.set_index('Timestamp').resample('H').mean().reset_index()
+    new_cb_sell_data = cb_sell.set_index('Timestamp').resample('H').sum().reset_index()
     new_cb_sell_data.columns = [i.lower()+'_s' for i in new_cb_sell_data.columns]
     new_cb_sell_data.rename(columns={'timestamp_s':'timestamp'}, inplace=True)
-    fun = pd.merge(fun, new_cb_sell_data[['quantity_s', 'timestamp']], on='timestamp', how='left')
+    fun = pd.merge(fun, new_cb_sell_data[['quantity_s', 'timestamp', 'total_s']], on='timestamp', how='left')
 
     fun['net_amount'] = fun['net_amount'].fillna(0)
     fun['new_net_amount_cumsum'] = fun['net_amount'].cumsum()
@@ -161,14 +161,31 @@ def make_btc_profit_source(payout_data_, cb_buy, cb_sell):
     fun['quantity_cumsum'] = fun['quantity'].cumsum()
     fun['quantity_s'] = fun['quantity_s'].fillna(0)
     fun['quantity_s_cumsum'] = fun['quantity_s'].cumsum()
+    fun['total'] = fun['total'].fillna(0)
+    fun['total_cumsum'] = fun['total'].cumsum()
+    fun['total_s'] = fun['total_s'].fillna(0)
+    fun['total_s_cumsum'] = fun['total_s'].cumsum()
+    fun['total_bought_sold_money'] = fun['total_s_cumsum'] - fun['total_cumsum']
 
-    fun['total_btc_now'] = fun['new_net_amount_cumsum'] - fun['quantity_s_cumsum'] + fun['quantity_cumsum']
+    fun['total_bought_sold_btc'] = fun['quantity_cumsum'] - fun['quantity_s_cumsum']
+
+    fun['total_mined_dollars_converted_now'] = fun['new_net_amount_cumsum'] * cur_BTCCAD
+    fun['buy_dollars_cumsum'] = fun['quantity_cumsum'] * cur_BTCCAD
+    fun['sell_dollars_cumsum'] = fun['quantity_s_cumsum'] * cur_BTCCAD
+
+
+    fun['total_btc_now'] = fun['new_net_amount_cumsum'] + fun['total_bought_sold_btc']
+    fun['current_btc_in_money'] = fun['total_btc_now'] * cur_BTCCAD
+
+    fun['final'] = fun['current_btc_in_money'] + fun['total_bought_sold_money']
+    fun = fun.drop(columns=['created', 'gross_amount', 'nh_fee', 'avg_6'])
     fun['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in fun['timestamp']]
+
     return ColumnDataSource(fun)
 
 fun_source = make_btc_profit_source(payout_data, coinbase_buy_data, coinbase_sell_data)
 
-total_mined_chart = figure(plot_width=850, plot_height=525,x_axis_type='datetime',
+total_mined_chart = figure(plot_width=800, plot_height=525,x_axis_type='datetime',
            tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()], x_axis_label=None, y_axis_label="BTC", toolbar_location="right", title= 'BTC Holdings')
 total_mined_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0000")
 total_mined_chart.y_range.start = 0
@@ -197,8 +214,37 @@ total_mined_chart.legend.location = 'top_left'
 total_mined_chart.legend.click_policy = 'hide'
 
 
+total_rev_chart = figure(plot_width=800, plot_height=525,x_axis_type='datetime',
+           tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()], x_axis_label=None, y_axis_label="$", toolbar_location="right", title= '$ in Crypto')
+total_rev_chart.yaxis[0].formatter = NumeralTickFormatter(format="0,0")
+total_rev_chart.y_range.start = 0
+
+rev_line3 = total_rev_chart.line(x="timestamp", y='total_mined_dollars_converted_now', source=fun_source, line_width=4,  alpha = 0.7, color = 'black', legend_label='Total Mined Rev')
+rev_circle3 = total_rev_chart.circle(x="timestamp", y='total_mined_dollars_converted_now', source=fun_source, size = 3, color = 'black', legend_label='Total Mined Rev')
+
+rev_line0 = total_rev_chart.line(x="timestamp", y='final', source=fun_source, line_width=4,  alpha = 0.7, color = 'firebrick', legend_label='$ in BTC')
+rev_circle0 = total_rev_chart.circle(x="timestamp", y='final', source=fun_source, size = 3, color = 'firebrick', legend_label='$ in BTC')
+
+rev_line1 = total_rev_chart.line(x="timestamp", y='buy_dollars_cumsum', source=fun_source, line_width=4,  alpha = 0.7, color = 'blue', legend_label='Total Buy Amt')
+rev_circle1 = total_rev_chart.circle(x="timestamp", y='buy_dollars_cumsum', source=fun_source, size = 3, color = 'blue', legend_label='Total Buy Amt')
+rev_line1.visible = False
+rev_circle1.visible = False
+
+rev_line2 = total_rev_chart.line(x="timestamp", y='sell_dollars_cumsum', source=fun_source, line_width=4,  alpha = 0.7, color = 'gold', legend_label='Total Sell Amt')
+rev_circle2 = total_rev_chart.circle(x="timestamp", y='sell_dollars_cumsum', source=fun_source, size = 3, color = 'gold', legend_label='Total Sell Amt')
+rev_circle2.visible = False
+rev_line2.visible = False
+
+total_rev_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("$", "@total_mined_dollars_converted_now{(0,0.00)}"),], mode='vline', renderers=[rev_line3]))
+total_rev_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("$", "@sell_dollars_cumsum{(0,0.00)}"),], mode='vline', renderers=[rev_line2]))
+total_rev_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("$", "@buy_dollars_cumsum{(0,0.00)}"),], mode='vline', renderers=[rev_line1]))
+total_rev_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("$", "@final{(0,0.00)}"),], mode='vline', renderers=[rev_line0]))
+
+total_rev_chart.legend.location = 'top_left'
+total_rev_chart.legend.click_policy = 'hide'
+
 # pretty up the dashboard
-for p in [payout_chart, total_mined_chart, miner_stats_chart]:
+for p in [payout_chart, total_mined_chart, miner_stats_chart, total_rev_chart]:
     p.xaxis.major_label_orientation = np.pi/4
     p.axis.minor_tick_line_alpha = 0
     p.axis.major_tick_in = -1
@@ -350,7 +396,7 @@ power_div = Div(text = wrap_in_paragraphs(f"<u><i>Since April 25, 2021</i></u><b
                                             f"All GPUs Avg Energy: {power_data['rolling_28'][-1]:.1f} KWh <br>"
                                           f"Total PCs Avg Energy: {power_data['rolling_28'][-1] + 175*(len(rig_colours.keys())-1):.1f} KWh <br>"
                                           f"Expected Hourly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12:.2f} <br>"
-                                          f"Expected Monthly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12*24*31:.2f} <br>"), width = 375)
+                                          f"Expected Monthly cost: ${(power_data['rolling_28'][-1] + 650)/1000*.12*24*31:.2f} <br>", 'black'), width = 375)
 
 for p in [page_2_objects[i]['chart_1'] for i in list(sorted(rig_colours.keys()))] + [page_2_objects[i]['chart_2'] for i in list(sorted(rig_colours.keys()))] + [power_chart]:
     p.xaxis.major_label_orientation = np.pi / 4
@@ -372,7 +418,7 @@ for p in [page_2_objects[i]['chart_1'] for i in list(sorted(rig_colours.keys()))
     p.xaxis.axis_label_text_font_style = "bold"
     p.toolbar.active_scroll = "auto"
 
-tab2 = Panel(child = column([row([plott, power_div]), total_mined_chart,]), title = "Aggregate Miner Stats")
+tab2 = Panel(child = row([column([plott, power_div]), total_mined_chart, total_rev_chart]), title = "Aggregate Miner Stats")
 tab3 = Panel(child = row([column([page_2_objects[i]['chart_1'] for i in list(sorted(rig_colours.keys()))]), column([page_2_objects[i]['chart_2'] for i in list(sorted(rig_colours.keys()))]), column([i for i in bar_charts.values()]), ]), title = 'Rig Stability')
 
 dashboard = Tabs(tabs=[tab1, tab2, tab3])

@@ -15,6 +15,10 @@ import numpy as np
 import sqlite3
 import logging
 import pymongo
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import ssl
+import smtplib
 import traceback
 
 class nh_public_api:
@@ -338,10 +342,121 @@ def error_handling():
     :return: string with the error information
     """
     return traceback.format_exc()
+def sendemail_(TEXT, HTML):
+        """
 
+        This function sends emails to the email list depending on the para
+
+        :param TEXT: text to send in an email
+        :param HTML: text to send in an email, but in HTML (default)
+        :param week_start: integer that indicates if this is the email sent weekly (start of the week, monday at 7am)
+        :param error_email: if this is an error email, send an alert with a different message
+        :return:
+        """
+        # This is a temporary fix. Be careful of malicious links
+        context = ssl._create_unverified_context()
+
+        my_email = 'jragbeer@ryerson.ca'
+        senders_email = 'julienwork789@gmail.com'  # senders email
+        senders_pswd = '12fork34'  # senders password
+
+        # current date, and a date 5 days away
+        curtime = datetime.datetime.now().date()
+        week_from_today = curtime + datetime.timedelta(days=5)
+
+        SUBJECT = 'ETH Miner is down!'
+        TO = [my_email,]
+
+        # Gmail Sign In
+        gmail_sender = senders_email
+        gmail_passwd = senders_pswd
+
+        msg = MIMEMultipart('alternative')  # tell the package we'd prefer HTML emails
+        msg['Subject'] = SUBJECT  # set the SUBJECT of the email
+        msg['From'] = gmail_sender  # set the FROM field of the email
+        msg['To'] = ', '.join(TO)  # set the TO field of the email
+
+        # add the 2 parts of the email (one plain text, one html)
+        part1 = MIMEText(TEXT, 'plain')
+        part2 = MIMEText(HTML, 'html')
+        # It will default to the plain text verison if the HTML doesn't work, plain must go first
+        msg.attach(part1)
+        msg.attach(part2)
+
+        # connect to the GMAIL server
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        # login to the GMAIL server
+        server.login(gmail_sender, gmail_passwd)
+
+        try:
+            # send email and confirm email is sent / time it is sent
+            server.sendmail(gmail_sender, TO, msg.as_string())
+            logging.info(str(curtime) + ' email sent')
+        except Exception as e:
+            # print error if not sent, and confirm it wasn't sent
+            logging.info(str(e))
+            logging.info(error_handling())
+            logging.info(str(curtime) + ' error sending mail')
+
+        server.quit()
 def convert_unix_timestamp_to_pandas_date(input_date):
     return pd.to_datetime(datetime.datetime.fromtimestamp(int(input_date)/1000),)
+def are_gpus_runnning():
+    now = datetime.datetime.now()
+    three_days_ago = now - datetime.timedelta(days = 3)
+    three_hours_ago = now - datetime.timedelta(hours = 3)
+    three_days_ago_string = str(three_days_ago).split()[0]
 
+    df = pd.read_sql(f"select * from most_recent_rig_device_stats where timestamp > {three_days_ago_string}", new_sql_engine)
+    idf = df.groupby(['timestamp', 'rig_name']).agg({'speed': lambda x: list(x)})
+    idf = idf.reset_index()
+    idf['timestamp'] = pd.to_datetime(idf['timestamp'])
+    idf = idf[idf['timestamp'] >= pd.to_datetime(three_hours_ago)]
+    idf = idf.sort_values('timestamp', ascending=False)
+    idf.set_index('timestamp', inplace=True)
+
+    down_rigs = []
+    coll = {a: [] for a in idf.rig_name.unique()}
+    for each in idf.itertuples():
+        if each.rig_name != 'leader':
+            for i in each.speed:
+                if i < 20: # if speed is under 20, add it to the collection
+                    coll[each.rig_name].append(each.Index)
+        else:
+            if sum(each.speed) == 0:
+                coll[each.rig_name].append(each.Index)
+
+    for k,v in coll.items():
+        if v:
+            if len(v) == 1:
+                continue
+            for i, each in enumerate(v):
+                try:
+                    if (v[i+1] - v[i]).seconds < 400:
+                        down_rigs.append(k)
+                    else:
+                        continue
+                except:
+                    pass
+    down_rigs = list(set(down_rigs))
+
+    try:
+        if len(down_rigs) == 1:
+            text = f"In the past 3 hours, rig(s) {down_rigs[0].upper()} have at least 1 GPU not running.<br><br> No activity from {coll[down_rigs[0]][-1]} to {coll[down_rigs[0]][0]} "
+        elif len(down_rigs) == 2:
+            text = f"In the past 3 hours, rig(s) {down_rigs} have at least 1 GPU not running. <br><br>" \
+                   f"For {down_rigs[0]} No activity from {coll[down_rigs[0]][-1]} to {coll[down_rigs[0]][0]}." \
+                   f"  <br><br> For {down_rigs[1]} No activity from {coll[down_rigs[1]][-1]} to {coll[down_rigs[1]][0]}."
+        elif len(down_rigs) == 3:
+            text = f"In the past 3 hours, rig(s) {down_rigs} have at least 1 GPU not running. <br><br>" \
+                   f"For {down_rigs[0]} No activity from {coll[down_rigs[0]][-1]} to {coll[down_rigs[0]][0]}." \
+                   f"  <br><br> For {down_rigs[1]} No activity from {coll[down_rigs[1]][-1]} to {coll[down_rigs[1]][0]}."\
+                    f"  <br><br> For {down_rigs[2]} No activity from {coll[down_rigs[2]][-1]} to {coll[down_rigs[2]][0]}."
+        else:
+            raise Exception
+        sendemail_(text.replace("<br><br>", " \r "), text)
+    except Exception as ee:
+        print(error_handling())
 def get_payout_data():
     df = pd.DataFrame(private_api.payout_call()["list"])
     df.rename(columns={'amount':'gross_amount', 'feeAmount': 'nh_fee', }, inplace=True)
@@ -531,7 +646,7 @@ def clean_coinbase_data():
     df = pd.read_csv(coinbase_path + most_recent_csv_file_name, skiprows = 7, )
     df['Timestamp'] = pd.to_datetime(df['Timestamp'])
     df.rename(columns = {'CAD Subtotal':"Subtotal", "CAD Total (inclusive of fees)": "Total", "CAD Fees":"Fees", 'Quantity Transacted': "Quantity",
-                         "Transaction Type":"Transaction", "CAD Spot Price at Transaction":"Price", }, inplace=True)
+                         "Transaction Type":"Transaction", "CAD Spot Price at Transaction":"Price", "Total (inclusive of fees)": "Total",}, inplace=True)
     return df
 
 def build_basic_rig_stats_df():
@@ -584,7 +699,7 @@ def add_most_recent_rig_device_stats_table():
     damn.to_sql('most_recent_rig_device_stats', engine, if_exists='replace', index=False)
     logging.info(f"most_recent_rig_device_stats SQL table updated {cur_time}")
 
-path = os.getcwd().replace("\\", "/")+ "/"
+path = os.path.abspath(os.path.dirname(__file__)).replace("\\", "/")+ "/"
 data_path = path + 'data/'
 
 api_creds = {}
