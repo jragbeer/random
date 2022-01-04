@@ -1,66 +1,62 @@
 from nicehash import *
 import dagster
 
-# SOLIDS / TASKS
+# OPS / TASKS
 
-@dagster.solid
+@dagster.op
 def five_min_func():
     get_data_5mins()
 
-@dagster.solid
+@dagster.op
+def check_running():
+    are_gpus_runnning()
+
+@dagster.op
 def long_term_nicehash_public():
     get_public_data_long_term()
 
-@dagster.solid
+@dagster.op
 def four_hour_func():
     get_data_4hr()
 
-@dagster.solid
+@dagster.op
 def one_hour_func():
     get_data_1hr()
 
-@dagster.solid
+@dagster.op
 def make_easy_sql_func(context, cereals=None):
     add_most_recent_rig_device_stats_table()
 
-# PIPELINES
+# JOBS
 
-@dagster.pipeline
-def one_hour_pipeline():
+@dagster.job
+def one_hour_job():
     one_hour_func()
+    check_running()
 
-@dagster.pipeline
-def four_hour_pipeline():
+@dagster.job
+def four_hour_job():
     four_hour_func()
 
-@dagster.pipeline
-def five_min_pipeline():
+@dagster.job
+def five_min_job():
     make_easy_sql_func(five_min_func())
 
-@dagster.pipeline
-def long_term_pipeline():
+@dagster.job
+def long_term_job():
     long_term_nicehash_public()
 
-# SET SCHEDULES FOR EACH PIPELINE
+# SET SCHEDULES FOR EACH JOB
 
-@dagster.schedule(cron_schedule="0 10 * * 4", pipeline_name="long_term_pipeline", execution_timezone="US/Eastern")
-def nicehash_longterm_scheduler(_context):
-    pass
+nicehash_longterm_schedule = dagster.ScheduleDefinition(cron_schedule="0 10 * * 4", job=long_term_job, execution_timezone="US/Eastern", )
 
-@dagster.schedule(cron_schedule="0 */4 * * *", pipeline_name="four_hour_pipeline", execution_timezone="US/Eastern")
-def nicehash_4hr_scheduler(_context):
-    pass
+nicehash_4hr_schedule = dagster.ScheduleDefinition(cron_schedule="0 */4 * * *", job=four_hour_job, execution_timezone="US/Eastern", )
 
-@dagster.schedule(cron_schedule="0 */1 * * *", pipeline_name="one_hour_pipeline", execution_timezone="US/Eastern")
-def nicehash_1hr_scheduler(_context):
-    pass
+nicehash_1hr_schedule = dagster.ScheduleDefinition(cron_schedule="0 */1 * * *", job=one_hour_job, execution_timezone="US/Eastern", )
 
-@dagster.schedule(cron_schedule="*/5 * * * *", pipeline_name="five_min_pipeline", execution_timezone="US/Eastern")
-def nicehash_5min_scheduler(_context):
-    pass
+nicehash_5min_schedule = dagster.ScheduleDefinition(cron_schedule="*/5 * * * *", job=five_min_job, execution_timezone="US/Eastern", )
 
 # WHATS IS VISIBLE IN REPOSITORY
-
 @dagster.repository
 def nicehash_repository():
-    return [one_hour_pipeline, four_hour_pipeline, five_min_pipeline, long_term_pipeline, nicehash_longterm_scheduler, nicehash_1hr_scheduler,nicehash_4hr_scheduler,nicehash_5min_scheduler]
+    return [one_hour_job, four_hour_job, five_min_job, long_term_job, nicehash_longterm_schedule, nicehash_1hr_schedule, nicehash_4hr_schedule, nicehash_5min_schedule]
