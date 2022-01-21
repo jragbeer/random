@@ -293,10 +293,10 @@ eth_collected_sold_div = Div(text=wrap_in_paragraphs(f"""Total ETH Sold: {coinba
 <br>Bought-Sold Diff: {coinbase_buy_data_eth_sum["Quantity"]-coinbase_sell_data_eth_sum["Quantity"]:.7f} / Bought-Sold Diff Amount: ${coinbase_buy_data_eth_sum["Total"]-coinbase_sell_data_eth_sum["Total"]:.2f}
 <br>Current ETH wallet: ${(coinbase_buy_data_eth_sum["Quantity"]-coinbase_sell_data_eth_sum["Quantity"])*cur_ETHCAD:,.2f} / ETH Profit to date: ${((coinbase_buy_data_eth_sum["Quantity"]-coinbase_sell_data_eth_sum["Quantity"])*cur_ETHCAD)-(coinbase_buy_data_eth_sum["Total"]-coinbase_sell_data_eth_sum["Total"]):,.2f}""", 'forestgreen', ), width=600)
 
-rolling_payout_div = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_data_daily[f'rolling_5'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_5_price'][-1]:,.2f}
-<br>10-day Daily Avg: {payout_data_daily[f'rolling_10'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_10_price'][-1]:,.2f}
-<br>2-week Daily Avg: {payout_data_daily[f'rolling_14'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_14_price'][-1]:,.2f}
-<br>1 Month Daily Avg: {payout_data_daily[f'rolling_28'][-1]:,.7f} BTC / ${payout_data_daily[f'rolling_28_price'][-1]:,.2f}
+rolling_payout_div = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_data_daily[f'rolling_5'][-2]:,.7f} BTC / ${payout_data_daily[f'rolling_5_price'][-2]:,.2f}
+<br>10-day Daily Avg: {payout_data_daily[f'rolling_10'][-2]:,.7f} BTC / ${payout_data_daily[f'rolling_10_price'][-2]:,.2f}
+<br>2-week Daily Avg: {payout_data_daily[f'rolling_14'][-2]:,.7f} BTC / ${payout_data_daily[f'rolling_14_price'][-2]:,.2f}
+<br>1 Month Daily Avg: {payout_data_daily[f'rolling_28'][-2]:,.7f} BTC / ${payout_data_daily[f'rolling_28_price'][-2]:,.2f}
 """, ), width=400)
 
 widgets = column([])
