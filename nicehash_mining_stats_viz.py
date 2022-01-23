@@ -299,8 +299,6 @@ rolling_payout_div = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_da
 <br>1 Month Daily Avg: {payout_data_daily[f'rolling_28'][-2]:,.7f} BTC / ${payout_data_daily[f'rolling_28_price'][-2]:,.2f}
 """, ), width=400)
 
-widgets = column([])
-
 divs1 = row([div7, blank_divs[3], div8, btc_eth_price_div, eth_collected_sold_div])
 divs2 = row([rolling_payout_div, blank_divs[1], div1,blank_divs[4], div2, div5,blank_divs[5], div6,])
 divs0 = row([btc_collected_sold_div,column([divs1, divs2])])
