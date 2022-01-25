@@ -33,6 +33,61 @@ def make_data(fdf, rig_nm=None, resample='H', col = 'speed'):
             idf.at[i.Index, 'speed'] = i.speed/1000
     idf['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in idf.index]
     return idf
+def make_btc_profit_source(payout_data_, cb_buy, cb_sell):
+    other = payout_data_.set_index('timestamp').resample('H').mean().reset_index()
+    other['timestamp'] = other['timestamp'].dt.tz_localize('EST', ambiguous='infer')
+    new_cb_buy_data = cb_buy.set_index('Timestamp').resample('H').sum().reset_index()
+    new_cb_buy_data.columns = [i.lower() for i in new_cb_buy_data.columns]
+    fun = pd.merge(other, new_cb_buy_data[['quantity', 'timestamp', 'total']], on='timestamp', how='left')
+    fun['timestamp'] = pd.to_datetime(fun['timestamp'])
+
+    new_cb_sell_data = cb_sell.set_index('Timestamp').resample('H').sum().reset_index()
+    new_cb_sell_data.columns = [i.lower()+'_s' for i in new_cb_sell_data.columns]
+    new_cb_sell_data.rename(columns={'timestamp_s':'timestamp'}, inplace=True)
+    fun = pd.merge(fun, new_cb_sell_data[['quantity_s', 'timestamp', 'total_s']], on='timestamp', how='left')
+
+    fun['net_amount'] = fun['net_amount'].fillna(0)
+    fun['new_net_amount_cumsum'] = fun['net_amount'].cumsum()
+    fun['quantity'] = fun['quantity'].fillna(0)
+    fun['quantity_cumsum'] = fun['quantity'].cumsum()
+    fun['quantity_s'] = fun['quantity_s'].fillna(0)
+    fun['quantity_s_cumsum'] = fun['quantity_s'].cumsum()
+    fun['total'] = fun['total'].fillna(0)
+    fun['total_cumsum'] = fun['total'].cumsum()
+    fun['total_s'] = fun['total_s'].fillna(0)
+    fun['total_s_cumsum'] = fun['total_s'].cumsum()
+    fun['total_bought_sold_money'] = fun['total_s_cumsum'] - fun['total_cumsum']
+
+    fun['total_bought_sold_btc'] = fun['quantity_cumsum'] - fun['quantity_s_cumsum']
+
+    fun['total_mined_dollars_converted_now'] = fun['new_net_amount_cumsum'] * cur_BTCCAD
+    fun['buy_dollars_cumsum'] = fun['quantity_cumsum'] * cur_BTCCAD
+    fun['sell_dollars_cumsum'] = fun['quantity_s_cumsum'] * cur_BTCCAD
+
+
+    fun['total_btc_now'] = fun['new_net_amount_cumsum'] + fun['total_bought_sold_btc']
+    fun['current_btc_in_money'] = fun['total_btc_now'] * cur_BTCCAD
+
+    fun['final'] = fun['current_btc_in_money'] + fun['total_bought_sold_money']
+    fun = fun.drop(columns=['created', 'gross_amount', 'nh_fee', 'avg_6'])
+    fun['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in fun['timestamp']]
+
+    return ColumnDataSource(fun)
+def update_payout_select(attr, old, new):
+    if new == '4H':
+        source.data = dict(ColumnDataSource(data=get_payout_data_df2()).data)
+    elif new == 'Daily':
+        source.data = dict(ColumnDataSource(data=get_payout_data_df2('Daily')).data)
+    elif new == 'Weekly':
+        source.data = dict(ColumnDataSource(data=get_payout_data_df2('Weekly')).data)
+    elif new == 'Bi-Weekly':
+        source.data = dict(ColumnDataSource(data=get_payout_data_df2('Bi-Weekly')).data)
+    elif new == 'Monthly':
+        source.data = dict(ColumnDataSource(data=get_payout_data_df2('Monthly')).data)
+    elif new == 'Quarterly':
+        source.data = dict(ColumnDataSource(data=get_payout_data_df2('Quarterly')).data)
+    elif new == 'Year':
+        source.data = dict(ColumnDataSource(data=get_payout_data_df2('Year')).data)
 
 # clear the webpage before visualization
 doc = curdoc()
@@ -73,11 +128,8 @@ coinbase_buy_data_eth_sum = coinbase_buy_data_eth.sum()[['Quantity','Subtotal', 
 
 # payout data
 payout_data = get_payout_data_df2()
-
-payout_data['avg_6'] = payout_data['net_amount'].rolling(6).mean()
-payout_data['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in payout_data['timestamp']]
-payout_data['net_amount_cumsum'] = payout_data['net_amount'].cumsum()  # total bitcoin recieved
 payout_data['total_mined_dollars_converted_now'] = payout_data['net_amount_cumsum'] * cur_BTCCAD
+
 
 payout_data_daily = payout_data.set_index("timestamp").resample('D').sum()[['gross_amount', 'net_amount']]
 for x in [5,10, 14, 28]:
@@ -91,7 +143,7 @@ miner_stats_df_hourly['speed_accepted'] = miner_stats_df_hourly['speed_accepted'
 miner_stats_df_hourly['avg_24'] = miner_stats_df_hourly['speed_accepted'].rolling(24).mean()
 miner_stats_df_hourly['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in miner_stats_df_hourly['time_datetime']]
 
-payout_chart = figure(plot_width=1200, plot_height=650,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+payout_chart = figure(plot_width=1200, plot_height=600,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            x_axis_label=None, y_axis_label="BTC", toolbar_location="right", title= 'Payout')
 payout_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.00000")
 payout_chart.y_range.start = 0
@@ -142,53 +194,17 @@ power_circle = power_chart.circle(x="timestamp", y='power_usage', source=source_
 
 power_chart.add_tools(HoverTool(tooltips=[("Datetime", "@tooltip"), ("Power W", "@power_usage{(0.0)}"),], mode='vline', ))
 
-def make_btc_profit_source(payout_data_, cb_buy, cb_sell):
-    other = payout_data_.set_index('timestamp').resample('H').mean().reset_index()
-    other['timestamp'] = other['timestamp'].dt.tz_localize('EST', ambiguous='infer')
-    new_cb_buy_data = cb_buy.set_index('Timestamp').resample('H').sum().reset_index()
-    new_cb_buy_data.columns = [i.lower() for i in new_cb_buy_data.columns]
-    fun = pd.merge(other, new_cb_buy_data[['quantity', 'timestamp', 'total']], on='timestamp', how='left')
-    fun['timestamp'] = pd.to_datetime(fun['timestamp'])
-
-    new_cb_sell_data = cb_sell.set_index('Timestamp').resample('H').sum().reset_index()
-    new_cb_sell_data.columns = [i.lower()+'_s' for i in new_cb_sell_data.columns]
-    new_cb_sell_data.rename(columns={'timestamp_s':'timestamp'}, inplace=True)
-    fun = pd.merge(fun, new_cb_sell_data[['quantity_s', 'timestamp', 'total_s']], on='timestamp', how='left')
-
-    fun['net_amount'] = fun['net_amount'].fillna(0)
-    fun['new_net_amount_cumsum'] = fun['net_amount'].cumsum()
-    fun['quantity'] = fun['quantity'].fillna(0)
-    fun['quantity_cumsum'] = fun['quantity'].cumsum()
-    fun['quantity_s'] = fun['quantity_s'].fillna(0)
-    fun['quantity_s_cumsum'] = fun['quantity_s'].cumsum()
-    fun['total'] = fun['total'].fillna(0)
-    fun['total_cumsum'] = fun['total'].cumsum()
-    fun['total_s'] = fun['total_s'].fillna(0)
-    fun['total_s_cumsum'] = fun['total_s'].cumsum()
-    fun['total_bought_sold_money'] = fun['total_s_cumsum'] - fun['total_cumsum']
-
-    fun['total_bought_sold_btc'] = fun['quantity_cumsum'] - fun['quantity_s_cumsum']
-
-    fun['total_mined_dollars_converted_now'] = fun['new_net_amount_cumsum'] * cur_BTCCAD
-    fun['buy_dollars_cumsum'] = fun['quantity_cumsum'] * cur_BTCCAD
-    fun['sell_dollars_cumsum'] = fun['quantity_s_cumsum'] * cur_BTCCAD
-
-
-    fun['total_btc_now'] = fun['new_net_amount_cumsum'] + fun['total_bought_sold_btc']
-    fun['current_btc_in_money'] = fun['total_btc_now'] * cur_BTCCAD
-
-    fun['final'] = fun['current_btc_in_money'] + fun['total_bought_sold_money']
-    fun = fun.drop(columns=['created', 'gross_amount', 'nh_fee', 'avg_6'])
-    fun['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in fun['timestamp']]
-
-    return ColumnDataSource(fun)
-
 fun_source = make_btc_profit_source(payout_data, coinbase_buy_data, coinbase_sell_data)
 
 total_mined_chart = figure(plot_width=800, plot_height=525,x_axis_type='datetime',
            tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()], x_axis_label=None, y_axis_label="BTC", toolbar_location="right", title= 'BTC Holdings')
 total_mined_chart.yaxis[0].formatter = NumeralTickFormatter(format="0.0000")
 total_mined_chart.y_range.start = 0
+
+# mined per month bars
+monthly_payout = payout_data.copy().set_index('timestamp').resample("1M").sum().reset_index()
+mnth_src = ColumnDataSource(monthly_payout)
+monthly_bars = total_mined_chart.vbar(x="timestamp", top='net_amount', bottom=0, source=mnth_src, line_width=4,  alpha = 0.7, color = 'forestgreen', legend_label='Mined by Month')
 
 net_cumsum_line3 = total_mined_chart.line(x="timestamp", y='total_btc_now', source=fun_source, line_width=4,  alpha = 0.7, color = 'black', legend_label='Total BTC Now')
 net_cumsum_circle3 = total_mined_chart.circle(x="timestamp", y='total_btc_now', source=fun_source, size = 3, color = 'black', legend_label='Total BTC Now')
@@ -299,10 +315,14 @@ rolling_payout_div = Div(text=wrap_in_paragraphs(f"""5-day Daily Avg: {payout_da
 <br>1 Month Daily Avg: {payout_data_daily[f'rolling_28'][-2]:,.7f} BTC / ${payout_data_daily[f'rolling_28_price'][-2]:,.2f}
 """, ), width=400)
 
+
+payout_select = Select(title='Payout Frequency', value='4H', options=['4H', 'Daily', "Weekly", "Bi-Weekly", 'Monthly', "Quarterly", "Yearly"])
+payout_select.on_change('value', update_payout_select)
+
 divs1 = row([div7, blank_divs[3], div8, btc_eth_price_div, eth_collected_sold_div])
 divs2 = row([rolling_payout_div, blank_divs[1], div1,blank_divs[4], div2, div5,blank_divs[5], div6,])
 divs0 = row([btc_collected_sold_div,column([divs1, divs2])])
-charts = row([payout_chart, column([miner_stats_chart, power_chart])])
+charts = row([column([payout_select, payout_chart]), column([miner_stats_chart, power_chart])])
 tab1 = Panel(child = column([divs0, charts]), title='BTC Report')
 
 # PAGE 2
