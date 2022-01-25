@@ -529,11 +529,29 @@ def get_payout_data_df(sql_table_info):
     idf = idf.drop_duplicates(subset=['id', 'created'])
     return idf
 
-def get_payout_data_df2():
+def get_payout_data_df2(freq='4H'):
     idf = pd.read_sql(f"select * from payout_data", new_sql_engine)
     idf.drop_duplicates(subset=['id', 'created'], inplace=True)
     idf['timestamp'] = pd.to_datetime(idf['timestamp'])
-    idf= idf.reset_index(drop=True).sort_values('timestamp')
+    if freq=='4H':
+        pass
+    elif freq=='Daily':
+        idf = idf.set_index('timestamp').resample('D').sum().reset_index()
+    elif freq=='Weekly':
+        idf = idf.set_index('timestamp').resample('W').sum().reset_index()
+    elif freq=='Bi-Weekly':
+        idf = idf.set_index('timestamp').resample('2W').sum().reset_index()
+    elif freq=='Monthly':
+        idf = idf.set_index('timestamp').resample('M').sum().reset_index()
+    elif freq=='Quarterly':
+        idf = idf.set_index('timestamp').resample('Q').sum().reset_index()
+    elif freq=='Yearly':
+        idf = idf.set_index('timestamp').resample('Y').sum().reset_index()
+    idf = idf.reset_index(drop=True).sort_values('timestamp')
+    idf['avg_6'] = idf['net_amount'].rolling(6).mean()
+    idf['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in idf['timestamp']]
+    idf['net_amount_cumsum'] = idf['net_amount'].cumsum()  # total bitcoin recieved
+
     return idf
 
 def create_new_db_with_table_name_changes(eng1, eng2):
