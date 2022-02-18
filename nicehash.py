@@ -672,32 +672,38 @@ def build_basic_rig_stats_df():
     big = []
     for document in list(rig_status_collection.find({})):
         huh = []
-        for kk in document['miningRigs']:
-            cool = {'name':kk['name'], 'devices':{}}
-            cool['devices']['device_name'] = [t['name'] for t in kk['devices'] if t['status']['description'] != 'Disabled']
-            cool['devices']['power_usage'] = [t['powerUsage'] for t in kk['devices'] if t['powerUsage'] >= 0]
-            cool['devices']['speed'] = []
-            for t in kk['devices']:
+        try:
+            for kk in document['miningRigs']:
+                cool = {'name':kk['name'], 'devices':{}}
+                cool['devices']['device_name'] = [t['name'] for t in kk['devices'] if t['status']['description'] != 'Disabled']
+                cool['devices']['power_usage'] = [t['powerUsage'] for t in kk['devices'] if t['powerUsage'] >= 0]
+                cool['devices']['speed'] = []
+                for t in kk['devices']:
+                    try:
+                        cool['devices']['speed'].append(t['speeds'][0]['speed'])
+                    except:
+                        pass
+                if len(cool['devices']['device_name']) > len(cool['devices']['power_usage']):
+                    cool['devices']['device_name'] = cool['devices']['device_name'][1:]
+
+                if len(cool['devices']['speed']) < len(cool['devices']['device_name']) and len(cool['devices']['device_name']) > 0:
+                    cool['devices']['speed'] = cool['devices']['speed']+[0 for _ in range(len(cool['devices']['device_name'])-len(cool['devices']['speed']))]
+
+                if len(cool['devices']['power_usage']) < len(cool['devices']['device_name']) and len(cool['devices']['device_name']) > 0:
+                    cool['devices']['power_usage'] = cool['devices']['power_usage']+[0 for _ in range(len(cool['devices']['device_name'])-len(cool['devices']['power_usage']))]
                 try:
-                    cool['devices']['speed'].append(t['speeds'][0]['speed'])
+                    ttt = pd.DataFrame(cool['devices'])
+                    ttt['rig_name'] = cool['name']
+                    huh.append(ttt)
                 except:
-                    pass
-            if len(cool['devices']['device_name']) > len(cool['devices']['power_usage']):
-                cool['devices']['device_name'] = cool['devices']['device_name'][1:]
-
-            if len(cool['devices']['speed']) < len(cool['devices']['device_name']) and len(cool['devices']['device_name']) > 0:
-                cool['devices']['speed'] = cool['devices']['speed']+[0 for _ in range(len(cool['devices']['device_name'])-len(cool['devices']['speed']))]
-
-            if len(cool['devices']['power_usage']) < len(cool['devices']['device_name']) and len(cool['devices']['device_name']) > 0:
-                cool['devices']['power_usage'] = cool['devices']['power_usage']+[0 for _ in range(len(cool['devices']['device_name'])-len(cool['devices']['power_usage']))]
-            try:
-                ttt = pd.DataFrame(cool['devices'])
-                ttt['rig_name'] = cool['name']
-                huh.append(ttt)
-            except:
-                print(error_handling())
-                pprint(cool)
-                time_sleep(3)
+                    print(error_handling())
+                    pprint(cool)
+                    time_sleep(3)
+        except:
+            print()
+            print(error_handling())
+            pprint(document)
+            continue
         ww = pd.concat(huh).reset_index(drop=True)
         ww['device_id'] = (ww['rig_name'] + '_' + ww['device_name'].str.replace(' ', '_')).str.lower()
         for xx in ww.columns:

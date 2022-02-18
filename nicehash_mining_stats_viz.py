@@ -185,7 +185,7 @@ miner_stats_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("Hashrate"
 
 power_data = make_data(df, None, 'H', 'power_usage')
 source_power = ColumnDataSource(power_data)
-power_chart = figure(x_range=miner_stats_chart.x_range, plot_width=600, plot_height=325,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
+power_chart = figure(x_range=miner_stats_chart.x_range, plot_width=650, plot_height=325,x_axis_type='datetime', tools=[BoxSelectTool(), BoxZoomTool(), ResetTool(), WheelZoomTool(), SaveTool(), PanTool()],
            x_axis_label=None, y_axis_label="W", toolbar_location="right", title= 'Total Power used by GPUs')
 power_chart.y_range.start = 0
 
@@ -291,7 +291,8 @@ div8 = Div(text=wrap_in_paragraphs(f'Current BTC * Current Price:<br><font size=
 btc_collected_sold_div = Div(text=wrap_in_paragraphs(f"""Total BTC Collected: {payout_data["net_amount_cumsum"].iloc[max(payout_data.index)]:,.7f} / Collected BTC*CAD Price: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]:,.2f}
 <br>Cost of Parts: {mining_costs[mining_costs["Item_type"] != "Electricity"]["Cost"].sum():,.0f} /
 Electricity: ${mining_costs[mining_costs["Item_type"] == "Electricity"]["Cost"].sum():,.0f} / Total : ${mining_costs["Cost"].sum():,.0f}
-<br>ROI: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]-mining_costs["Cost"].sum():,.2f} ({100*payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]/mining_costs["Cost"].sum():.0f}%)
+<br>Hold Mining 
+ROI: ${payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]-mining_costs["Cost"].sum():,.2f} ({100*payout_data["total_mined_dollars_converted_now"].iloc[max(payout_data.index)]/mining_costs["Cost"].sum():.0f}%)
 <br><font color=black>
 <br>Total BTC Sold: {coinbase_sell_data_sum["Quantity"]:.7f} / Total Sold Amount: ${coinbase_sell_data_sum["Total"]:,.2f} 
 <br>(avg: {coinbase_sell_data_sum["Total"]/coinbase_sell_data_sum["Quantity"]:,.2f})
