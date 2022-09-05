@@ -140,7 +140,7 @@ class nh_private_api:
 
         s = requests.Session()
         s.headers = headers
-
+        print(headers)
         url = self.host + path
         if query:
             url += '?' + query
@@ -312,6 +312,7 @@ class nh_private_api:
         #1616987181
         #255135600000000
         query = f"beforeTimestamp=255135600000000&size={size}&page={page}"
+        query = f"size={size}&page={page}"
         return self.request('GET', f"/main/api/v2/mining/rigs/payouts",query, None)
 
     def miner_stats(self, algo=20, prev=True):
@@ -357,8 +358,8 @@ def sendemail_(TEXT, HTML):
         context = ssl._create_unverified_context()
 
         my_email = 'jragbeer@ryerson.ca'
-        senders_email = 'julienwork789@gmail.com'  # senders email
-        senders_pswd = '12fork34'  # senders password
+        senders_email = 'julienwork369@gmail.com'  # senders email
+        senders_pswd = 'cmyoikyctdywpuhf'  # senders password
 
         # current date, and a date 5 days away
         curtime = datetime.datetime.now().date()
@@ -531,7 +532,7 @@ def get_payout_data_df(sql_table_info):
 
 def get_payout_data_df2(freq='4H'):
     idf = pd.read_sql(f"select * from payout_data", new_sql_engine)
-    idf.drop_duplicates(subset=['id', 'created'], inplace=True)
+    idf.drop_duplicates(subset=['id', 'timestamp'], inplace=True)
     idf['timestamp'] = pd.to_datetime(idf['timestamp'])
     if freq=='4H':
         pass
@@ -626,12 +627,16 @@ def get_data_4hr():
     new_engine = sqlite3.connect(data_path + "nicehash_data_new.db")
 
     payout_data = get_payout_data()
-    payout_data.to_sql(f"payout_data__{cur_time.strftime('%Y_%m_%d_%H_%M')}", engine, if_exists='replace', index=False)
+    try:
+        payout_data.to_sql(f"payout_data__{cur_time.strftime('%Y_%m_%d_%H_%M')}", engine, if_exists='replace', index=False)
+    except Exception:
+        sendemail_("database is locked for get_data_4hr", "<p><font color = 'firebrick'>database is locked for get_data_4hr</font></p>")
     payout_data['query_time'] = cur_time
     payout_data[[i for i in payout_data.columns if i != "net_amount_cumsum"]].to_sql(f"payout_data", new_engine, if_exists='append', index=False)
 
     logging.info(f"Payout Data table added {cur_time}")
     remove_duplicates_from_table(table_name="miner_stats_data", )
+    # remove_duplicates_from_table(table_name="payout_data", )
     logging.info(f"4-hr Data Pull done!")
 def get_data_1hr():
     cur_time = datetime.datetime.now()
@@ -663,8 +668,14 @@ def clean_coinbase_data():
     most_recent_csv_file_name = [i for i in all_csv_files if most_recent_time in i][0]
     df = pd.read_csv(coinbase_path + most_recent_csv_file_name, skiprows = 7, )
     df['Timestamp'] = pd.to_datetime(df['Timestamp'])
-    df.rename(columns = {'CAD Subtotal':"Subtotal", "CAD Total (inclusive of fees)": "Total", "CAD Fees":"Fees", 'Quantity Transacted': "Quantity",
-                         "Transaction Type":"Transaction", "CAD Spot Price at Transaction":"Price", "Total (inclusive of fees)": "Total",}, inplace=True)
+    df.rename(columns = {'CAD Subtotal':"Subtotal",
+                         "CAD Total (inclusive of fees)": "Total",
+                         "Total (inclusive of fees and/or spread)":"Total",
+                         "CAD Fees":"Fees",
+                         "Fees and/or Spread": "Fees",
+                         'Quantity Transacted': "Quantity",
+                         "Transaction Type":"Transaction",
+                         "CAD Spot Price at Transaction":"Price", "Total (inclusive of fees)": "Total",}, inplace=True)
     return df
 
 def build_basic_rig_stats_df():
