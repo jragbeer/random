@@ -7,7 +7,7 @@ import itertools
 from tqdm import tqdm
 import logging
 import pickle
-import scipy
+import gc
 
 
 # pandas settings for setingwarning
@@ -45,7 +45,8 @@ def create_game_template():
     game_output_df_template['ball_in_frame'].iloc[max(game_output_df_template.index)] = 3
     game_output_df_template['frame'] = game_output_df_template['frame'].astype(int)
     return game_output_df_template.drop(columns=['a'])
-def create_game(game_output_df_template):
+def simulate_game(game_template_df):
+    game_output_df_template = game_template_df.copy()
     # a list of the pins hit, each item in the list will be a Ball in a Frame
     ph = []
     for i in game_output_df_template.itertuples():
@@ -80,7 +81,7 @@ def create_game(game_output_df_template):
 
     game_output_df_template["pins_hit"] = ph
     game_output_df_template['ball_score'] = [len(i) for i in game_output_df_template['pins_hit']]
-    return game_output_df_template
+    return game_output_df_template.copy()
 def find_marks(game_df):
     special_score = []
     for frame in sorted(game_df['frame'].unique()):
@@ -130,7 +131,7 @@ def find_marks(game_df):
                 special_score.append('')
 
     game_df['special'] = special_score
-    return game_df
+    return game_df.copy()
 def get_scores(game_df):
     game_df['added_score1'] = 0
     game_df['added_score2'] = 0
@@ -159,15 +160,15 @@ def get_scores(game_df):
     # calculate the ball by ball score and the total score
     game_df['total_ball_score'] = game_df['ball_score'] + game_df['added_score1'] + game_df['added_score2']
     game_df['running_score'] = game_df['total_ball_score'].cumsum()
-    return game_df
+    return game_df.copy()
 
 # high-level functions to run
-def first_attempt():
-    first_game_ = get_scores(find_marks(create_game(game_template))).copy()
+def first_attempt(game_template):
+    first_game_ = get_scores(find_marks(simulate_game(game_template.copy()))).copy()
     games = {1: first_game_}
 
     for game_no in tqdm(range(2, num_games_to_simulate + 1)):
-        each_game = get_scores(find_marks(create_game(game_template))).copy()
+        each_game = get_scores(find_marks(simulate_game(game_template))).copy()
         for k in list(games.keys()):
             if not each_game['pins_hit'].equals(games[k]['pins_hit']):
                 games[game_no] = each_game
@@ -181,14 +182,14 @@ def first_attempt():
     logging.info(f"Compare Column: {compare_column}")
     logging.info("Best game: ")
     logging.info(f"\n{games[best_game]}")
-def second_attempt():
-    first_game = get_scores(find_marks(create_game(game_template))).copy()
+def second_attempt(game_template):
+    first_game = get_scores(find_marks(simulate_game(game_template.copy()))).copy()
     games_database = {1: first_game}
     games_by_score = {first_game['running_score'].max(): [1]}
 
     for game_no in tqdm(range(2, num_games_to_simulate + 1)):
         # run a simulation and find it's final score
-        each_game = get_scores(find_marks(create_game(game_template))).copy()
+        each_game = get_scores(find_marks(simulate_game(game_template))).copy()
         score = each_game['running_score'].max()
         # if the score is in the score dictionary
         if score in games_by_score.keys():
@@ -224,7 +225,7 @@ def second_attempt():
     logging.info(f"Compare Column: {compare_column}")
     logging.info("Best game: ")
     logging.info(f"\n{games_database[best_game]}")
-def final_attempt(game_template=None):
+def final_attempt():
     pairs = []
     first_ball_choices = list(range(11))
     for f in first_ball_choices:
@@ -233,11 +234,47 @@ def final_attempt(game_template=None):
                 pairs.append((f,z))
     pprint(sorted(pairs))
     print(len(pairs))
-    zzz = scipy.special.perm(len(pairs), 12)
-    print(zzz)
-    end = itertools.permutations(pairs, 12)
+    possible_gms = []
+    spares = []
+    strikes = []
+    number_of_frames = 5
+    for qq in range(1, number_of_frames):
+        end = itertools.product(pairs, repeat = qq)
+        solution = [x for x in end]
+        print(qq)
+        print(solution[0], solution[-2], solution[-1])
+        print(len(solution))
 
-    print([x for x in end])
+        fine = sorted(solution)
+        pprint(fine[:10])
+        pprint(fine[-10:])
+        possible_gms.append(len(solution))
+
+        # counting how many spares/strikes in last ball of each frame
+        stk = []
+        spr = []
+        for x in fine:
+            if sum(x[-1]) == 10:
+                spr.append(x)
+                if x[-1][0] == 10:
+                    stk.append(x)
+        spares.append(len(spr))
+        strikes.append(len(stk))
+        print("________________________")
+        gc.collect()
+    ddf = pd.DataFrame({'possible_gms': possible_gms, "possible_last_frame_spares": spares, "possible_last_frame_strikes": strikes}, index = range(1,number_of_frames))
+
+    ddf['spares_per_strike'] = ddf['possible_last_frame_spares'] / ddf['possible_last_frame_strikes']
+    ddf['shifted'] = ddf['possible_gms'].shift()
+    ddf['first_div'] = ddf['possible_gms'] / ddf['shifted']
+    ddf['first_diff'] = ddf['possible_gms']-ddf['shifted']
+    ddf['shifted2'] = ddf['first_diff'].shift()
+    ddf['second_diff'] = ddf['first_diff'] - ddf['shifted2']
+
+    ddf['extra_games_due_to_mark_at_end'] = (11*ddf['possible_last_frame_spares'])
+    ddf['total_games_as_last_frame'] = ddf['possible_gms'] - ddf['possible_last_frame_spares'] + ddf['extra_games_due_to_mark_at_end']
+    print(ddf)
+
 
 # post-simulation stats funcs
 def find_best_game(games):
@@ -257,16 +294,16 @@ def find_best_game(games):
 
 # each pin for easier analysis, and it's # of points as the value
 balls = {"PIN"+str(x): 1 for x in range(1,11)}
-game_template = create_game_template()
+base_game_template = create_game_template()
 
 # parameters for the simulation
 num_games_to_simulate = 1000
 compare_column = 'ball_score'
 # compare_column = "pins_hit"
 
-# first_attempt()
-second_attempt()
-# final_attempt()
+# first_attempt(base_game_template)
+# second_attempt(base_game_template)
+final_attempt()
 
 end_time = datetime.datetime.now()
 logging.info(end_time-today)
