@@ -34,8 +34,13 @@ logging.info(today)
 app_version_number = "0.1"
 logging.info(f"Version:  {app_version_number}")
 
+# parameters for the simulation
+num_games_to_simulate = 50_000
+compare_column = 'ball_score'
+# compare_column = "pins_hit"
+
 # simulate game funcs
-def create_game_template():
+def create_game_template() -> pd.DataFrame:
     # setting up the game totals dataframe
     game_output_df_template = pd.DataFrame({'a':range(1, 21+1)}) # max number of balls that can be thrown in 1 game
     game_output_df_template['frame'] = (game_output_df_template['a']%2 + game_output_df_template['a'])/2
@@ -45,7 +50,7 @@ def create_game_template():
     game_output_df_template['ball_in_frame'].iloc[max(game_output_df_template.index)] = 3
     game_output_df_template['frame'] = game_output_df_template['frame'].astype(int)
     return game_output_df_template.drop(columns=['a'])
-def simulate_game(game_template_df):
+def simulate_game(game_template_df: pd.DataFrame) -> pd.DataFrame:
     game_output_df_template = game_template_df.copy()
     # a list of the pins hit, each item in the list will be a Ball in a Frame
     ph = []
@@ -82,7 +87,7 @@ def simulate_game(game_template_df):
     game_output_df_template["pins_hit"] = ph
     game_output_df_template['ball_score'] = [len(i) for i in game_output_df_template['pins_hit']]
     return game_output_df_template.copy()
-def find_marks(game_df):
+def find_marks(game_df: pd.DataFrame) -> pd.DataFrame:
     special_score = []
     for frame in sorted(game_df['frame'].unique()):
         tmp = game_df[game_df['frame'] == frame].copy()
@@ -132,7 +137,7 @@ def find_marks(game_df):
 
     game_df['special'] = special_score
     return game_df.copy()
-def get_scores(game_df):
+def get_scores(game_df: pd.DataFrame) -> pd.DataFrame:
     game_df['added_score1'] = 0
     game_df['added_score2'] = 0
     for i in game_df.itertuples():
@@ -163,17 +168,31 @@ def get_scores(game_df):
     return game_df.copy()
 
 # high-level functions to run
-def first_attempt(game_template):
+def first_attempt(game_template: pd.DataFrame, compare_column:str = compare_column, num_games_to_simulate:int = num_games_to_simulate) -> None:
+    """
+    This function simulates a bowling game and then compares it to the database (a dictionary) of already simulated
+    games to ensure that the game is unique. The comparison involves checking each game in the database one-by-one
+    against the most-recently simulated game. This way of checking means that the time it takes to check if a game is
+    unique increases over time and is unfeasable for larger numbers. Some stats are logged at the end of the function.
+
+    :param game_template: the starting template for a bowling game as a dataframe
+    :param compare_column: the column to compare to check whether the games/dataframes are the same
+    :param num_games_to_simulate: the number of bowling games to simulate
+    :return: None
+    """
     first_game_ = get_scores(find_marks(simulate_game(game_template.copy()))).copy()
     games = {1: first_game_}
 
     for game_no in tqdm(range(2, num_games_to_simulate + 1)):
+        # run a simulation and find it's final score
         each_game = get_scores(find_marks(simulate_game(game_template))).copy()
         for k in list(games.keys()):
-            if not each_game['pins_hit'].equals(games[k]['pins_hit']):
+            # if the game is unique (by comparing game against every other game already simulated), add it to the game
+            # dictionay
+            if not each_game[compare_column].equals(games[k][compare_column]):
                 games[game_no] = each_game
-
-    best_game, number_strikes, c = find_best_game(games)
+    # quickly find the best game, and how many games had a strike in them
+    best_game, number_strikes, random_game_with_a_strike = find_best_game(games)
 
     # log the info to a log file
     logging.info(f"Number of games simulated: {num_games_to_simulate}")
@@ -182,7 +201,20 @@ def first_attempt(game_template):
     logging.info(f"Compare Column: {compare_column}")
     logging.info("Best game: ")
     logging.info(f"\n{games[best_game]}")
-def second_attempt(game_template):
+def second_attempt(game_template: pd.DataFrame, compare_column:str = compare_column, num_games_to_simulate:int = num_games_to_simulate) -> None:
+    """
+    This function simulates a bowling game and then compares it to the database (a dictionary) of already simulated
+    games to ensure that the game is unique. The comparison involves using another dictionary **games_by_score**
+    sort the already-simulated games by their score. **games_by_score** (keys is scores, values are a list of games with
+    that score) is consulted and all games in the values list of that dictionary are checked against the most-recently
+    simulated game for uniqueness. This results in the comparison process being much faster. Some stats are logged at
+    the end of the function.
+
+    :param game_template: the starting template for a bowling game as a dataframe
+    :param compare_column: the column to compare to check whether the games/dataframes are the same
+    :param num_games_to_simulate: the number of bowling games to simulate
+    :return: None
+    """
     first_game = get_scores(find_marks(simulate_game(game_template.copy()))).copy()
     games_database = {1: first_game}
     games_by_score = {first_game['running_score'].max(): [1]}
@@ -225,44 +257,54 @@ def second_attempt(game_template):
     logging.info(f"Compare Column: {compare_column}")
     logging.info("Best game: ")
     logging.info(f"\n{games_database[best_game]}")
-def final_attempt():
+def final_attempt() -> None:
     pairs = []
+    # all possible scores from a single throw of a ball
     first_ball_choices = list(range(11))
-    for f in first_ball_choices:
-        for z in first_ball_choices:
-            if z + f <= 10:
-                pairs.append((f,z))
+    for first_ball in first_ball_choices:
+        for second_ball in first_ball_choices:
+            # max score in a frame is 10
+            if second_ball + first_ball <= 10:
+                # add each possible frame to the list of all possible frame scores
+                pairs.append((first_ball,second_ball))
     pprint(sorted(pairs))
     print(len(pairs))
     possible_gms = []
     spares = []
     strikes = []
+    # number_of_frames is how deep the tree is
     number_of_frames = 5
-    for qq in range(1, number_of_frames):
-        end = itertools.product(pairs, repeat = qq)
+    for each_frame in range(1, number_of_frames):
+        end = itertools.product(pairs, repeat = each_frame)
         solution = [x for x in end]
-        print(qq)
+        print(each_frame)
         print(solution[0], solution[-2], solution[-1])
         print(len(solution))
 
-        fine = sorted(solution)
-        pprint(fine[:10])
-        pprint(fine[-10:])
+        gms = sorted(solution)
+        pprint(gms[:10])
+        pprint(gms[-10:])
         possible_gms.append(len(solution))
 
         # counting how many spares/strikes in last ball of each frame
         stk = []
         spr = []
-        for x in fine:
+        for x in gms:
+            # if at least a spare in the last frame
             if sum(x[-1]) == 10:
                 spr.append(x)
+                # if there's a strike in the last frame
                 if x[-1][0] == 10:
                     stk.append(x)
         spares.append(len(spr))
         strikes.append(len(stk))
-        print("________________________")
         gc.collect()
-    ddf = pd.DataFrame({'possible_gms': possible_gms, "possible_last_frame_spares": spares, "possible_last_frame_strikes": strikes}, index = range(1,number_of_frames))
+        print("________________________")
+    # create a dataframe to see the stats
+    ddf = pd.DataFrame({'possible_gms': possible_gms,
+                        "possible_last_frame_spares": spares,
+                        "possible_last_frame_strikes": strikes},
+                       index = range(1,number_of_frames))
 
     ddf['spares_per_strike'] = ddf['possible_last_frame_spares'] / ddf['possible_last_frame_strikes']
     ddf['shifted'] = ddf['possible_gms'].shift()
@@ -277,7 +319,7 @@ def final_attempt():
 
 
 # post-simulation stats funcs
-def find_best_game(games):
+def find_best_game(games: dict) -> tuple[int, int, int]:
     best_score = 0
     index_of_best_game = 0
     number_of_games_with_strike = 0
@@ -296,16 +338,10 @@ def find_best_game(games):
 balls = {"PIN"+str(x): 1 for x in range(1,11)}
 base_game_template = create_game_template()
 
-# parameters for the simulation
-num_games_to_simulate = 1000
-compare_column = 'ball_score'
-# compare_column = "pins_hit"
-
-# first_attempt(base_game_template)
+first_attempt(base_game_template)
 # second_attempt(base_game_template)
-final_attempt()
+# final_attempt()
 
 end_time = datetime.datetime.now()
 logging.info(end_time-today)
 logging.info('*******')
-pass
