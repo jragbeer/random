@@ -257,7 +257,7 @@ def second_attempt(game_template: pd.DataFrame, compare_column:str = compare_col
     logging.info(f"Compare Column: {compare_column}")
     logging.info("Best game: ")
     logging.info(f"\n{games_database[best_game]}")
-def final_attempt() -> None:
+def third_attempt() -> None:
     pairs = []
     # all possible scores from a single throw of a ball
     first_ball_choices = list(range(11))
@@ -302,8 +302,8 @@ def final_attempt() -> None:
         print("________________________")
     # create a dataframe to see the stats
     ddf = pd.DataFrame({'possible_gms': possible_gms,
-                        "possible_last_frame_spares": spares,
-                        "possible_last_frame_strikes": strikes},
+                        "possible_last_frame_strikes": strikes,
+                        "possible_last_frame_spares": spares, },
                        index = range(1,number_of_frames))
 
     ddf['spares_per_strike'] = ddf['possible_last_frame_spares'] / ddf['possible_last_frame_strikes']
@@ -316,7 +316,17 @@ def final_attempt() -> None:
     ddf['extra_games_due_to_mark_at_end'] = (11*ddf['possible_last_frame_spares'])
     ddf['total_games_as_last_frame'] = ddf['possible_gms'] - ddf['possible_last_frame_spares'] + ddf['extra_games_due_to_mark_at_end']
     print(ddf)
-
+def fourth_attempt():
+    kdf = pd.DataFrame({'possible_gms': [66**n for n in range(1, 11)]}, index = range(1,11))
+    kdf['possible_last_frame_strikes'] = kdf['possible_gms'].shift()
+    kdf["possible_last_frame_strikes"].iloc[0] = 1
+    kdf["possible_last_frame_spares"] = kdf['possible_last_frame_strikes'] * 11
+    kdf['extra_games_due_to_mark_at_end'] = kdf["possible_last_frame_spares"] * 11
+    kdf['total_games_as_last_frame'] = kdf['possible_gms'] - kdf['possible_last_frame_spares'] + kdf['extra_games_due_to_mark_at_end']
+    for x in kdf.columns:
+        kdf[x] = pd.to_numeric(kdf[x], downcast="integer")
+    # 4.18 quintillion games possible
+    print(kdf)
 
 # post-simulation stats funcs
 def find_best_game(games: dict) -> tuple[int, int, int]:
@@ -338,9 +348,10 @@ def find_best_game(games: dict) -> tuple[int, int, int]:
 balls = {"PIN"+str(x): 1 for x in range(1,11)}
 base_game_template = create_game_template()
 
-first_attempt(base_game_template)
+# first_attempt(base_game_template)
 # second_attempt(base_game_template)
-# final_attempt()
+# third_attempt()
+fourth_attempt()
 
 end_time = datetime.datetime.now()
 logging.info(end_time-today)
