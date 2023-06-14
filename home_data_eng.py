@@ -881,6 +881,8 @@ def pc_usage():
                         'cpu_cores': psutil.cpu_count(),
                         'cpu_freq': psutil.cpu_freq().current,
                         'pc_network_address': get_ip_address(),
+                        "pc_os": platform.system(),
+                        "pc_cpu": platform.processor(),
                  'python_memory_usage_GB': np.round(python_memory_usage_kB/1024**3,2),
                         'sql_memory_usage_GB': np.round(sql_memory_usage_kB / 1024 ** 3,),
              "query_time": str(datetime.datetime.now())})
