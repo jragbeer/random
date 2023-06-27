@@ -552,7 +552,6 @@ def get_payout_data_df2(freq='4H'):
     idf['avg_6'] = idf['net_amount'].rolling(6).mean()
     idf['tooltip'] = [t.strftime("%Y-%m-%d-%H") for t in idf['timestamp']]
     idf['net_amount_cumsum'] = idf['net_amount'].cumsum()  # total bitcoin recieved
-
     return idf
 
 def create_new_db_with_table_name_changes(eng1, eng2):
@@ -661,22 +660,7 @@ def get_public_data_long_term():
 
     logging.info(f"Public Data Long Term Pull done!")
 
-def clean_coinbase_data():
-    coinbase_path = data_path + '/coinbase/'
-    all_csv_files = [i for i in os.listdir(coinbase_path) if '.csv' in i]
-    most_recent_time = sorted([i.split('Report')[-1][1:].split('.')[0] for i in all_csv_files])[-1]
-    most_recent_csv_file_name = [i for i in all_csv_files if most_recent_time in i][0]
-    df = pd.read_csv(coinbase_path + most_recent_csv_file_name, skiprows = 7, )
-    df['Timestamp'] = pd.to_datetime(df['Timestamp'])
-    df.rename(columns = {'CAD Subtotal':"Subtotal",
-                         "CAD Total (inclusive of fees)": "Total",
-                         "Total (inclusive of fees and/or spread)":"Total",
-                         "CAD Fees":"Fees",
-                         "Fees and/or Spread": "Fees",
-                         'Quantity Transacted': "Quantity",
-                         "Transaction Type":"Transaction",
-                         "CAD Spot Price at Transaction":"Price", "Total (inclusive of fees)": "Total",}, inplace=True)
-    return df
+
 
 def build_basic_rig_stats_df():
     rig_status_collection = mongodb['rig_status']

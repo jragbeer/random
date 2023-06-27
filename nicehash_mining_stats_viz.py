@@ -251,6 +251,15 @@ rev_circle2 = total_rev_chart.circle(x="timestamp", y='sell_dollars_cumsum', sou
 rev_circle2.visible = False
 rev_line2.visible = False
 
+mining_costs['Date_purchased'] = pd.to_datetime(mining_costs['Date_purchased'])
+mining_costs = mining_costs.sort_values('Date_purchased')
+mining_costs['cumsum'] = mining_costs['Cost'].cumsum()
+# print(mining_costs)
+new_source = ColumnDataSource(mining_costs)
+ax = total_rev_chart.line(x="Date_purchased", y='cumsum', source=new_source, line_width=4,  alpha = 0.7, color = 'green', legend_label='Break-Even')
+axx = total_rev_chart.circle(x="Date_purchased", y='cumsum', source=new_source, size = 3, color = 'green', legend_label='Break-Even')
+
+
 total_rev_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("$", "@total_mined_dollars_converted_now{(0,0.00)}"),], mode='vline', renderers=[rev_line3]))
 total_rev_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("$", "@sell_dollars_cumsum{(0,0.00)}"),], mode='vline', renderers=[rev_line2]))
 total_rev_chart.add_tools(HoverTool(tooltips=[("Date", "@tooltip"),("$", "@buy_dollars_cumsum{(0,0.00)}"),], mode='vline', renderers=[rev_line1]))
