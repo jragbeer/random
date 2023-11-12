@@ -24,21 +24,19 @@ out_file = data_path + "output.parquet"
 
 fdf = pd.read_excel(in_file, dtype_backend='pyarrow')
 fdf['location_hq'] = fdf['HQ Location'].str.upper()
-wow = []
+location_hq = []
 for y in fdf['location_hq']:
     y = str(y)
     if 'CANADA' not in y:
-
         if 'UNITED KINGDOM' not in y:
             new_y = y + ', USA'
         else:
             new_y = y
-
     else:
         new_y = y
-    wow.append(new_y)
-fdf['location_hq'] = wow
-fdf['location_country']  = fdf['location_hq'].str.split(',').str[-1]
+    location_hq.append(new_y)
+fdf['location_hq'] = location_hq
+fdf['location_country']  = fdf['location_hq'].str.split(',').str[-1].str.strip()
 
 fdf = fdf.rename(columns = {'Companies':'company',
                             'Total Raised (in M) (in CAD)':"total_raised_cad",
@@ -81,15 +79,17 @@ for y in companies_to_be_reided:
     wow = fdf[fdf['company_id'] == y].index[0]
     fdf.at[wow, 'company_id'] = fdf[fdf['company_id'] == y]['company_id'].iloc[1] + "*"
 
-print(fdf.sort_values(["last_financing_deal_type", "total_raised_cad"]).to_string())
+print(fdf.sort_values(['employee_count']).to_string())
 
 # QUESTION 1
 # Which sector has seen the most financing growth over time?
-question_1 = fdf.groupby(['year','primary_industry_sector',]).agg({
+question_1 = fdf.drop_duplicates(subset=['company', 'total_raised_cad'])
+question_1 = question_1.groupby(['year','primary_industry_sector',]).agg({
     "company_id":"count",
     "total_raised_cad":"sum",
 }).reset_index().sort_values(['primary_industry_sector', 'year'])
-question_1['raised_per_company_cad'] = question_1['total_raised_cad']/question_1['company_id']
+question_1 = question_1.rename(columns = {"company_id":"number_of_companies"})
+question_1['raised_per_company_cad'] = question_1['total_raised_cad']/question_1['number_of_companies']
 # switch to polars because syntax for window functions is easier and faster and then back to pandas
 question_1 = (
   pl.from_pandas(question_1).with_columns([
@@ -98,10 +98,32 @@ question_1 = (
     ])
 ).to_pandas()
 question_1['year'] = question_1['year'].astype(int)
+question_1['total_raised_cad_total_pct_change'] = question_1.groupby('primary_industry_sector')['total_raised_cad'].apply(lambda x: x.div(x.iloc[0]).subtract(1).mul(100)).values
+question_1['raised_per_company_cad_total_pct_change'] = question_1.groupby('primary_industry_sector')['raised_per_company_cad'].apply(lambda x: x.div(x.iloc[0]).subtract(1).mul(100)).values
 print(question_1.to_string())
-question_1['total_raised_cad_total_pct_change'] = question_1.groupby('primary_industry_sector')['total_raised_cad'].apply(lambda x: x.div(x.iloc[0]).subtract(1).mul(100))
-question_1['raised_per_company_cad_total_pct_change'] = question_1.groupby('primary_industry_sector')['raised_per_company_cad'].apply(lambda x: x.div(x.iloc[0]).subtract(1).mul(100))
-print(question_1.to_string())
+
+# QUESTION 2
+# What is the mean & median financing for Early Stage VC and Late Stage VC for each country?
+
+
+
+# QUESTION 3
+# What is the mean & median number of employees per venture for each country?
+question_3 = fdf.drop_duplicates(subset=['company', 'total_raised_cad']).sort_values("employee_count", ascending=True)
+# find outliers in # of employees and remove
+question_3['employee_count_dif'] = np.round(100*question_3['employee_count'].pct_change(),1)
+question_3 = question_3[question_3["employee_count_dif"] < 2000]
+question_3 = question_3.groupby(['location_country','year',]).agg(
+venture_count=pd.NamedAgg(column="company", aggfunc="count"),
+employee_count_sum=pd.NamedAgg(column="employee_count", aggfunc="sum"),
+employee_count_median=pd.NamedAgg(column="employee_count", aggfunc="median"),
+employee_count_mean=pd.NamedAgg(column="employee_count", aggfunc="mean"),
+).reset_index().sort_values(['location_country',])
+print(question_3.to_string())
+
+
+# QUESTION 4
+# Provide any other data visualizations and commentary/insights you think relevant
 
 end = datetime.datetime.now()
 print(end-today)
