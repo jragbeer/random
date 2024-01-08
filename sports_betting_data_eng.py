@@ -199,7 +199,6 @@ def get_games(league, szn, page):
         hrefs = [x.find('a',href=True)['href'] for x in links]
         # make sure that there's a full link and not smaller, useless links
         hrefs = [x for x in hrefs if len(x) > 20]
-        print(hrefs)
         return hrefs
     except:
         logging.info(error_handling())
@@ -406,18 +405,13 @@ def pull_new_game_links():
         except:
             pass
         logging.info(f"{liga}, {datetime.datetime.now() - today}")
-
-    file_name = now.date().strftime("%Y%m%d") + f"_{now.hour}"
-    pickle_out = open(data_path + f"soccer_links_{file_name}.pickle", "wb")
-    pickle.dump(tmp_dict, pickle_out)
-    pickle_out.close()
-    pprint(tmp_dict)
     list_ting = []
     for key, each in tmp_dict.items():
-        e = pd.DataFrame({'values': each})
+        e = pd.DataFrame({'links': ['oddsportal.com' + e for e in each]})
         e['league'] = key
         list_ting.append(e)
     output = pd.concat(list_ting).reset_index(drop=True)
+    print(output.to_string())
     sql_engine = sqlalchemy.create_engine(sports_betting_connection_string)
     output.to_sql("last_downloaded_soccer_links", sql_engine, index=False, if_exists='replace')
     logging.info('latest_download_soccer_links table updated!') # all links, whether already parsed or not
