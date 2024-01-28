@@ -175,38 +175,143 @@ def update_create_bol():
 def update_create_xx():
     pass
 
+def update_kc_id_next(attkc_idr, old, new):
+    pass
+
 width_number = 400
 
 title_div = Div(text=wrap_in_paragraphs('KC Logistics Data Input', 'black', size=5), width = width_number)
 new_info_div = Div(text=wrap_in_paragraphs("""New Data Input for KC Logistics Data """, 'black', size=3), width = 300)
 
-new_select_kc_id = Select(title='KC_ID', value='KC10', options=database['kc_id'].to_list(), width=int(width_number/2))
-new_select_kc_id.on_change('value', update_kc_id)
+new_display_div = Div(text="")
 
-new_pickup_unit_number = TextInput(value=" ", title="pickup_unit_number", width= width_number)
+next_kc_id = 'KC' + str(max([int(x[2:]) for x in database['kc_id'].values]) + 1)
+
+new_select_kc_id =  Select(title='KC_ID', value=next_kc_id, options=[next_kc_id], width=width_number)
+new_select_kc_id.on_change('value', update_kc_id_next)
+
+new_div_0 = Div(text = '_'*15)
+new_div_1 = Div(text = '_'*15)
+new_div_2 = Div(text = '_'*130)
+new_div_3 = Div(text = '_'*130)
+
+### PICKUP
+new_div_pickup = Div(text=wrap_in_paragraphs("""Pickup""", 'black', size=3))
+
+new_pickup_unit_number = TextInput(value=str(""), title="Pickup Unit Number", width= width_number)
 new_pickup_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_pickup_street_number = TextInput(value=" ", title="pickup_street_number", width= width_number)
+new_pickup_street_number = TextInput(value=str(""), title="Pickup Street Number", width= width_number)
 new_pickup_street_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_pickup_pc = TextInput(value=" ", title="pickup_pc", width= width_number)
+new_pickup_pc = TextInput(value=str(""), title="Pickup Postal Code/ZIP", width= width_number)
 new_pickup_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_pickup_street_name = TextInput(value=" ", title="pickup_street_name", width= width_number)
+new_pickup_street_name = TextInput(value=str(""), title="Pickup Street Name", width= width_number)
 new_pickup_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_select_pickup_state = Select(title='State', value='ON', options=sorted(list(can_province_names.keys()) + list(us_states.keys())), width=width_number)
+new_select_pickup_state = Select(title='Pickup State', value=str(""), options=sorted(list(can_province_names.keys()) + list(us_states.keys())), width=width_number)
 new_select_pickup_state.on_change('value', update_kc_id)
 
-new_pickup_city = TextInput(value=" ", title="pickup_city", width= width_number)
+new_pickup_city = TextInput(value=str(""), title="Pickup City", width= width_number)
 new_pickup_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_pickup_date = DatePicker(title="Pick Up Date", value = "2024-01-01", width=width_number)
 
+# DELIVERY
+######################################
+new_div_delivery = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
+
+new_delivery_unit_number = TextInput(value=str(""), title="Delivery Unit Number", width= width_number)
+new_delivery_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_delivery_street_number = TextInput(value=str(""), title="Delivery Street Number", width= width_number)
+new_delivery_street_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_delivery_pc = TextInput(value=str(""), title="Delivery Postal Code/ZIP", width= width_number)
+new_delivery_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_delivery_street_name = TextInput(value=str(""), title="Delivery Street Name", width= width_number)
+new_delivery_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_select_delivery_state = Select(title='Delivery State', value=str(""), options=sorted(list(can_province_names.keys()) + list(us_states.keys())), width=width_number)
+new_select_delivery_state.on_change('value', update_kc_id)
+
+new_delivery_city = TextInput(value=str(""), title="Delivery City", width= width_number)
+new_delivery_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 new_delivery_date = DatePicker(title="Delivery Date", value = "2024-01-01", width=width_number)
 
+# OTHER
+################
+new_div_other = Div(text=wrap_in_paragraphs("""Other""", 'black', size=3))
+
+new_other_carrier = TextInput(value=str(""), title="Carrier", width= width_number)
+new_other_carrier.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_carrier_contact = TextInput(value=str(""), title="Carrier Contact", width= width_number)
+new_other_carrier_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_customer_contact = TextInput(value=str(""), title="Customer Contact", width= width_number)
+new_other_customer_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_customer_invoice = Select(title='Customer Invoice Status', value=str("UNPAID"), options=["UNPAID", "PAID"], width=width_number)
+new_other_customer_invoice.on_change('value', update_kc_id)
+
+new_other_carrier_invoice = Select(title='Carrier Invoice Status', value=str("UNPAID"), options=["UNPAID", "PAID"], width=width_number)
+new_other_carrier_invoice.on_change('value', update_kc_id)
+
+new_other_tailgate = Select(title='Tailgate', value=str("NO"), options=["NO", "YES"], width=width_number)
+new_other_tailgate.on_change('value', update_kc_id)
+
+new_other_storage = Select(title='Storage', value=str("NO"), options=["NO", "YES"], width=width_number)
+new_other_storage.on_change('value', update_kc_id)
+
+new_other_charge = TextInput(value=str(0.0), title="Charge", width= width_number)
+new_other_charge.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_profit = TextInput(value=str(0.0), title="Profit", width= width_number)
+new_other_profit.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_cost = TextInput(value=str(0.0), title="Cost", width= width_number)
+new_other_cost.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_special_notes = TextInput(value=str(""), title="Special Notes", width= 900)
+new_other_special_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+# COMMODITY
+##################
+new_div_commodity = Div(text=wrap_in_paragraphs("""Commodity""", 'black', size=3))
+
+new_commodity_commodity = TextInput(value=str(""), title="Commodity", width= width_number)
+new_commodity_commodity.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_commodity_weight = TextInput(value=str(""), title="Weight (LBS)", width= 200)
+new_commodity_weight.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_commodity_notes = TextInput(value=str(""), title="Notes", width= 900)
+new_commodity_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+
+new_skids = {x:(0,0,0,0) for x in range(1,19)}
+
+# SKIDS
+new_skids_dict = {}
+for x in range(1,19):
+    new_skids_dict[f"new_commodity_skid_number{x}"] = TextInput(value=str(new_skids[x][0]), title="Number of Skids", width= 200)
+    new_skids_dict[f"new_commodity_skid_number{x}"].js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+    new_skids_dict[f"new_commodity_skid_height{x}"]  = TextInput(value=str(new_skids[x][3]), title="Skid Height (Inches)", width= 200)
+    new_skids_dict[f"new_commodity_skid_height{x}"].js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+    new_skids_dict[f"new_commodity_skid_length{x}"] = TextInput(value=str(new_skids[x][1]), title="Skid Length (Inches)", width= 200)
+    new_skids_dict[f"new_commodity_skid_length{x}"].js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+    new_skids_dict[f"new_commodity_skid_width{x}"] = TextInput(value=str(new_skids[x][2]), title="Skid Width (Inches)", width= 200)
+    new_skids_dict[f"new_commodity_skid_width{x}"].js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 new_button = Button(label="Input Info to Database", button_type="primary", width=200)
-# new_button.on_click(update_new)
+new_button.on_click(update_new)
 
 # EDIT / VIEW PAGE
 #################################################################
@@ -360,16 +465,85 @@ for x in range(1,19):
 
 # LAYOUT
 new_tab = TabPanel(
-    child=column([row([new_info_div,new_select_kc_id]),
-                    new_pickup_street_number,
-                    new_pickup_street_name,
-                    new_pickup_unit_number,
-                    new_pickup_city,
-                    new_select_pickup_state,
-                    new_pickup_pc,
-                    new_pickup_date,
-                    new_delivery_date,
-                    new_button]),
+    child=column([row([new_info_div, new_select_kc_id, new_button]),
+                  new_display_div,
+                  row([
+                      column([new_div_pickup, new_pickup_street_number,
+                              new_pickup_street_name,
+                              new_pickup_unit_number,
+                              new_pickup_city,
+                              new_select_pickup_state,
+                              new_pickup_pc,
+                              new_pickup_date, ]),
+                      new_div_0,
+                      column([new_div_delivery, new_delivery_street_number,
+                              new_delivery_street_name,
+                              new_delivery_unit_number,
+                              new_delivery_city,
+                              new_select_delivery_state,
+                              new_delivery_pc,
+                              new_delivery_date, ]), ]),
+                  new_div_2,
+                  new_div_other,
+                  row([
+                      column([new_other_carrier,
+                              new_other_carrier_contact,
+                              new_other_customer_contact,
+                              new_other_customer_invoice,
+                              new_other_carrier_invoice,
+                              ]),
+                      new_div_1,
+                      column([
+                          new_other_cost,
+                          new_other_charge,
+                          new_other_profit,
+                          new_other_tailgate,
+                          new_other_storage,
+                      ]),
+                  ]),
+                  new_other_special_notes,
+                  new_div_3,
+                  new_div_commodity,
+                  new_commodity_commodity,
+                  new_commodity_weight,
+                  new_commodity_notes,
+                  row([new_skids_dict[f"new_commodity_skid_number1"], new_skids_dict[f"new_commodity_skid_length1"],
+                       new_skids_dict[f"new_commodity_skid_width1"], new_skids_dict[f"new_commodity_skid_height1"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number2"], new_skids_dict[f"new_commodity_skid_length2"],
+                       new_skids_dict[f"new_commodity_skid_width2"], new_skids_dict[f"new_commodity_skid_height2"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number3"], new_skids_dict[f"new_commodity_skid_length3"],
+                       new_skids_dict[f"new_commodity_skid_width3"], new_skids_dict[f"new_commodity_skid_height3"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number4"], new_skids_dict[f"new_commodity_skid_length4"],
+                       new_skids_dict[f"new_commodity_skid_width4"], new_skids_dict[f"new_commodity_skid_height4"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number5"], new_skids_dict[f"new_commodity_skid_length5"],
+                       new_skids_dict[f"new_commodity_skid_width5"], new_skids_dict[f"new_commodity_skid_height5"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number6"], new_skids_dict[f"new_commodity_skid_length6"],
+                       new_skids_dict[f"new_commodity_skid_width6"], new_skids_dict[f"new_commodity_skid_height6"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number7"], new_skids_dict[f"new_commodity_skid_length7"],
+                       new_skids_dict[f"new_commodity_skid_width7"], new_skids_dict[f"new_commodity_skid_height7"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number8"], new_skids_dict[f"new_commodity_skid_length8"],
+                       new_skids_dict[f"new_commodity_skid_width8"], new_skids_dict[f"new_commodity_skid_height8"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number9"], new_skids_dict[f"new_commodity_skid_length9"],
+                       new_skids_dict[f"new_commodity_skid_width9"], new_skids_dict[f"new_commodity_skid_height9"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number10"], new_skids_dict[f"new_commodity_skid_length10"],
+                       new_skids_dict[f"new_commodity_skid_width10"], new_skids_dict[f"new_commodity_skid_height10"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number11"], new_skids_dict[f"new_commodity_skid_length11"],
+                       new_skids_dict[f"new_commodity_skid_width11"], new_skids_dict[f"new_commodity_skid_height11"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number12"], new_skids_dict[f"new_commodity_skid_length12"],
+                       new_skids_dict[f"new_commodity_skid_width12"], new_skids_dict[f"new_commodity_skid_height12"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number13"], new_skids_dict[f"new_commodity_skid_length13"],
+                       new_skids_dict[f"new_commodity_skid_width13"], new_skids_dict[f"new_commodity_skid_height13"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number14"], new_skids_dict[f"new_commodity_skid_length14"],
+                       new_skids_dict[f"new_commodity_skid_width14"], new_skids_dict[f"new_commodity_skid_height14"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number15"], new_skids_dict[f"new_commodity_skid_length15"],
+                       new_skids_dict[f"new_commodity_skid_width15"], new_skids_dict[f"new_commodity_skid_height15"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number16"], new_skids_dict[f"new_commodity_skid_length16"],
+                       new_skids_dict[f"new_commodity_skid_width16"], new_skids_dict[f"new_commodity_skid_height16"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number17"], new_skids_dict[f"new_commodity_skid_length17"],
+                       new_skids_dict[f"new_commodity_skid_width17"], new_skids_dict[f"new_commodity_skid_height17"]]),
+                  row([new_skids_dict[f"new_commodity_skid_number18"], new_skids_dict[f"new_commodity_skid_length18"],
+                       new_skids_dict[f"new_commodity_skid_width18"], new_skids_dict[f"new_commodity_skid_height18"]]),
+                  ]),
     title="New",
 )
 edit_tab = TabPanel(
