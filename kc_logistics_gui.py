@@ -3,7 +3,7 @@ from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTo
 from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, FactorRange, TextInput, CustomJS, Tabs, TabPanel
 from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Div, inputs, Slider, CheckboxGroup, Toggle
 from bokeh.io import curdoc
-from bokeh.layouts import row, column, gridplot, layout
+from bokeh.layouts import row, column
 from dateutil import parser
 import time
 import datetime
@@ -12,6 +12,7 @@ import ast
 import numpy as np
 import pandas as pd
 from pprint import pprint
+
 
 # clear the webpage before visualization
 doc = curdoc()
@@ -97,9 +98,11 @@ can_province_names = {
   'YT': 'Yukon'
 }
 
-database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv', dtype={"delivery_street_number":str,
-                                                                                "pickup_street_number":str}).replace(np.nan, '')
+database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv',
+                       dtype={"delivery_street_number":str,
+                                                                                "pickup_street_number":str}).replace(np.nan, '').drop_duplicates(subset=['kc_id'], keep='last')
 print(database.to_string())
+
 def wrap_in_paragraphs(txt, colour="DarkSlateBlue", size=4):
     """
 
@@ -112,10 +115,119 @@ def wrap_in_paragraphs(txt, colour="DarkSlateBlue", size=4):
     """
     return f"""<p><b><font color={colour} size={size}>{txt}</font></b></p>"""
 
-def update_kc_id(attkc_idr, old, new):
+def is_number_tryexcept(s):
+    """ Returns True if string is a number. """
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+def update_kc_id(attr, old, new):
     pass
 def update_edit():
-    pass
+    try:
+        global database, skids_dict
+
+        for x, y in skids_dict.items():
+            assert y.value.isnumeric(), f"{x} ({y}) is not a number"
+
+        edit_comm_dict = {x: (skids_dict[f"edit_commodity_skid_number{x}"].value,
+                             skids_dict[f"edit_commodity_skid_length{x}"].value,
+                             skids_dict[f"edit_commodity_skid_width{x}"].value,
+                             skids_dict[f"edit_commodity_skid_height{x}"].value,
+                             )
+                         for x in range(1, 19)
+                         }
+
+        to_db_dict = {
+            "kc_id": edit_select_kc_id.value,
+            "pickup_unit_number": edit_pickup_unit_number.value,
+            "pickup_street_number": edit_pickup_street_number.value,
+            "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
+            "pickup_street_name": edit_pickup_street_name.value,
+            "pickup_state": edit_select_pickup_state.value,
+            "pickup_city": edit_pickup_city.value,
+            "pickup_date": edit_pickup_date.value,
+
+            "delivery_unit_number": edit_delivery_unit_number.value,
+            "delivery_street_number": edit_delivery_street_number.value,
+            "delivery_pc": edit_delivery_pc.value.replace(' ', ""),
+            "delivery_street_name": edit_delivery_street_name.value,
+            "delivery_state": edit_select_delivery_state.value,
+            "delivery_city": edit_delivery_city.value,
+            "delivery_date": edit_delivery_date.value,
+
+            "carrier": edit_other_carrier.value,
+            "carrier_contact": edit_other_carrier_contact.value,
+            "customer_contact": edit_other_customer_contact.value,
+            "customer_invoice_status": edit_other_customer_invoice.value,
+            "carrier_invoice_status": edit_other_carrier_invoice.value,
+            "tailgate": edit_other_tailgate.value,
+            "storage": edit_other_storage.value,
+            "charge": edit_other_charge.value,
+            "profit": edit_other_profit.value,
+            "cost": edit_other_cost.value,
+            "special_notes": edit_other_special_notes.value,
+
+            "commodity": edit_commodity_commodity.value,
+            "commodity_weight": edit_commodity_weight.value,
+            "commodity_notes": edit_commodity_notes.value,
+            "commodity_skids": str(edit_comm_dict),
+        }
+        # ensure the postal code/zip codes are somewhat correct
+        assert len(to_db_dict['pickup_pc']) >= 5, "Pickup PC too short"
+        assert len(to_db_dict['pickup_pc']) <= 7, "Pickup PC too long"
+        ensure_some_numbers = [x.isnumeric() for x in to_db_dict['pickup_pc']]
+        assert sum(ensure_some_numbers) >= 3, f"Not a valid Pickup ZIP / Postal Code ({to_db_dict['pickup_pc']})"
+
+        assert len(to_db_dict['delivery_pc']) >= 5, "Delivery PC too short"
+        assert len(to_db_dict['delivery_pc']) <= 7, "Delivery PC too long"
+        ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery_pc']]
+        assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery ZIP / Postal Code ({to_db_dict['delivery_pc']})"
+
+        # ensure that the fields have the required entries
+        assert len(to_db_dict['delivery_street_number']) > 1, "Delivery Street Number  needs to be filled."
+        assert len(to_db_dict['delivery_city']) > 1, "Delivery City needs to be filled."
+        assert len(to_db_dict['delivery_street_name']) > 1, "Delivery Street Name needs to be filled."
+
+        assert len(to_db_dict['pickup_street_number']) > 1, "Pickup Street Number  needs to be filled."
+        assert len(to_db_dict['pickup_city']) > 1, "Pickup City needs to be filled."
+        assert len(to_db_dict['pickup_street_name']) > 1, "Pickup Street Name needs to be filled."
+
+        assert len(to_db_dict['carrier_contact']) > 1, "Carrier Contact needs to be filled."
+        assert len(to_db_dict['customer_contact']) > 1, "Customer Contact needs to be filled."
+        assert len(to_db_dict['carrier']) > 1, "Carrier needs to be filled."
+
+        # ensure that only numbers are entered into Charge/Profit/Cost fields
+        assert is_number_tryexcept(str(to_db_dict['charge'])), f"Charge is not a number ({str(to_db_dict['charge'])})"
+        assert is_number_tryexcept(str(to_db_dict['cost'])), f"Cost is not a number ({str(to_db_dict['cost'])})"
+        assert is_number_tryexcept(str(to_db_dict['profit'])), f"Profit is not a number ({str(to_db_dict['profit'])})"
+        assert float(to_db_dict['charge']) - float(to_db_dict['cost']) == float(
+            to_db_dict['profit']), "Charge - Cost =/= Profit"
+
+        # assert the commodity information (aside from skids that was already done)
+        assert str(to_db_dict['commodity_weight']).isnumeric(), "Commodity Weight is not a number"
+        assert len(to_db_dict['commodity']) > 1, "Commodity needs to be filled."
+        assert len(to_db_dict['commodity_skids']) > 6, "Commodity Skids needs to be filled."
+
+        # assert that the delivery date is after the pickup date
+        assert to_db_dict['delivery_date'] >= to_db_dict['pickup_date'], "Pickup Date must be before Delivery Date"
+
+        # add the new data to the database file and write it to disk
+        database_modified = pd.concat([database, pd.DataFrame(to_db_dict, index=[0])], ignore_index=True)
+        # print(database_modified.to_string())
+        database_modified.to_csv(data_path + 'kc_logistics_corp_booking_data.csv', index=False)
+
+        # confirm that data for the KC_ID was added to the database file.
+        edit_display_div.text = wrap_in_paragraphs(f"Data for {edit_select_kc_id.value} passed to the database")
+        time.sleep(2)
+        # reset the database file, with the newest row added
+        database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv', dtype={"delivery_street_number": str,
+                                                                                        "pickup_street_number": str}).replace(
+            np.nan, '').drop_duplicates(subset=['kc_id'], keep='last')
+    except Exception as iee:
+        print(iee)
+        edit_display_div.text = wrap_in_paragraphs(f"Error: {iee}")
 
 def update_search():
     new_kc_id = edit_select_kc_id.value
@@ -166,13 +278,146 @@ def update_search():
         skids_dict[f"edit_commodity_skid_height{y}"].value = str(skids_[y][3])
 
 def update_new():
-    pass
+    try:
+        global database, new_skids_dict
+
+        for x,y in new_skids_dict.items():
+            assert y.value.isnumeric(), f"{x} ({y}) is not a number"
+
+        new_comm_dict = {x:(new_skids_dict[f"new_commodity_skid_number{x}"].value,
+                            new_skids_dict[f"new_commodity_skid_length{x}"].value,
+                            new_skids_dict[f"new_commodity_skid_width{x}"].value,
+                            new_skids_dict[f"new_commodity_skid_height{x}"].value,
+                            )
+            for x in range(1,19)
+        }
+
+        to_db_dict = {
+        "kc_id": new_select_kc_id.value,
+        "pickup_unit_number": new_pickup_unit_number.value,
+        "pickup_street_number": new_pickup_street_number.value,
+        "pickup_pc": new_pickup_pc.value.replace(' ', ""),
+        "pickup_street_name": new_pickup_street_name.value,
+        "pickup_state": new_select_pickup_state.value,
+        "pickup_city": new_pickup_city.value,
+        "pickup_date": new_pickup_date.value,
+
+        "delivery_unit_number": new_delivery_unit_number.value,
+        "delivery_street_number": new_delivery_street_number.value,
+        "delivery_pc": new_delivery_pc.value.replace(' ', ""),
+        "delivery_street_name": new_delivery_street_name.value,
+        "delivery_state": new_select_delivery_state.value,
+        "delivery_city": new_delivery_city.value,
+        "delivery_date": new_delivery_date.value,
+
+        "carrier": new_other_carrier.value,
+        "carrier_contact": new_other_carrier_contact.value,
+        "customer_contact": new_other_customer_contact.value,
+        "customer_invoice_status": new_other_customer_invoice.value,
+        "carrier_invoice_status": new_other_carrier_invoice.value,
+        "tailgate": new_other_tailgate.value,
+        "storage": new_other_storage.value,
+        "charge": new_other_charge.value,
+        "profit": new_other_profit.value,
+        "cost": new_other_cost.value,
+        "special_notes": new_other_special_notes.value,
+
+        "commodity": new_commodity_commodity.value,
+        "commodity_weight": new_commodity_weight.value,
+        "commodity_notes": new_commodity_notes.value,
+        "commodity_skids":str(new_comm_dict),
+        }
+        # ensure the postal code/zip codes are somewhat correct
+        assert len(to_db_dict['pickup_pc']) >= 5, "Pickup PC too short"
+        assert len(to_db_dict['pickup_pc']) <= 7, "Pickup PC too long"
+        ensure_some_numbers = [x.isnumeric() for x in to_db_dict['pickup_pc']]
+        assert sum(ensure_some_numbers) >= 3, f"Not a valid Pickup ZIP / Postal Code ({to_db_dict['pickup_pc']})"
+
+        assert len(to_db_dict['delivery_pc']) >= 5, "Delivery PC too short"
+        assert len(to_db_dict['delivery_pc']) <= 7, "Delivery PC too long"
+        ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery_pc']]
+        assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery ZIP / Postal Code ({to_db_dict['delivery_pc']})"
+
+        # ensure that the fields have the required entries
+        assert len(to_db_dict['delivery_street_number']) > 1 , "Delivery Street Number  needs to be filled."
+        assert len(to_db_dict['delivery_city']) > 1 , "Delivery City needs to be filled."
+        assert len(to_db_dict['delivery_street_name']) > 1 , "Delivery Street Name needs to be filled."
+
+        assert len(to_db_dict['pickup_street_number']) > 1 , "Pickup Street Number  needs to be filled."
+        assert len(to_db_dict['pickup_city']) > 1 , "Pickup City needs to be filled."
+        assert len(to_db_dict['pickup_street_name']) > 1 , "Pickup Street Name needs to be filled."
+
+        assert len(to_db_dict['carrier_contact']) > 1 , "Carrier Contact needs to be filled."
+        assert len(to_db_dict['customer_contact']) > 1 , "Customer Contact needs to be filled."
+        assert len(to_db_dict['carrier']) > 1 , "Carrier needs to be filled."
+
+        # ensure that only numbers are entered into Charge/Profit/Cost fields
+        assert is_number_tryexcept(str(to_db_dict['charge'])), f"Charge is not a number ({str(to_db_dict['charge'])})"
+        assert is_number_tryexcept(str(to_db_dict['cost'])), f"Cost is not a number ({str(to_db_dict['cost'])})"
+        assert is_number_tryexcept(str(to_db_dict['profit'])), f"Profit is not a number ({str(to_db_dict['profit'])})"
+        assert float(to_db_dict['charge']) - float(to_db_dict['cost']) == float(to_db_dict['profit']), "Charge - Cost =/= Profit"
+
+        # assert the commodity information (aside from skids that was already done)
+        assert str(to_db_dict['commodity_weight']).isnumeric(), "Commodity Weight is not a number"
+        assert len(to_db_dict['commodity']) > 1 , "Commodity needs to be filled."
+        assert len(to_db_dict['commodity_skids']) > 6 , "Commodity Skids needs to be filled."
+
+        # assert that the delivery date is after the pickup date
+        assert to_db_dict['delivery_date'] >= to_db_dict['pickup_date'] , "Pickup Date must be before Delivery Date"
+
+        # add the new data to the database file and write it to disk
+        database_modified = pd.concat([database, pd.DataFrame(to_db_dict, index=[0])], ignore_index=True)
+        # print(database_modified.to_string())
+        database_modified.to_csv(data_path + 'kc_logistics_corp_booking_data.csv', index=False)
+
+        # confirm that data for the KC_ID was added to the database file.
+        new_display_div.text = wrap_in_paragraphs(f"Data for {new_select_kc_id.value} passed to the database")
+        time.sleep(2)
+        # reset the database file, with the newest row added
+        database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv', dtype={"delivery_street_number": str,
+                                                                                        "pickup_street_number": str}).replace(
+            np.nan, '').drop_duplicates(subset=['kc_id'], keep='last')
+        # find the next KC_ID value
+        next_kc_id_ = 'KC' + str(max([int(x[2:]) for x in database['kc_id'].values]) + 1)
+        new_select_kc_id.value = next_kc_id_
+        new_select_kc_id.options = [next_kc_id_]
+        edit_select_kc_id.options = database['kc_id'].to_list()
+
+        # reset some fields so that a double tab doesn't add a second row of the same data
+        new_delivery_unit_number.value = ""
+        new_delivery_pc.value = ""
+        new_delivery_street_number.value = ""
+        new_delivery_street_name.value = ""
+        new_delivery_city.value = ""
+
+        new_pickup_street_number.value = ""
+        new_pickup_pc.value = ""
+        new_pickup_unit_number.value = ""
+        new_pickup_street_name.value = ""
+        new_pickup_city.value = ""
+
+        new_other_profit.value = ""
+        new_other_cost.value = ""
+        new_other_charge.value = ""
+        new_other_carrier.value = ""
+        new_other_carrier_contact.value = ""
+        new_other_customer_contact.value = ""
+
+        new_commodity_commodity.value = ""
+        new_commodity_weight.value = ""
+        new_commodity_notes.value = ""
+
+    except Exception as eee:
+        print(eee)
+        new_display_div.text = wrap_in_paragraphs(f"Error: {eee}")
+
+    
 def update_create_invoice():
     pass
 def update_create_bol():
     pass
 
-def update_create_xx():
+def update_create_loadconf():
     pass
 
 def update_kc_id_next(attkc_idr, old, new):
@@ -337,8 +582,8 @@ search_button.on_click(update_search)
 edit_button = Button(label="Edit Info in Database", button_type="primary", width=150)
 edit_button.on_click(update_edit)
 
-create_xx_button = Button(label="Create XX", button_type="warning", width=100)
-create_xx_button.on_click(update_create_xx)
+create_loadconf_button = Button(label="Create Load Conf.", button_type="warning", width=100)
+create_loadconf_button.on_click(update_create_loadconf)
 
 create_bol_button = Button(label="Create BoL", button_type="warning", width=100)
 create_bol_button.on_click(update_create_bol)
@@ -548,7 +793,7 @@ new_tab = TabPanel(
 )
 edit_tab = TabPanel(
     child=column([row([edit_info_div,edit_select_kc_id, column([row([search_button, edit_button,]),
-                                                                row([create_bol_button, create_invoice_button, create_xx_button])])]),
+                                                                row([create_bol_button, create_invoice_button, create_loadconf_button])])]),
 edit_display_div,
                     row([
                         column([edit_div_pickup, edit_pickup_street_number,
@@ -616,4 +861,3 @@ tt = Tabs(tabs=[edit_tab, new_tab])
 dashboard = row([tt])
 curdoc().add_root(dashboard)
 show(dashboard)
-
