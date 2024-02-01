@@ -157,6 +157,14 @@ def update_edit():
             "delivery_city": edit_delivery_city.value,
             "delivery_date": edit_delivery_date.value,
 
+            "delivery2_unit_number": edit_delivery2_unit_number.value,
+            "delivery2_street_number": edit_delivery2_street_number.value,
+            "delivery2_pc": edit_delivery2_pc.value.replace(' ', ""),
+            "delivery2_street_name": edit_delivery2_street_name.value,
+            "delivery2_state": edit_select_delivery2_state.value,
+            "delivery2_city": edit_delivery2_city.value,
+            "delivery2_date": edit_delivery2_date.value,
+
             "carrier": edit_other_carrier.value,
             "carrier_contact": edit_other_carrier_contact.value,
             "customer_contact": edit_other_customer_contact.value,
@@ -184,6 +192,21 @@ def update_edit():
         assert len(to_db_dict['delivery_pc']) <= 7, "Delivery PC too long"
         ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery_pc']]
         assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery ZIP / Postal Code ({to_db_dict['delivery_pc']})"
+
+        # ensure that the fields have the required entries
+        if (to_db_dict["delivery2_unit_number"] or
+                to_db_dict["delivery2_city"] or
+                to_db_dict["delivery2_state"] or
+                to_db_dict["delivery2_street_name"] or
+                to_db_dict["delivery2_pc"] or
+                to_db_dict["delivery2_street_number"]):
+            assert len(to_db_dict['delivery2_street_number']) > 1 , "Delivery 2 Street Number  needs to be filled."
+            assert len(to_db_dict['delivery2_city']) > 1 , "Delivery 2 City needs to be filled."
+            assert len(to_db_dict['delivery2_street_name']) > 1 , "Delivery 2 Street Name needs to be filled."
+            assert len(to_db_dict['delivery2_pc']) >= 5, "Delivery 2 PC too short"
+            assert len(to_db_dict['delivery2_pc']) <= 7, "Delivery 2 PC too long"
+            ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery2_pc']]
+            assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery 2 ZIP / Postal Code ({to_db_dict['delivery2_pc']})"
 
         # ensure that the fields have the required entries
         assert len(to_db_dict['delivery_street_number']) > 1, "Delivery Street Number  needs to be filled."
@@ -236,6 +259,16 @@ def update_search():
     empty_skids_ = {x: (0, 0, 0, 0) for x in range(1, 19)}
     skids_ = {**empty_skids_, **skids_}
 
+    if (data_dict_["delivery2_unit_number"] or
+        data_dict_["delivery2_city"] or
+        data_dict_["delivery2_state"] or
+        data_dict_["delivery2_street_name"] or
+        data_dict_["delivery2_pc"] or
+        data_dict_["delivery2_street_number"]):
+
+        edit_pickup_delivery_layout.children.append(edit_delivery2_feature)
+
+
     edit_display_div.text = wrap_in_paragraphs(f"""Now viewing {new_kc_id}""")
 
     # pickup
@@ -254,6 +287,15 @@ def update_search():
     edit_select_delivery_state.value=str(data_dict_["delivery_state"])
     edit_delivery_city.value=str(data_dict_["delivery_city"])
     edit_delivery_date.value = parser.parse(str(data_dict_['delivery_date'])).date()
+
+    edit_delivery2_unit_number.value=str(data_dict_["delivery2_unit_number"])
+    edit_delivery2_street_number.value=str(data_dict_["delivery2_street_number"])
+    edit_delivery2_pc.value=str(data_dict_["delivery2_pc"])
+    edit_delivery2_street_name.value=str(data_dict_["delivery2_street_name"])
+    edit_select_delivery2_state.value=str(data_dict_["delivery2_state"])
+    edit_delivery2_city.value=str(data_dict_["delivery2_city"])
+    edit_delivery2_date.value = parser.parse(str(data_dict_['delivery2_date'])).date()
+
     # other
     edit_other_charge.value=str(data_dict_["charge"])
     edit_other_cost.value=str(data_dict_["cost"])
@@ -310,6 +352,14 @@ def update_new():
         "delivery_city": new_delivery_city.value,
         "delivery_date": new_delivery_date.value,
 
+        "delivery2_unit_number": new_delivery2_unit_number.value,
+        "delivery2_street_number": new_delivery2_street_number.value,
+        "delivery2_pc": new_delivery2_pc.value.replace(' ', ""),
+        "delivery2_street_name": new_delivery2_street_name.value,
+        "delivery2_state": new_select_delivery2_state.value,
+        "delivery2_city": new_delivery2_city.value,
+        "delivery2_date": new_delivery2_date.value,
+
         "carrier": new_other_carrier.value,
         "carrier_contact": new_other_carrier_contact.value,
         "customer_contact": new_other_customer_contact.value,
@@ -342,6 +392,21 @@ def update_new():
         assert len(to_db_dict['delivery_street_number']) > 1 , "Delivery Street Number  needs to be filled."
         assert len(to_db_dict['delivery_city']) > 1 , "Delivery City needs to be filled."
         assert len(to_db_dict['delivery_street_name']) > 1 , "Delivery Street Name needs to be filled."
+
+        # ensure that the fields have the required entries
+        if (to_db_dict["delivery2_unit_number"] or
+                to_db_dict["delivery2_city"] or
+                to_db_dict["delivery2_state"] or
+                to_db_dict["delivery2_street_name"] or
+                to_db_dict["delivery2_pc"] or
+                to_db_dict["delivery2_street_number"]):
+            assert len(to_db_dict['delivery2_street_number']) > 1 , "Delivery 2 Street Number  needs to be filled."
+            assert len(to_db_dict['delivery2_city']) > 1 , "Delivery 2 City needs to be filled."
+            assert len(to_db_dict['delivery2_street_name']) > 1 , "Delivery 2 Street Name needs to be filled."
+            assert len(to_db_dict['delivery2_pc']) >= 5, "Delivery 2 PC too short"
+            assert len(to_db_dict['delivery2_pc']) <= 7, "Delivery 2 PC too long"
+            ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery2_pc']]
+            assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery 2 ZIP / Postal Code ({to_db_dict['delivery2_pc']})"
 
         assert len(to_db_dict['pickup_street_number']) > 1 , "Pickup Street Number  needs to be filled."
         assert len(to_db_dict['pickup_city']) > 1 , "Pickup City needs to be filled."
@@ -390,6 +455,12 @@ def update_new():
         new_delivery_street_name.value = ""
         new_delivery_city.value = ""
 
+        new_delivery2_unit_number.value = ""
+        new_delivery2_pc.value = ""
+        new_delivery2_street_number.value = ""
+        new_delivery2_street_name.value = ""
+        new_delivery2_city.value = ""
+
         new_pickup_street_number.value = ""
         new_pickup_pc.value = ""
         new_pickup_unit_number.value = ""
@@ -422,6 +493,17 @@ def update_create_loadconf():
 
 def update_kc_id_next(attkc_idr, old, new):
     pass
+
+
+def add_new_delivery_destination():
+    # There are 3 things normally, if only 3 now, add one more delivery. If there are 4, do not add another delivery.
+    if len(new_pickup_delivery_layout.children) < 4:
+        new_pickup_delivery_layout.children.append(new_delivery2_feature)
+
+def add_edit_delivery_destination():
+    # There are 3 things normally, if only 3 now, add one more delivery. If there are 4, do not add another delivery.
+    if len(edit_pickup_delivery_layout.children) < 4:
+        edit_pickup_delivery_layout.children.append(edit_delivery2_feature)
 
 width_number = 400
 
@@ -466,6 +548,7 @@ new_pickup_date = DatePicker(title="Pick Up Date", value = "2024-01-01", width=w
 # DELIVERY
 ######################################
 new_div_delivery = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
+new_div_delivery2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
 
 new_delivery_unit_number = TextInput(value=str(""), title="Delivery Unit Number", width= width_number)
 new_delivery_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -486,6 +569,37 @@ new_delivery_city = TextInput(value=str(""), title="Delivery City", width= width
 new_delivery_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_delivery_date = DatePicker(title="Delivery Date", value = "2024-01-01", width=width_number)
+
+new_delivery2_unit_number = TextInput(value=str(""), title="Delivery 2 Unit Number", width=width_number)
+new_delivery2_unit_number.js_on_change("value", CustomJS(
+    code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_delivery2_street_number = TextInput(value=str(""), title="Delivery 2 Street Number", width=width_number)
+new_delivery2_street_number.js_on_change("value", CustomJS(
+    code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_delivery2_pc = TextInput(value=str(""), title="Delivery 2 Postal Code/ZIP", width=width_number)
+new_delivery2_pc.js_on_change("value",
+                              CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_delivery2_street_name = TextInput(value=str(""), title="Delivery 2 Street Name", width=width_number)
+new_delivery2_street_name.js_on_change("value", CustomJS(
+    code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_select_delivery2_state = Select(title='Delivery 2 State', value=str(""),
+                                    options=sorted(list(can_province_names.keys()) + list(us_states.keys())),
+                                    width=width_number)
+new_select_delivery2_state.on_change('value', update_kc_id)
+
+new_delivery2_city = TextInput(value=str(""), title="Delivery 2 City", width=width_number)
+new_delivery2_city.js_on_change("value",
+                                CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_delivery2_date = DatePicker(title="Delivery 2 Date", value="2024-01-01", width=width_number)
+
+new_dest_button = Button(label="Add delivery destination", button_type="success")
+new_dest_button.on_click(add_new_delivery_destination)
+
 
 # OTHER
 ################
@@ -592,6 +706,9 @@ create_invoice_button = Button(label="Create Invoice", button_type="warning", wi
 create_invoice_button.on_click(update_create_invoice)
 
 
+edit_add_dest_button = Button(label="Add delivery destination", button_type="success")
+edit_add_dest_button.on_click(add_edit_delivery_destination)
+
 ### PICKUP
 edit_div_pickup = Div(text=wrap_in_paragraphs("""Pickup""", 'black', size=3))
 
@@ -618,6 +735,7 @@ edit_pickup_date = DatePicker(title="Pick Up Date", value = "2024-01-01", width=
 # DELIVERY
 ######################################
 edit_div_delivery = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
+edit_div_delivery2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
 
 edit_delivery_unit_number = TextInput(value=str(data_dict["delivery_unit_number"]), title="Delivery Unit Number", width= width_number)
 edit_delivery_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -638,6 +756,27 @@ edit_delivery_city = TextInput(value=str(data_dict["delivery_city"]), title="Del
 edit_delivery_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_delivery_date = DatePicker(title="Delivery Date", value = "2024-01-01", width=width_number)
+
+edit_delivery2_unit_number = TextInput(value=str(data_dict["delivery2_unit_number"]), title="Delivery 2 Unit Number", width= width_number)
+edit_delivery2_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_delivery2_street_number = TextInput(value=str(data_dict["delivery2_street_number"]), title="Delivery 2 Street Number", width= width_number)
+edit_delivery2_street_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_delivery2_pc = TextInput(value=str(data_dict["delivery2_pc"]), title="Delivery 2 Postal Code/ZIP", width= width_number)
+edit_delivery2_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_delivery2_street_name = TextInput(value=str(data_dict["delivery2_street_name"]), title="Delivery 2 Street Name", width= width_number)
+edit_delivery2_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_select_delivery2_state = Select(title='Delivery 2 State', value=str(data_dict["delivery2_state"]), options=sorted(list(can_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_select_delivery2_state.on_change('value', update_kc_id)
+
+edit_delivery2_city = TextInput(value=str(data_dict["delivery2_city"]), title="Delivery 2 City", width= width_number)
+edit_delivery2_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_delivery2_date = DatePicker(title="Delivery 2 Date", value = "2024-01-01", width=width_number)
+
 
 # OTHER
 ################
@@ -709,10 +848,8 @@ for x in range(1,19):
     skids_dict[f"edit_commodity_skid_width{x}"].js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 # LAYOUT
-new_tab = TabPanel(
-    child=column([row([new_info_div, new_select_kc_id, new_button]),
-                  new_display_div,
-                  row([
+
+new_pickup_delivery_layout = row([
                       column([new_div_pickup, new_pickup_street_number,
                               new_pickup_street_name,
                               new_pickup_unit_number,
@@ -727,7 +864,20 @@ new_tab = TabPanel(
                               new_delivery_city,
                               new_select_delivery_state,
                               new_delivery_pc,
-                              new_delivery_date, ]), ]),
+                              new_delivery_date, ]), ])
+
+new_delivery2_feature = column([new_div_delivery2, new_delivery2_street_number,
+                                new_delivery2_street_name,
+                                new_delivery2_unit_number,
+                                new_delivery2_city,
+                                new_select_delivery2_state,
+                                new_delivery2_pc,
+                                new_delivery2_date, ])
+
+new_tab = TabPanel(
+    child=column([row([new_info_div, new_select_kc_id, new_button, new_dest_button]),
+                  new_display_div,
+                    new_pickup_delivery_layout,
                   new_div_2,
                   new_div_other,
                   row([
@@ -791,11 +941,8 @@ new_tab = TabPanel(
                   ]),
     title="New",
 )
-edit_tab = TabPanel(
-    child=column([row([edit_info_div,edit_select_kc_id, column([row([search_button, edit_button,]),
-                                                                row([create_bol_button, create_invoice_button, create_loadconf_button])])]),
-edit_display_div,
-                    row([
+
+edit_pickup_delivery_layout = row([
                         column([edit_div_pickup, edit_pickup_street_number,
                     edit_pickup_street_name,
                     edit_pickup_unit_number,
@@ -810,7 +957,21 @@ edit_display_div,
                   edit_delivery_city,
                   edit_select_delivery_state,
                   edit_delivery_pc,
-                    edit_delivery_date,]),]),
+                    edit_delivery_date,]),])
+
+edit_delivery2_feature = column([edit_div_delivery2, edit_delivery2_street_number,
+                                 edit_delivery2_street_name,
+                                 edit_delivery2_unit_number,
+                                 edit_delivery2_city,
+                                 edit_select_delivery2_state,
+                                 edit_delivery2_pc,
+                                 edit_delivery2_date, ])
+
+edit_tab = TabPanel(
+    child=column([row([edit_info_div,edit_select_kc_id, column([row([search_button, edit_button,edit_add_dest_button,]),
+                                                                row([create_bol_button, create_invoice_button, create_loadconf_button])])]),
+edit_display_div,
+edit_pickup_delivery_layout,
 edit_div_2,
 edit_div_other,
 row([
