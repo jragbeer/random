@@ -696,7 +696,7 @@ search_button.on_click(update_search)
 edit_button = Button(label="Edit Info in Database", button_type="primary", width=150)
 edit_button.on_click(update_edit)
 
-create_loadconf_button = Button(label="Create Load Conf.", button_type="warning", width=100)
+create_loadconf_button = Button(label="Create Load Confirmation", button_type="warning", width=100)
 create_loadconf_button.on_click(update_create_loadconf)
 
 create_bol_button = Button(label="Create BoL", button_type="warning", width=100)
