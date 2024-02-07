@@ -278,7 +278,7 @@ def update_search():
     edit_pickup_street_name.value=str(data_dict_["pickup_street_name"])
     edit_select_pickup_state.value=str(data_dict_["pickup_state"])
     edit_pickup_city.value=str(data_dict_["pickup_city"])
-    edit_pickup_date.value = parser.parse(str(data_dict_['pickup_date'])).date()
+    edit_pickup_date.value = str(data_dict_['pickup_date'])
     # delivery
     edit_delivery_unit_number.value=str(data_dict_["delivery_unit_number"])
     edit_delivery_street_number.value=str(data_dict_["delivery_street_number"])
@@ -286,7 +286,7 @@ def update_search():
     edit_delivery_street_name.value=str(data_dict_["delivery_street_name"])
     edit_select_delivery_state.value=str(data_dict_["delivery_state"])
     edit_delivery_city.value=str(data_dict_["delivery_city"])
-    edit_delivery_date.value = parser.parse(str(data_dict_['delivery_date'])).date()
+    edit_delivery_date.value = str(data_dict_['delivery_date'])
 
     edit_delivery2_unit_number.value=str(data_dict_["delivery2_unit_number"])
     edit_delivery2_street_number.value=str(data_dict_["delivery2_street_number"])
@@ -294,7 +294,7 @@ def update_search():
     edit_delivery2_street_name.value=str(data_dict_["delivery2_street_name"])
     edit_select_delivery2_state.value=str(data_dict_["delivery2_state"])
     edit_delivery2_city.value=str(data_dict_["delivery2_city"])
-    edit_delivery2_date.value = parser.parse(str(data_dict_['delivery2_date'])).date()
+    edit_delivery2_date.value = str(data_dict_['delivery2_date'])
 
     # other
     edit_other_charge.value=str(data_dict_["charge"])
