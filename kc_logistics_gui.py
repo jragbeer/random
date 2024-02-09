@@ -267,6 +267,8 @@ def update_search():
         data_dict_["delivery2_street_number"]):
 
         edit_pickup_delivery_layout.children.append(edit_delivery2_feature)
+    else:
+        edit_pickup_delivery_layout.children = edit_pickup_delivery_layout.children[:-1]
 
 
     edit_display_div.text = wrap_in_paragraphs(f"""Now viewing {new_kc_id}""")
