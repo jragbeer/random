@@ -28,6 +28,37 @@ today = datetime.datetime.now()
 path = os.path.abspath(os.path.dirname(__file__)).replace("\\", "/") + "/"
 data_path = path + 'data/'
 
+# constants
+constants = {
+"Business Number": "13850 8288",
+"Terms": "Net 30 Days",
+"Customer Reference #": "XXX",
+"my_business_name":"KC Logistics Corp.",
+"my_street_name":"Kingston Road",
+"my_street_number":"1100",
+"my_unit_name": "701",
+"my_city":"Toronto",
+"my_state":"ON",
+"my_pc":"M1N1N4",
+"my_email":"KCLogistics7@gmail.com",
+             }
+
+canada_tax_rates = {
+"AB": {"GST": 5, "PST": 0, "HST": 0},
+"BC": {"GST": 5, "PST": 7, "HST": 0},
+"MB":{"GST": 5, "PST": 7, "HST": 0},
+"NB":{"GST": 0, "PST": 0, "HST": 15},
+"NL":{"GST": 0, "PST": 0, "HST": 15},
+"NS":{"GST": 0, "PST": 0, "HST": 15},
+"NT":{"GST": 5, "PST": 0, "HST": 0},
+"NU":{"GST": 5, "PST": 0, "HST": 0},
+"ON":{"GST": 0, "PST": 0, "HST": 13},
+"PE":{"GST": 0, "PST": 0, "HST": 15},
+"QC":{"GST": 5, "PST": 9.975, "HST": 0},
+"SK":{"GST": 5, "PST": 6},
+"YT":{"GST": 5, "PST": 0},
+}
+
 us_states = {
     'AK': 'Alaska',
     'AL': 'Alabama',
@@ -82,7 +113,7 @@ us_states = {
     'WY': 'Wyoming'
 }
 
-can_province_names = {
+canada_province_names = {
   'AB': 'Alberta',
   'BC': 'British Columbia',
   'MB': 'Manitoba',
@@ -170,8 +201,6 @@ def update_edit():
             "customer_contact": edit_other_customer_contact.value,
             "customer_invoice_status": edit_other_customer_invoice.value,
             "carrier_invoice_status": edit_other_carrier_invoice.value,
-            "tailgate": edit_other_tailgate.value,
-            "storage": edit_other_storage.value,
             "charge": edit_other_charge.value,
             "profit": edit_other_profit.value,
             "cost": edit_other_cost.value,
@@ -252,6 +281,8 @@ def update_edit():
         print(iee)
         edit_display_div.text = wrap_in_paragraphs(f"Error: {iee}")
 
+def update_new_tax_type(attr, old, new):
+    pass
 def update_search():
     new_kc_id = edit_select_kc_id.value
     data_dict_ = database[database['kc_id'] == new_kc_id].iloc[0].to_dict()
@@ -302,14 +333,21 @@ def update_search():
     edit_other_charge.value=str(data_dict_["charge"])
     edit_other_cost.value=str(data_dict_["cost"])
     edit_other_profit.value=str(data_dict_["profit"])
-    edit_other_storage.value = str(data_dict_['storage'])
-    edit_other_tailgate.value=str(data_dict_["tailgate"])
     edit_other_special_notes.value=str(data_dict_["special_notes"])
     edit_other_carrier_invoice.value=str(data_dict_["carrier_invoice_status"])
     edit_other_carrier_contact.value = str(data_dict_['carrier_contact'])
     edit_other_customer_contact.value = str(data_dict_['customer_contact'])
     edit_other_customer_invoice.value = str(data_dict_['customer_invoice_status'])
-    edit_other_carrier.value = str(data_dict_['carrier'])
+    edit_other_consignee_name.value = str(data_dict_['consignee_name'])
+    edit_other_consignee_number.value = str(data_dict_['consignee_number'])
+    edit_other_consignee_contact.value = str(data_dict_['consignee_contact'])
+    edit_other_tax.value = str(data_dict_['tax'])
+    edit_other_tax_type.value = str(data_dict_['tax_type'])
+    edit_other_date_ordered.value = str(data_dict_['date_ordered'])
+    edit_other_invoice_total.value = str(data_dict_['invoice_total'])
+    edit_other_shipper_number.value = str(data_dict_['shipper_number'])
+    edit_other_shipper_name.value = str(data_dict_['shipper_name'])
+    edit_other_shipper_contact.value = str(data_dict_['shipper_contact'])
 
     # commodity
     edit_commodity_notes.value=str(data_dict_["commodity_notes"])
@@ -367,12 +405,21 @@ def update_new():
         "customer_contact": new_other_customer_contact.value,
         "customer_invoice_status": new_other_customer_invoice.value,
         "carrier_invoice_status": new_other_carrier_invoice.value,
-        "tailgate": new_other_tailgate.value,
-        "storage": new_other_storage.value,
         "charge": new_other_charge.value,
         "profit": new_other_profit.value,
         "cost": new_other_cost.value,
+        "tax": new_other_tax.value,
+        "tax_type": new_other_tax_type.value,
+        "invoice_total": new_other_invoice_total.value,
+        "date_ordered": new_other_date_ordered.value,
         "special_notes": new_other_special_notes.value,
+        "consignee_number": new_other_consignee_number.value,
+        "consignee_contact": new_other_consignee_contact.value,
+        "consignee_name": new_other_consignee_name.value,
+        "shipper_contact": new_other_shipper_contact.value,
+        "shipper_name": new_other_shipper_name.value,
+        "shipper_number": new_other_shipper_number.value,
+
 
         "commodity": new_commodity_commodity.value,
         "commodity_weight": new_commodity_weight.value,
@@ -539,13 +586,16 @@ new_pickup_pc.js_on_change("value", CustomJS(code="""console.log('text_input: va
 new_pickup_street_name = TextInput(value=str(""), title="Pickup Street Name", width= width_number)
 new_pickup_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_select_pickup_state = Select(title='Pickup State', value=str(""), options=sorted(list(can_province_names.keys()) + list(us_states.keys())), width=width_number)
+new_select_pickup_state = Select(title='Pickup State', value=str(""), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 new_select_pickup_state.on_change('value', update_kc_id)
 
 new_pickup_city = TextInput(value=str(""), title="Pickup City", width= width_number)
 new_pickup_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_pickup_date = DatePicker(title="Pick Up Date", value = "2024-01-01", width=width_number)
+new_pickup_date = TextInput(value=str("Monday January 1, 2024"), title="Pickup Date", width=width_number)
+new_pickup_date.js_on_change("value",
+                                CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 
 # DELIVERY
 ######################################
@@ -564,13 +614,16 @@ new_delivery_pc.js_on_change("value", CustomJS(code="""console.log('text_input: 
 new_delivery_street_name = TextInput(value=str(""), title="Delivery Street Name", width= width_number)
 new_delivery_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_select_delivery_state = Select(title='Delivery State', value=str(""), options=sorted(list(can_province_names.keys()) + list(us_states.keys())), width=width_number)
+new_select_delivery_state = Select(title='Delivery State', value=str(""), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 new_select_delivery_state.on_change('value', update_kc_id)
 
 new_delivery_city = TextInput(value=str(""), title="Delivery City", width= width_number)
 new_delivery_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery_date = DatePicker(title="Delivery Date", value = "2024-01-01", width=width_number)
+new_delivery_date = TextInput(value=str("Monday January 1, 2024"), title="Delivery Date", width=width_number)
+new_delivery_date.js_on_change("value",
+                                CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 
 new_delivery2_unit_number = TextInput(value=str(""), title="Delivery 2 Unit Number", width=width_number)
 new_delivery2_unit_number.js_on_change("value", CustomJS(
@@ -589,7 +642,7 @@ new_delivery2_street_name.js_on_change("value", CustomJS(
     code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_select_delivery2_state = Select(title='Delivery 2 State', value=str(""),
-                                    options=sorted(list(can_province_names.keys()) + list(us_states.keys())),
+                                    options=sorted(list(canada_province_names.keys()) + list(us_states.keys())),
                                     width=width_number)
 new_select_delivery2_state.on_change('value', update_kc_id)
 
@@ -597,7 +650,10 @@ new_delivery2_city = TextInput(value=str(""), title="Delivery 2 City", width=wid
 new_delivery2_city.js_on_change("value",
                                 CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery2_date = DatePicker(title="Delivery 2 Date", value="2024-01-01", width=width_number)
+new_delivery2_date = TextInput(value=str("Monday January 1, 2024"), title="Delivery 2 Date", width=width_number)
+new_delivery2_date.js_on_change("value",
+                                CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 
 new_dest_button = Button(label="Add delivery destination", button_type="success")
 new_dest_button.on_click(add_new_delivery_destination)
@@ -613,6 +669,24 @@ new_other_carrier.js_on_change("value", CustomJS(code="""console.log('text_input
 new_other_carrier_contact = TextInput(value=str(""), title="Carrier Contact", width= width_number)
 new_other_carrier_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
+new_other_shipper_name = TextInput(value=str(""), title="Shipper Name", width= width_number)
+new_other_shipper_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_shipper_contact = TextInput(value=str(""), title="Shipper Contact", width= width_number)
+new_other_shipper_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_shipper_number = TextInput(value=str(""), title="Shipper Number", width= width_number)
+new_other_shipper_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_consignee_name = TextInput(value=str(""), title="Consignee Name", width= width_number)
+new_other_consignee_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_consignee_contact = TextInput(value=str(""), title="Consignee Contact", width= width_number)
+new_other_consignee_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_consignee_number = TextInput(value=str(""), title="Consignee Number", width= width_number)
+new_other_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 new_other_customer_contact = TextInput(value=str(""), title="Customer Contact", width= width_number)
 new_other_customer_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
@@ -621,12 +695,6 @@ new_other_customer_invoice.on_change('value', update_kc_id)
 
 new_other_carrier_invoice = Select(title='Carrier Invoice Status', value=str("UNPAID"), options=["UNPAID", "PAID"], width=width_number)
 new_other_carrier_invoice.on_change('value', update_kc_id)
-
-new_other_tailgate = Select(title='Tailgate', value=str("NO"), options=["NO", "YES"], width=width_number)
-new_other_tailgate.on_change('value', update_kc_id)
-
-new_other_storage = Select(title='Storage', value=str("NO"), options=["NO", "YES"], width=width_number)
-new_other_storage.on_change('value', update_kc_id)
 
 new_other_charge = TextInput(value=str(0.0), title="Charge", width= width_number)
 new_other_charge.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -637,8 +705,24 @@ new_other_profit.js_on_change("value", CustomJS(code="""console.log('text_input:
 new_other_cost = TextInput(value=str(0.0), title="Cost", width= width_number)
 new_other_cost.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
+new_other_tax = TextInput(value=str(0.0), title="Tax", width= width_number)
+new_other_tax.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_tax_type = Select(title='Tax Type', value=str("This depends on delivery province"), options=["GST", "HST"], width=width_number)
+new_other_tax_type.on_change('value', update_new_tax_type)
+
+
+new_other_invoice_total = TextInput(value=str(0.0), title="Total Invoice", width= width_number)
+new_other_invoice_total.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+
 new_other_special_notes = TextInput(value=str(""), title="Special Notes", width= 900)
 new_other_special_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_date_ordered = TextInput(value=str(""), title="Date Ordered", width= width_number)
+new_other_date_ordered.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+
 
 # COMMODITY
 ##################
@@ -726,13 +810,15 @@ edit_pickup_pc.js_on_change("value", CustomJS(code="""console.log('text_input: v
 edit_pickup_street_name = TextInput(value=str(data_dict["pickup_street_name"]), title="Pickup Street Name", width= width_number)
 edit_pickup_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_select_pickup_state = Select(title='Pickup State', value=str(data_dict["pickup_state"]), options=sorted(list(can_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_select_pickup_state = Select(title='Pickup State', value=str(data_dict["pickup_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 edit_select_pickup_state.on_change('value', update_kc_id)
 
 edit_pickup_city = TextInput(value=str(data_dict["pickup_city"]), title="Pickup City", width= width_number)
 edit_pickup_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_pickup_date = DatePicker(title="Pick Up Date", value = "2024-01-01", width=width_number)
+edit_pickup_date = TextInput(value=str(data_dict["pickup_date"]), title="Pickup Date", width= width_number)
+edit_pickup_date.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 
 # DELIVERY
 ######################################
@@ -751,13 +837,15 @@ edit_delivery_pc.js_on_change("value", CustomJS(code="""console.log('text_input:
 edit_delivery_street_name = TextInput(value=str(data_dict["delivery_street_name"]), title="Delivery Street Name", width= width_number)
 edit_delivery_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_select_delivery_state = Select(title='Delivery State', value=str(data_dict["delivery_state"]), options=sorted(list(can_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_select_delivery_state = Select(title='Delivery State', value=str(data_dict["delivery_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 edit_select_delivery_state.on_change('value', update_kc_id)
 
 edit_delivery_city = TextInput(value=str(data_dict["delivery_city"]), title="Delivery City", width= width_number)
 edit_delivery_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery_date = DatePicker(title="Delivery Date", value = "2024-01-01", width=width_number)
+edit_delivery_date = TextInput(value=str(data_dict["delivery_date"]), title="Delivery Date", width= width_number)
+edit_delivery_date.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 
 edit_delivery2_unit_number = TextInput(value=str(data_dict["delivery2_unit_number"]), title="Delivery 2 Unit Number", width= width_number)
 edit_delivery2_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -771,7 +859,7 @@ edit_delivery2_pc.js_on_change("value", CustomJS(code="""console.log('text_input
 edit_delivery2_street_name = TextInput(value=str(data_dict["delivery2_street_name"]), title="Delivery 2 Street Name", width= width_number)
 edit_delivery2_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_select_delivery2_state = Select(title='Delivery 2 State', value=str(data_dict["delivery2_state"]), options=sorted(list(can_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_select_delivery2_state = Select(title='Delivery 2 State', value=str(data_dict["delivery2_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 edit_select_delivery2_state.on_change('value', update_kc_id)
 
 edit_delivery2_city = TextInput(value=str(data_dict["delivery2_city"]), title="Delivery 2 City", width= width_number)
@@ -799,12 +887,6 @@ edit_other_customer_invoice.on_change('value', update_kc_id)
 edit_other_carrier_invoice = Select(title='Carrier Invoice Status', value=str(data_dict["carrier_invoice_status"]), options=["UNPAID", "PAID"], width=width_number)
 edit_other_carrier_invoice.on_change('value', update_kc_id)
 
-edit_other_tailgate = Select(title='Tailgate', value=str(data_dict["tailgate"]), options=["NO", "YES"], width=width_number)
-edit_other_tailgate.on_change('value', update_kc_id)
-
-edit_other_storage = Select(title='Storage', value=str(data_dict["storage"]), options=["NO", "YES"], width=width_number)
-edit_other_storage.on_change('value', update_kc_id)
-
 edit_other_charge = TextInput(value=str(data_dict["charge"]), title="Charge", width= width_number)
 edit_other_charge.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
@@ -816,6 +898,39 @@ edit_other_cost.js_on_change("value", CustomJS(code="""console.log('text_input: 
 
 edit_other_special_notes = TextInput(value=str(data_dict["special_notes"]), title="Special Notes", width= 900)
 edit_other_special_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_tax = TextInput(value=str(data_dict["tax"]), title="Tax", width= width_number)
+edit_other_tax.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_tax_type = Select(title='Tax Type', value=str(data_dict["tax_type"]), options=["This depends on delivery province","GST", "HST"], width=width_number)
+edit_other_tax_type.on_change('value', update_new_tax_type)
+
+
+edit_other_invoice_total = TextInput(value=str(data_dict["total_invoice"]), title="Total Invoice", width= width_number)
+edit_other_invoice_total.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_date_ordered = TextInput(value=str(data_dict["date_ordered"]), title="Date Ordered", width= width_number)
+edit_other_date_ordered.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_shipper_name = TextInput(value=str(data_dict["shipper_name"]), title="Shipper Name", width= width_number)
+edit_other_shipper_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_shipper_contact = TextInput(value=str(data_dict["shipper_contact"]), title="Shipper Contact", width= width_number)
+edit_other_shipper_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_shipper_number = TextInput(value=str(data_dict["shipper_number"]), title="Shipper Number", width= width_number)
+edit_other_shipper_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_consignee_name = TextInput(value=str(data_dict["consignee_name"]), title="Consignee Name", width= width_number)
+edit_other_consignee_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_consignee_contact = TextInput(value=str(data_dict["consignee_contact"]), title="Consignee Contact", width= width_number)
+edit_other_consignee_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_consignee_number = TextInput(value=str(data_dict["consignee_number"]), title="Consignee Number", width= width_number)
+edit_other_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+
 
 # COMMODITY
 ##################
@@ -883,19 +998,28 @@ new_tab = TabPanel(
                   new_div_2,
                   new_div_other,
                   row([
-                      column([new_other_carrier,
+                      column([
+                          new_other_carrier,
                               new_other_carrier_contact,
                               new_other_customer_contact,
                               new_other_customer_invoice,
                               new_other_carrier_invoice,
+                              new_other_tax_type,
+                              new_other_cost,
+                              new_other_invoice_total,
+                              new_other_tax,
                               ]),
                       new_div_1,
                       column([
-                          new_other_cost,
+                          new_other_shipper_name,
+                          new_other_shipper_contact,
+                          new_other_shipper_number,
+                          new_other_consignee_name,
+                          new_other_consignee_contact,
+                          new_other_consignee_number,
                           new_other_charge,
                           new_other_profit,
-                          new_other_tailgate,
-                          new_other_storage,
+                        new_other_date_ordered,
                       ]),
                   ]),
                   new_other_special_notes,
@@ -977,19 +1101,28 @@ edit_pickup_delivery_layout,
 edit_div_2,
 edit_div_other,
 row([
-column([edit_other_carrier,
+column([
+edit_other_carrier,
 edit_other_carrier_contact,
 edit_other_customer_contact,
 edit_other_customer_invoice,
 edit_other_carrier_invoice,
+edit_other_tax_type,
+edit_other_cost,
+edit_other_invoice_total,
+edit_other_tax,
         ])    ,
 edit_div_1,
 column([
-    edit_other_cost,
-edit_other_charge,
-edit_other_profit,
-edit_other_tailgate,
-edit_other_storage,
+    edit_other_shipper_name,
+    edit_other_shipper_contact,
+    edit_other_shipper_number,
+    edit_other_consignee_name,
+    edit_other_consignee_contact,
+    edit_other_consignee_number,
+    edit_other_charge,
+    edit_other_profit,
+    edit_other_date_ordered,
 ]),
 ]),
 edit_other_special_notes,
