@@ -5,6 +5,8 @@ from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter,
 from bokeh.io import curdoc
 from bokeh.layouts import row, column
 from dateutil import parser
+from docxtpl import DocxTemplate
+import traceback
 import time
 import datetime
 import os
@@ -30,9 +32,9 @@ data_path = path + 'data/'
 
 # constants
 constants = {
-"Business Number": "13850 8288",
-"Terms": "Net 30 Days",
-"Customer Reference #": "XXX",
+"business_number": "13850 8288",
+"terms": "Net 30 Days",
+"customer_reference_#": "XXX",
 "my_business_name":"KC Logistics Corp.",
 "my_street_name":"Kingston Road",
 "my_street_number":"1100",
@@ -134,6 +136,42 @@ database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv',
                                                                                 "pickup_street_number":str}).replace(np.nan, '').drop_duplicates(subset=['kc_id'], keep='last')
 print(database.to_string())
 
+
+def check_folder(folder_name):
+    # Get the current directory
+    current_directory = os.getcwd()
+
+    # Construct the path to the 'data' folder
+    data_folder_path = os.path.join(current_directory, 'data')
+
+    # Construct the path to the folder we want to check
+    folder_to_check_path = os.path.join(data_folder_path, folder_name)
+
+    # Check if the folder exists
+    if os.path.exists(folder_to_check_path) and os.path.isdir(folder_to_check_path):
+        print(f"The folder '{folder_name}' exists in the 'data' folder.")
+        return True
+    else:
+        print(f"The folder '{folder_name}' does not exist in the 'data' folder.")
+        return False
+
+def create_folder(folder_name):
+    # Get the current directory
+    current_directory = os.getcwd()
+
+    # Construct the path to the 'data' folder
+    data_folder_path = os.path.join(current_directory, 'data')
+
+    # Construct the path to the folder to create
+    folder_to_create_path = os.path.join(data_folder_path, folder_name)
+
+    try:
+        # Create the folder
+        os.makedirs(folder_to_create_path)
+        print(f"Folder '{folder_name}' created successfully in the 'data' folder.")
+    except FileExistsError:
+        print(f"Folder '{folder_name}' already exists in the 'data' folder.")
+
 def wrap_in_paragraphs(txt, colour="DarkSlateBlue", size=4):
     """
 
@@ -198,7 +236,7 @@ def update_edit():
 
             "carrier": edit_other_carrier.value,
             "carrier_contact": edit_other_carrier_contact.value,
-            "customer_contact": edit_other_customer_contact.value,
+            "date_invoiced": edit_other_date_invoiced.value,
             "customer_invoice_status": edit_other_customer_invoice.value,
             "carrier_invoice_status": edit_other_carrier_invoice.value,
 
@@ -353,7 +391,7 @@ def update_search():
     edit_other_carrier_invoice.value=str(data_dict_["carrier_invoice_status"])
     edit_other_carrier.value = str(data_dict_['carrier'])
     edit_other_carrier_contact.value = str(data_dict_['carrier_contact'])
-    edit_other_customer_contact.value = str(data_dict_['customer_contact'])
+    edit_other_date_invoiced.value = str(data_dict_['date_invoiced'])
     edit_other_customer_invoice.value = str(data_dict_['customer_invoice_status'])
     edit_other_consignee_name.value = str(data_dict_['consignee_name'])
     edit_other_consignee_number.value = str(data_dict_['consignee_number'])
@@ -419,15 +457,14 @@ def update_new():
 
         "carrier": new_other_carrier.value,
         "carrier_contact": new_other_carrier_contact.value,
-        "customer_contact": new_other_customer_contact.value,
+        "date_invoiced": new_other_date_invoiced.value,
         "customer_invoice_status": new_other_customer_invoice.value,
         "carrier_invoice_status": new_other_carrier_invoice.value,
-        "charge": new_other_charge.value,
-        "profit": new_other_profit.value,
-        "cost": new_other_cost.value,
-        "tax": new_other_tax.value,
-        "tax_type": new_other_tax_type.value,
-        "invoice_total": new_other_invoice_total.value,
+
+        "charge": float(new_other_charge.value), # the amount we're charging the customer
+        "cost": float(new_other_cost.value), # cost to our company
+
+
         "date_ordered": new_other_date_ordered.value,
         "special_notes": new_other_special_notes.value,
         "consignee_number": new_other_consignee_number.value,
@@ -439,10 +476,27 @@ def update_new():
 
 
         "commodity": new_commodity_commodity.value,
-        "commodity_weight": new_commodity_weight.value,
+        "commodity_weight": float(new_commodity_weight.value),
         "commodity_notes": new_commodity_notes.value,
         "commodity_skids":str(new_comm_dict),
         }
+
+        state = to_db_dict['delivery_state']
+        tax_state = canada_tax_rates[state]
+        tax_rate = sum([y/100 for x, y in tax_state.items() if y > 0])
+        tax_type = '/'.join(sorted([x for x, y in tax_state.items() if y > 0]))
+
+        calculated_vals = {
+            "profit": float(to_db_dict['charge']) - float(to_db_dict['cost']),
+            "tax": float(to_db_dict['charge']) * float(tax_rate),
+            "tax_type": tax_type,
+            "invoice_total": float(to_db_dict['charge']) + (to_db_dict['charge'] * tax_rate)
+        }
+        pprint(calculated_vals)
+        print(tax_rate, tax_state, tax_type, state, )
+        to_db_dict.update(calculated_vals)
+
+
         # ensure the postal code/zip codes are somewhat correct
         assert len(to_db_dict['pickup_pc']) >= 5, "Pickup PC too short"
         assert len(to_db_dict['pickup_pc']) <= 7, "Pickup PC too long"
@@ -479,7 +533,6 @@ def update_new():
         assert len(to_db_dict['pickup_street_name']) > 1 , "Pickup Street Name needs to be filled."
 
         assert len(to_db_dict['carrier_contact']) > 1 , "Carrier Contact needs to be filled."
-        assert len(to_db_dict['customer_contact']) > 1 , "Customer Contact needs to be filled."
         assert len(to_db_dict['carrier']) > 1 , "Carrier needs to be filled."
 
         # ensure that only numbers are entered into Charge/Profit/Cost fields
@@ -492,9 +545,6 @@ def update_new():
         assert str(to_db_dict['commodity_weight']).isnumeric(), "Commodity Weight is not a number"
         assert len(to_db_dict['commodity']) > 1 , "Commodity needs to be filled."
         assert len(to_db_dict['commodity_skids']) > 6 , "Commodity Skids needs to be filled."
-
-        # assert that the delivery date is after the pickup date
-        assert to_db_dict['delivery_date'] >= to_db_dict['pickup_date'] , "Pickup Date must be before Delivery Date"
 
         # add the new data to the database file and write it to disk
         database_modified = pd.concat([database, pd.DataFrame(to_db_dict, index=[0])], ignore_index=True)
@@ -520,6 +570,7 @@ def update_new():
         new_delivery_street_number.value = ""
         new_delivery_street_name.value = ""
         new_delivery_city.value = ""
+        new_delivery_date.value = ""
 
         new_delivery2_unit_number.value = ""
         new_delivery2_pc.value = ""
@@ -532,30 +583,139 @@ def update_new():
         new_pickup_unit_number.value = ""
         new_pickup_street_name.value = ""
         new_pickup_city.value = ""
+        new_pickup_date.value = ""
+
+        new_other_consignee_contact.value = ""
+        new_other_consignee_name.value = ""
+        new_other_consignee_number.value = ""
+        new_other_shipper_name.value = ""
+        new_other_shipper_contact.value = ""
+        new_other_shipper_number.value = ""
+        new_other_date_ordered.value = ""
+        new_other_date_invoiced.value = ""
 
         new_other_profit.value = ""
         new_other_cost.value = ""
         new_other_charge.value = ""
         new_other_carrier.value = ""
         new_other_carrier_contact.value = ""
-        new_other_customer_contact.value = ""
+        new_other_date_invoiced.value = ""
 
         new_commodity_commodity.value = ""
         new_commodity_weight.value = ""
         new_commodity_notes.value = ""
 
     except Exception as eee:
+        print(error_handling())
         print(eee)
         new_display_div.text = wrap_in_paragraphs(f"Error: {eee}")
 
+def error_handling() -> str:
+    """
+    This function returns a string with all of the information regarding the error
+    :return: string with the error information
+    """
+    return traceback.format_exc()
     
 def update_create_invoice():
-    pass
+    global skids_dict
+
+    if not check_folder(edit_select_kc_id.value):
+        create_folder(edit_select_kc_id.value)
+
+    edit_comm_dict = {x: (skids_dict[f"edit_commodity_skid_number{x}"].value,
+                          skids_dict[f"edit_commodity_skid_length{x}"].value,
+                          skids_dict[f"edit_commodity_skid_width{x}"].value,
+                          skids_dict[f"edit_commodity_skid_height{x}"].value,
+                          )
+                      for x in range(1, 19)
+                      }
+    pprint(edit_comm_dict)
+    info_dict = {
+        "kc_id": edit_select_kc_id.value,
+        "pickup_unit_number": edit_pickup_unit_number.value,
+        "pickup_street_number": edit_pickup_street_number.value,
+        "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
+        "pickup_street_name": edit_pickup_street_name.value,
+        "pickup_state": edit_select_pickup_state.value,
+        "pickup_city": edit_pickup_city.value,
+        "pickup_date": edit_pickup_date.value,
+
+        "delivery_unit_number": edit_delivery_unit_number.value,
+        "delivery_street_number": edit_delivery_street_number.value,
+        "delivery_pc": edit_delivery_pc.value.replace(' ', ""),
+        "delivery_street_name": edit_delivery_street_name.value,
+        "delivery_state": edit_select_delivery_state.value,
+        "delivery_city": edit_delivery_city.value,
+        "delivery_date": edit_delivery_date.value,
+
+        "delivery2_unit_number": edit_delivery2_unit_number.value,
+        "delivery2_street_number": edit_delivery2_street_number.value,
+        "delivery2_pc": edit_delivery2_pc.value.replace(' ', ""),
+        "delivery2_street_name": edit_delivery2_street_name.value,
+        "delivery2_state": edit_select_delivery2_state.value,
+        "delivery2_city": edit_delivery2_city.value,
+        "delivery2_date": edit_delivery2_date.value,
+
+        "carrier": edit_other_carrier.value,
+        "carrier_contact": edit_other_carrier_contact.value,
+        "date_invoiced": edit_other_date_invoiced.value,
+        "customer_invoice_status": edit_other_customer_invoice.value,
+        "carrier_invoice_status": edit_other_carrier_invoice.value,
+
+        "charge": edit_other_charge.value,
+        "profit": edit_other_profit.value,
+        "cost": edit_other_cost.value,
+        "tax": edit_other_tax.value,
+        "tax_type": edit_other_tax_type.value,
+        "invoice_total": edit_other_invoice_total.value,
+
+        "special_notes": edit_other_special_notes.value,
+        "date_ordered": edit_other_date_ordered.value,
+
+        "consignee_number": edit_other_consignee_number.value,
+        "consignee_name": edit_other_consignee_name.value,
+        "consignee_contact": edit_other_consignee_contact.value,
+        "shipper_name": edit_other_shipper_name.value,
+        "shipper_number": edit_other_shipper_number.value,
+        "shipper_contact": edit_other_shipper_contact.value,
+
+        "commodity": edit_commodity_commodity.value,
+        "commodity_weight": edit_commodity_weight.value,
+        "commodity_notes": edit_commodity_notes.value,
+        "commodity_skids": str(edit_comm_dict),
+    }
+
+    doc = DocxTemplate(data_path + "invoice_template.docx")
+    context = {'charge': float(info_dict['charge']),
+               'tax': float(info_dict['tax']),
+               'invoice_total': float(info_dict['invoice_total']),
+               'tax_type': info_dict['tax_type'],
+               'consignee_name': info_dict['consignee_name'],
+               'date_ordered': info_dict['date_ordered'],
+               'date_invoiced': info_dict['date_invoiced'],
+               'business_number': constants['business_number'],
+               'terms': constants['terms'],
+               'cstmr_reference': constants['customer_reference_#'],
+               'kc_id': info_dict['kc_id'],}
+    doc.render(context)
+    save_path = data_path + f'{info_dict['kc_id']}/' + f"{info_dict['kc_id']}_invoice_{today.strftime('%F').replace('-','_')}.docx"
+    doc.save(save_path)
+    text = f"{info_dict['kc_id']} INVOICE created at {datetime.datetime.now()}, saved to {save_path}"
+    print(text)
+    edit_display_div.text = wrap_in_paragraphs(text)
+    time.sleep(3)
+    edit_display_div.text = wrap_in_paragraphs(f"""Now viewing {info_dict['kc_id']}""")
+
 def update_create_bol():
-    pass
+    if not check_folder(edit_select_kc_id.value):
+        create_folder(edit_select_kc_id.value)
 
 def update_create_loadconf():
-    pass
+    if not check_folder(edit_select_kc_id.value):
+        create_folder(edit_select_kc_id.value)
+
+
 
 def update_kc_id_next(attkc_idr, old, new):
     pass
@@ -631,7 +791,7 @@ new_delivery_pc.js_on_change("value", CustomJS(code="""console.log('text_input: 
 new_delivery_street_name = TextInput(value=str(""), title="Delivery Street Name", width= width_number)
 new_delivery_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_select_delivery_state = Select(title='Delivery State', value=str(""), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
+new_select_delivery_state = Select(title='Delivery State', value=str(sorted(list(canada_province_names.keys()))[0]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 new_select_delivery_state.on_change('value', update_kc_id)
 
 new_delivery_city = TextInput(value=str(""), title="Delivery City", width= width_number)
@@ -704,8 +864,8 @@ new_other_consignee_contact.js_on_change("value", CustomJS(code="""console.log('
 new_other_consignee_number = TextInput(value=str(""), title="Consignee Number", width= width_number)
 new_other_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_other_customer_contact = TextInput(value=str(""), title="Customer Contact", width= width_number)
-new_other_customer_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_other_date_invoiced = TextInput(value=str(""), title="Date Invoiced", width= width_number)
+new_other_date_invoiced.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_other_customer_invoice = Select(title='Customer Invoice Status', value=str("UNPAID"), options=["UNPAID", "PAID"], width=width_number)
 new_other_customer_invoice.on_change('value', update_kc_id)
@@ -897,8 +1057,8 @@ edit_other_carrier.js_on_change("value", CustomJS(code="""console.log('text_inpu
 edit_other_carrier_contact = TextInput(value=str(data_dict["carrier_contact"]), title="Carrier Contact", width= width_number)
 edit_other_carrier_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_other_customer_contact = TextInput(value=str(data_dict["customer_contact"]), title="Customer Contact", width= width_number)
-edit_other_customer_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_other_date_invoiced = TextInput(value=str(data_dict["date_invoiced"]), title="Date Invoiced", width= width_number)
+edit_other_date_invoiced.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_other_customer_invoice = Select(title='Customer Invoice Status', value=str(data_dict["customer_invoice_status"]), options=["UNPAID", "PAID"], width=width_number)
 edit_other_customer_invoice.on_change('value', update_kc_id)
@@ -1020,7 +1180,7 @@ new_tab = TabPanel(
                       column([
                           new_other_carrier,
                               new_other_carrier_contact,
-                              new_other_customer_contact,
+                              new_other_date_invoiced,
                               new_other_customer_invoice,
                               new_other_carrier_invoice,
                               new_other_tax_type,
@@ -1123,7 +1283,7 @@ row([
 column([
 edit_other_carrier,
 edit_other_carrier_contact,
-edit_other_customer_contact,
+edit_other_date_invoiced,
 edit_other_customer_invoice,
 edit_other_carrier_invoice,
 edit_other_tax_type,
