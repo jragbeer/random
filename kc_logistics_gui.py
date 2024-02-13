@@ -201,10 +201,23 @@ def update_edit():
             "customer_contact": edit_other_customer_contact.value,
             "customer_invoice_status": edit_other_customer_invoice.value,
             "carrier_invoice_status": edit_other_carrier_invoice.value,
+
             "charge": edit_other_charge.value,
             "profit": edit_other_profit.value,
             "cost": edit_other_cost.value,
+            "tax": edit_other_tax.value,
+            "tax_type": edit_other_tax_type.value,
+            "invoice_total": edit_other_invoice_total.value,
+
             "special_notes": edit_other_special_notes.value,
+            "date_ordered": edit_other_date_ordered.value,
+
+            "consignee_number": edit_other_consignee_number.value,
+            "consignee_name": edit_other_consignee_name.value,
+            "consignee_contact": edit_other_consignee_contact.value,
+            "shipper_name": edit_other_shipper_name.value,
+            "shipper_number": edit_other_shipper_number.value,
+            "shipper_contact": edit_other_shipper_contact.value,
 
             "commodity": edit_commodity_commodity.value,
             "commodity_weight": edit_commodity_weight.value,
@@ -234,6 +247,7 @@ def update_edit():
             assert len(to_db_dict['delivery2_street_name']) > 1 , "Delivery 2 Street Name needs to be filled."
             assert len(to_db_dict['delivery2_pc']) >= 5, "Delivery 2 PC too short"
             assert len(to_db_dict['delivery2_pc']) <= 7, "Delivery 2 PC too long"
+            assert to_db_dict['delivery2_state'] == to_db_dict['delivery_state'], "Delivery States must be equal"
             ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery2_pc']]
             assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery 2 ZIP / Postal Code ({to_db_dict['delivery2_pc']})"
 
@@ -258,7 +272,7 @@ def update_edit():
             to_db_dict['profit']), "Charge - Cost =/= Profit"
 
         # assert the commodity information (aside from skids that was already done)
-        assert str(to_db_dict['commodity_weight']).isnumeric(), "Commodity Weight is not a number"
+        assert str(to_db_dict['commodity_weight']).strip().isnumeric(), "Commodity Weight is not a number"
         assert len(to_db_dict['commodity']) > 1, "Commodity needs to be filled."
         assert len(to_db_dict['commodity_skids']) > 6, "Commodity Skids needs to be filled."
 
@@ -299,8 +313,10 @@ def update_search():
 
         edit_pickup_delivery_layout.children.append(edit_delivery2_feature)
     else:
-        edit_pickup_delivery_layout.children = edit_pickup_delivery_layout.children[:-1]
-
+        if len(edit_pickup_delivery_layout.children) < 4:
+            pass
+        else:
+            edit_pickup_delivery_layout.children = edit_pickup_delivery_layout.children[:-1]
 
     edit_display_div.text = wrap_in_paragraphs(f"""Now viewing {new_kc_id}""")
 
@@ -335,6 +351,7 @@ def update_search():
     edit_other_profit.value=str(data_dict_["profit"])
     edit_other_special_notes.value=str(data_dict_["special_notes"])
     edit_other_carrier_invoice.value=str(data_dict_["carrier_invoice_status"])
+    edit_other_carrier.value = str(data_dict_['carrier'])
     edit_other_carrier_contact.value = str(data_dict_['carrier_contact'])
     edit_other_customer_contact.value = str(data_dict_['customer_contact'])
     edit_other_customer_invoice.value = str(data_dict_['customer_invoice_status'])
@@ -699,20 +716,20 @@ new_other_carrier_invoice.on_change('value', update_kc_id)
 new_other_charge = TextInput(value=str(0.0), title="Charge", width= width_number)
 new_other_charge.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_other_profit = TextInput(value=str(0.0), title="Profit", width= width_number)
+new_other_profit = TextInput(value=str(""), title="Profit (auto-generated)", width= width_number)
 new_other_profit.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_other_cost = TextInput(value=str(0.0), title="Cost", width= width_number)
 new_other_cost.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_other_tax = TextInput(value=str(0.0), title="Tax", width= width_number)
+new_other_tax = TextInput(value=str(""), title="Tax (auto-generated)", width= width_number)
 new_other_tax.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_other_tax_type = Select(title='Tax Type', value=str("This depends on delivery province"), options=["GST", "HST"], width=width_number)
+new_other_tax_type = Select(title='Tax Type (auto-generated)', value=str("This depends on delivery province"), options=["This depends on delivery province"], width=width_number)
 new_other_tax_type.on_change('value', update_new_tax_type)
 
 
-new_other_invoice_total = TextInput(value=str(0.0), title="Total Invoice", width= width_number)
+new_other_invoice_total = TextInput(value=str(""), title="Total Invoice (auto-generated)", width= width_number)
 new_other_invoice_total.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 
@@ -865,7 +882,9 @@ edit_select_delivery2_state.on_change('value', update_kc_id)
 edit_delivery2_city = TextInput(value=str(data_dict["delivery2_city"]), title="Delivery 2 City", width= width_number)
 edit_delivery2_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery2_date = DatePicker(title="Delivery 2 Date", value = "2024-01-01", width=width_number)
+edit_delivery2_date = TextInput(value=str(data_dict["delivery2_date"]), title="Delivery 2 Date", width= width_number)
+edit_delivery2_date.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 
 
 # OTHER
@@ -906,7 +925,7 @@ edit_other_tax_type = Select(title='Tax Type', value=str(data_dict["tax_type"]),
 edit_other_tax_type.on_change('value', update_new_tax_type)
 
 
-edit_other_invoice_total = TextInput(value=str(data_dict["total_invoice"]), title="Total Invoice", width= width_number)
+edit_other_invoice_total = TextInput(value=str(data_dict["invoice_total"]), title="Total Invoice", width= width_number)
 edit_other_invoice_total.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_other_date_ordered = TextInput(value=str(data_dict["date_ordered"]), title="Date Ordered", width= width_number)
