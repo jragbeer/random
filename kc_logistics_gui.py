@@ -1,10 +1,8 @@
-from bokeh.plotting import figure, show
-from bokeh.models import BasicTickFormatter, HoverTool, BoxSelectTool, BoxZoomTool, ResetTool, Span, OpenURL, Range1d, CustomJS, Button, DatePicker, RangeSlider
-from bokeh.models import NumeralTickFormatter, WheelZoomTool, PanTool, SaveTool, ColumnDataSource, LinearAxis, FactorRange, TextInput, CustomJS, Tabs, TabPanel
-from bokeh.models.widgets import Select, RadioGroup, DataTable, StringFormatter, TableColumn, NumberFormatter, Div, inputs, Slider, CheckboxGroup, Toggle
+from bokeh.plotting import show
+from bokeh.models import TextInput, CustomJS, Tabs, TabPanel, Button
+from bokeh.models.widgets import Select, Div
 from bokeh.io import curdoc
 from bokeh.layouts import row, column
-from dateutil import parser
 from docxtpl import DocxTemplate
 import traceback
 import time
@@ -36,14 +34,14 @@ constants = {
 "terms": "Net 30 Days",
 "customer_reference_#": "XXX",
 "my_business_name":"KC Logistics Corp.",
-"my_street_name":"Kingston Road",
-"my_street_number":"1100",
+"my_strt_name":"Kingston Road",
+"my_strt_number":"1100",
 "my_unit_name": "701",
 "my_city":"Toronto",
 "my_state":"ON",
 "my_pc":"M1N1N4",
 "my_email":"KCLogistics7@gmail.com",
-             }
+}
 
 canada_tax_rates = {
 "AB": {"GST": 5, "PST": 0, "HST": 0},
@@ -132,9 +130,10 @@ canada_province_names = {
 }
 
 database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv',
-                       dtype={"delivery_street_number":str,
-                                                                                "pickup_street_number":str}).replace(np.nan, '').drop_duplicates(subset=['kc_id'], keep='last')
-print(database.to_string())
+                       dtype={"del_strt_number":str,
+                                                                                "pickup_strt_number":str}).replace(np.nan, '').drop_duplicates(subset=['kc_id'], keep='last')
+
+width_number = 400
 
 
 def check_folder(folder_name):
@@ -155,6 +154,7 @@ def check_folder(folder_name):
         print(f"The folder '{folder_name}' does not exist in the 'data' folder.")
         return False
 
+
 def create_folder(folder_name):
     # Get the current directory
     current_directory = os.getcwd()
@@ -172,17 +172,18 @@ def create_folder(folder_name):
     except FileExistsError:
         print(f"Folder '{folder_name}' already exists in the 'data' folder.")
 
+
 def wrap_in_paragraphs(txt, colour="DarkSlateBlue", size=4):
     """
-
     This function wraps text in paragraph, bold and font tags - according to the colour and size given.
 
-    :param text: text to wrap in tags_
+    :param txt: text to wrap in tags_
     :param colour: colour of the font
     :param size: size of the font
     :return: string wrapped in html tags
     """
     return f"""<p><b><font color={colour} size={size}>{txt}</font></b></p>"""
+
 
 def is_number_tryexcept(s):
     """ Returns True if string is a number. """
@@ -191,6 +192,7 @@ def is_number_tryexcept(s):
         return True
     except ValueError:
         return False
+
 def update_kc_id(attr, old, new):
     pass
 def update_edit():
@@ -211,28 +213,37 @@ def update_edit():
         to_db_dict = {
             "kc_id": edit_select_kc_id.value,
             "pickup_unit_number": edit_pickup_unit_number.value,
-            "pickup_street_number": edit_pickup_street_number.value,
+            "pickup_strt_number": edit_pickup_strt_number.value,
             "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
-            "pickup_street_name": edit_pickup_street_name.value,
+            "pickup_strt_name": edit_pickup_strt_name.value,
             "pickup_state": edit_select_pickup_state.value,
             "pickup_city": edit_pickup_city.value,
             "pickup_date": edit_pickup_date.value,
+            "pickup_shipper_name": edit_pickup_shipper_name.value,
+            "pickup_shipper_number": edit_pickup_shipper_number.value,
+            "pickup_shipper_contact": edit_pickup_shipper_contact.value,
 
-            "delivery_unit_number": edit_delivery_unit_number.value,
-            "delivery_street_number": edit_delivery_street_number.value,
-            "delivery_pc": edit_delivery_pc.value.replace(' ', ""),
-            "delivery_street_name": edit_delivery_street_name.value,
-            "delivery_state": edit_select_delivery_state.value,
-            "delivery_city": edit_delivery_city.value,
-            "delivery_date": edit_delivery_date.value,
+            "del_unit_number": edit_del_unit_number.value,
+            "del_strt_number": edit_del_strt_number.value,
+            "del_pc": edit_del_pc.value.replace(' ', ""),
+            "del_strt_name": edit_del_strt_name.value,
+            "del_state": edit_select_del_state.value,
+            "del_city": edit_del_city.value,
+            "del_date": edit_del_date.value,
+            "del_consignee_number": edit_del_consignee_number.value,
+            "del_consignee_name": edit_del_consignee_name.value,
+            "del_consignee_contact": edit_del_consignee_contact.value,
 
-            "delivery2_unit_number": edit_delivery2_unit_number.value,
-            "delivery2_street_number": edit_delivery2_street_number.value,
-            "delivery2_pc": edit_delivery2_pc.value.replace(' ', ""),
-            "delivery2_street_name": edit_delivery2_street_name.value,
-            "delivery2_state": edit_select_delivery2_state.value,
-            "delivery2_city": edit_delivery2_city.value,
-            "delivery2_date": edit_delivery2_date.value,
+            "del2_unit_number": edit_del2_unit_number.value,
+            "del2_strt_number": edit_del2_strt_number.value,
+            "del2_pc": edit_del2_pc.value.replace(' ', ""),
+            "del2_strt_name": edit_del2_strt_name.value,
+            "del2_state": edit_select_del2_state.value,
+            "del2_city": edit_del2_city.value,
+            "del2_date": edit_del2_date.value,
+            "del2_consignee_number": edit_del2_consignee_number.value,
+            "del2_consignee_name": edit_del2_consignee_name.value,
+            "del2_consignee_contact": edit_del2_consignee_contact.value,
 
             "carrier": edit_other_carrier.value,
             "carrier_contact": edit_other_carrier_contact.value,
@@ -250,13 +261,6 @@ def update_edit():
             "special_notes": edit_other_special_notes.value,
             "date_ordered": edit_other_date_ordered.value,
 
-            "consignee_number": edit_other_consignee_number.value,
-            "consignee_name": edit_other_consignee_name.value,
-            "consignee_contact": edit_other_consignee_contact.value,
-            "shipper_name": edit_other_shipper_name.value,
-            "shipper_number": edit_other_shipper_number.value,
-            "shipper_contact": edit_other_shipper_contact.value,
-
             "commodity": edit_commodity_commodity.value,
             "commodity_weight": edit_commodity_weight.value,
             "commodity_notes": edit_commodity_notes.value,
@@ -268,35 +272,35 @@ def update_edit():
         ensure_some_numbers = [x.isnumeric() for x in to_db_dict['pickup_pc']]
         assert sum(ensure_some_numbers) >= 3, f"Not a valid Pickup ZIP / Postal Code ({to_db_dict['pickup_pc']})"
 
-        assert len(to_db_dict['delivery_pc']) >= 5, "Delivery PC too short"
-        assert len(to_db_dict['delivery_pc']) <= 7, "Delivery PC too long"
-        ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery_pc']]
-        assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery ZIP / Postal Code ({to_db_dict['delivery_pc']})"
+        assert len(to_db_dict['del_pc']) >= 5, "del PC too short"
+        assert len(to_db_dict['del_pc']) <= 7, "del PC too long"
+        ensure_some_numbers = [x.isnumeric() for x in to_db_dict['del_pc']]
+        assert sum(ensure_some_numbers) >= 3, f"Not a valid del ZIP / Postal Code ({to_db_dict['del_pc']})"
 
         # ensure that the fields have the required entries
-        if (to_db_dict["delivery2_unit_number"] or
-                to_db_dict["delivery2_city"] or
-                to_db_dict["delivery2_state"] or
-                to_db_dict["delivery2_street_name"] or
-                to_db_dict["delivery2_pc"] or
-                to_db_dict["delivery2_street_number"]):
-            assert len(to_db_dict['delivery2_street_number']) > 1 , "Delivery 2 Street Number  needs to be filled."
-            assert len(to_db_dict['delivery2_city']) > 1 , "Delivery 2 City needs to be filled."
-            assert len(to_db_dict['delivery2_street_name']) > 1 , "Delivery 2 Street Name needs to be filled."
-            assert len(to_db_dict['delivery2_pc']) >= 5, "Delivery 2 PC too short"
-            assert len(to_db_dict['delivery2_pc']) <= 7, "Delivery 2 PC too long"
-            assert to_db_dict['delivery2_state'] == to_db_dict['delivery_state'], "Delivery States must be equal"
-            ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery2_pc']]
-            assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery 2 ZIP / Postal Code ({to_db_dict['delivery2_pc']})"
+        if (to_db_dict["del2_unit_number"] or
+                to_db_dict["del2_city"] or
+                to_db_dict["del2_state"] or
+                to_db_dict["del2_strt_name"] or
+                to_db_dict["del2_pc"] or
+                to_db_dict["del2_strt_number"]):
+            assert len(to_db_dict['del2_strt_number']) > 1 , "del 2 Street Number  needs to be filled."
+            assert len(to_db_dict['del2_city']) > 1 , "del 2 City needs to be filled."
+            assert len(to_db_dict['del2_strt_name']) > 1 , "del 2 Street Name needs to be filled."
+            assert len(to_db_dict['del2_pc']) >= 5, "del 2 PC too short"
+            assert len(to_db_dict['del2_pc']) <= 7, "del 2 PC too long"
+            assert to_db_dict['del2_state'] == to_db_dict['del_state'], "del States must be equal"
+            ensure_some_numbers = [x.isnumeric() for x in to_db_dict['del2_pc']]
+            assert sum(ensure_some_numbers) >= 3, f"Not a valid del 2 ZIP / Postal Code ({to_db_dict['del2_pc']})"
 
         # ensure that the fields have the required entries
-        assert len(to_db_dict['delivery_street_number']) > 1, "Delivery Street Number  needs to be filled."
-        assert len(to_db_dict['delivery_city']) > 1, "Delivery City needs to be filled."
-        assert len(to_db_dict['delivery_street_name']) > 1, "Delivery Street Name needs to be filled."
+        assert len(to_db_dict['del_strt_number']) > 1, "del Street Number  needs to be filled."
+        assert len(to_db_dict['del_city']) > 1, "del City needs to be filled."
+        assert len(to_db_dict['del_strt_name']) > 1, "del Street Name needs to be filled."
 
-        assert len(to_db_dict['pickup_street_number']) > 1, "Pickup Street Number  needs to be filled."
+        assert len(to_db_dict['pickup_strt_number']) > 1, "Pickup Street Number  needs to be filled."
         assert len(to_db_dict['pickup_city']) > 1, "Pickup City needs to be filled."
-        assert len(to_db_dict['pickup_street_name']) > 1, "Pickup Street Name needs to be filled."
+        assert len(to_db_dict['pickup_strt_name']) > 1, "Pickup Street Name needs to be filled."
 
         assert len(to_db_dict['carrier_contact']) > 1, "Carrier Contact needs to be filled."
         assert len(to_db_dict['customer_contact']) > 1, "Customer Contact needs to be filled."
@@ -314,8 +318,8 @@ def update_edit():
         assert len(to_db_dict['commodity']) > 1, "Commodity needs to be filled."
         assert len(to_db_dict['commodity_skids']) > 6, "Commodity Skids needs to be filled."
 
-        # assert that the delivery date is after the pickup date
-        assert to_db_dict['delivery_date'] >= to_db_dict['pickup_date'], "Pickup Date must be before Delivery Date"
+        # assert that the del date is after the pickup date
+        assert to_db_dict['del_date'] >= to_db_dict['pickup_date'], "Pickup Date must be before del Date"
 
         # add the new data to the database file and write it to disk
         database_modified = pd.concat([database, pd.DataFrame(to_db_dict, index=[0])], ignore_index=True)
@@ -326,8 +330,8 @@ def update_edit():
         edit_display_div.text = wrap_in_paragraphs(f"Data for {edit_select_kc_id.value} passed to the database")
         time.sleep(2)
         # reset the database file, with the newest row added
-        database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv', dtype={"delivery_street_number": str,
-                                                                                        "pickup_street_number": str}).replace(
+        database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv', dtype={"del_strt_number": str,
+                                                                                        "pickup_strt_number": str}).replace(
             np.nan, '').drop_duplicates(subset=['kc_id'], keep='last')
     except Exception as iee:
         print(iee)
@@ -342,46 +346,52 @@ def update_search():
     empty_skids_ = {x: (0, 0, 0, 0) for x in range(1, 19)}
     skids_ = {**empty_skids_, **skids_}
 
-    if (data_dict_["delivery2_unit_number"] or
-        data_dict_["delivery2_city"] or
-        data_dict_["delivery2_state"] or
-        data_dict_["delivery2_street_name"] or
-        data_dict_["delivery2_pc"] or
-        data_dict_["delivery2_street_number"]):
+    if (data_dict_["del2_unit_number"] or
+        data_dict_["del2_city"] or
+        data_dict_["del2_state"] or
+        data_dict_["del2_strt_name"] or
+        data_dict_["del2_pc"] or
+        data_dict_["del2_strt_number"]):
 
-        edit_pickup_delivery_layout.children.append(edit_delivery2_feature)
+        edit_pickup_del_layout.children.append(edit_del2_feature)
     else:
-        if len(edit_pickup_delivery_layout.children) < 4:
+        if len(edit_pickup_del_layout.children) < 4:
             pass
         else:
-            edit_pickup_delivery_layout.children = edit_pickup_delivery_layout.children[:-1]
+            edit_pickup_del_layout.children = edit_pickup_del_layout.children[:-1]
 
     edit_display_div.text = wrap_in_paragraphs(f"""Now viewing {new_kc_id}""")
 
     # pickup
     edit_pickup_unit_number.value=str(data_dict_["pickup_unit_number"])
-    edit_pickup_street_number.value=str(data_dict_["pickup_street_number"])
+    edit_pickup_strt_number.value=str(data_dict_["pickup_strt_number"])
     edit_pickup_pc.value=str(data_dict_["pickup_pc"])
-    edit_pickup_street_name.value=str(data_dict_["pickup_street_name"])
+    edit_pickup_strt_name.value=str(data_dict_["pickup_strt_name"])
     edit_select_pickup_state.value=str(data_dict_["pickup_state"])
     edit_pickup_city.value=str(data_dict_["pickup_city"])
     edit_pickup_date.value = str(data_dict_['pickup_date'])
-    # delivery
-    edit_delivery_unit_number.value=str(data_dict_["delivery_unit_number"])
-    edit_delivery_street_number.value=str(data_dict_["delivery_street_number"])
-    edit_delivery_pc.value=str(data_dict_["delivery_pc"])
-    edit_delivery_street_name.value=str(data_dict_["delivery_street_name"])
-    edit_select_delivery_state.value=str(data_dict_["delivery_state"])
-    edit_delivery_city.value=str(data_dict_["delivery_city"])
-    edit_delivery_date.value = str(data_dict_['delivery_date'])
+    # del
+    edit_del_unit_number.value=str(data_dict_["del_unit_number"])
+    edit_del_strt_number.value=str(data_dict_["del_strt_number"])
+    edit_del_pc.value=str(data_dict_["del_pc"])
+    edit_del_strt_name.value=str(data_dict_["del_strt_name"])
+    edit_select_del_state.value=str(data_dict_["del_state"])
+    edit_del_city.value=str(data_dict_["del_city"])
+    edit_del_date.value = str(data_dict_['del_date'])
+    edit_del_consignee_name.value = str(data_dict_['del_consignee_name'])
+    edit_del_consignee_number.value = str(data_dict_['del_consignee_number'])
+    edit_del_consignee_contact.value = str(data_dict_['del_consignee_contact'])
 
-    edit_delivery2_unit_number.value=str(data_dict_["delivery2_unit_number"])
-    edit_delivery2_street_number.value=str(data_dict_["delivery2_street_number"])
-    edit_delivery2_pc.value=str(data_dict_["delivery2_pc"])
-    edit_delivery2_street_name.value=str(data_dict_["delivery2_street_name"])
-    edit_select_delivery2_state.value=str(data_dict_["delivery2_state"])
-    edit_delivery2_city.value=str(data_dict_["delivery2_city"])
-    edit_delivery2_date.value = str(data_dict_['delivery2_date'])
+    edit_del2_unit_number.value=str(data_dict_["del2_unit_number"])
+    edit_del2_strt_number.value=str(data_dict_["del2_strt_number"])
+    edit_del2_pc.value=str(data_dict_["del2_pc"])
+    edit_del2_strt_name.value=str(data_dict_["del2_strt_name"])
+    edit_select_del2_state.value=str(data_dict_["del2_state"])
+    edit_del2_city.value=str(data_dict_["del2_city"])
+    edit_del2_date.value = str(data_dict_['del2_date'])
+    edit_del2_consignee_name.value = str(data_dict_['del2_consignee_name'])
+    edit_del2_consignee_number.value = str(data_dict_['del2_consignee_number'])
+    edit_del2_consignee_contact.value = str(data_dict_['del2_consignee_contact'])
 
     # other
     edit_other_charge.value=str(data_dict_["charge"])
@@ -393,16 +403,17 @@ def update_search():
     edit_other_carrier_contact.value = str(data_dict_['carrier_contact'])
     edit_other_date_invoiced.value = str(data_dict_['date_invoiced'])
     edit_other_customer_invoice.value = str(data_dict_['customer_invoice_status'])
-    edit_other_consignee_name.value = str(data_dict_['consignee_name'])
-    edit_other_consignee_number.value = str(data_dict_['consignee_number'])
-    edit_other_consignee_contact.value = str(data_dict_['consignee_contact'])
+
+
+
     edit_other_tax.value = str(data_dict_['tax'])
     edit_other_tax_type.value = str(data_dict_['tax_type'])
     edit_other_date_ordered.value = str(data_dict_['date_ordered'])
     edit_other_invoice_total.value = str(data_dict_['invoice_total'])
-    edit_other_shipper_number.value = str(data_dict_['shipper_number'])
-    edit_other_shipper_name.value = str(data_dict_['shipper_name'])
-    edit_other_shipper_contact.value = str(data_dict_['shipper_contact'])
+
+    edit_pickup_shipper_number.value = str(data_dict_['pickup_shipper_number'])
+    edit_pickup_shipper_name.value = str(data_dict_['pickup_shipper_name'])
+    edit_pickup_shipper_contact.value = str(data_dict_['pickup_shipper_contact'])
 
     # commodity
     edit_commodity_notes.value=str(data_dict_["commodity_notes"])
@@ -432,28 +443,37 @@ def update_new():
         to_db_dict = {
         "kc_id": new_select_kc_id.value,
         "pickup_unit_number": new_pickup_unit_number.value,
-        "pickup_street_number": new_pickup_street_number.value,
+        "pickup_strt_number": new_pickup_strt_number.value,
         "pickup_pc": new_pickup_pc.value.replace(' ', ""),
-        "pickup_street_name": new_pickup_street_name.value,
+        "pickup_strt_name": new_pickup_strt_name.value,
         "pickup_state": new_select_pickup_state.value,
         "pickup_city": new_pickup_city.value,
         "pickup_date": new_pickup_date.value,
+        "shipper_contact": new_pickup_shipper_contact.value,
+        "shipper_name": new_pickup_shipper_name.value,
+        "shipper_number": new_pickup_shipper_number.value,
 
-        "delivery_unit_number": new_delivery_unit_number.value,
-        "delivery_street_number": new_delivery_street_number.value,
-        "delivery_pc": new_delivery_pc.value.replace(' ', ""),
-        "delivery_street_name": new_delivery_street_name.value,
-        "delivery_state": new_select_delivery_state.value,
-        "delivery_city": new_delivery_city.value,
-        "delivery_date": new_delivery_date.value,
+        "del_unit_number": new_del_unit_number.value,
+        "del_strt_number": new_del_strt_number.value,
+        "del_pc": new_del_pc.value.replace(' ', ""),
+        "del_strt_name": new_del_strt_name.value,
+        "del_state": new_select_del_state.value,
+        "del_city": new_del_city.value,
+        "del_date": new_del_date.value,
+        "del_consignee_number": new_del_consignee_number.value,
+        "del_consignee_contact": new_del_consignee_contact.value,
+        "del_consignee_name": new_del_consignee_name.value,
 
-        "delivery2_unit_number": new_delivery2_unit_number.value,
-        "delivery2_street_number": new_delivery2_street_number.value,
-        "delivery2_pc": new_delivery2_pc.value.replace(' ', ""),
-        "delivery2_street_name": new_delivery2_street_name.value,
-        "delivery2_state": new_select_delivery2_state.value,
-        "delivery2_city": new_delivery2_city.value,
-        "delivery2_date": new_delivery2_date.value,
+        "del2_unit_number": new_del2_unit_number.value,
+        "del2_strt_number": new_del2_strt_number.value,
+        "del2_pc": new_del2_pc.value.replace(' ', ""),
+        "del2_strt_name": new_del2_strt_name.value,
+        "del2_state": new_select_del2_state.value,
+        "del2_city": new_del2_city.value,
+        "del2_date": new_del2_date.value,
+        "del2_consignee_number": new_del2_consignee_number.value,
+        "del2_consignee_contact": new_del2_consignee_contact.value,
+        "del2_consignee_name": new_del2_consignee_name.value,
 
         "carrier": new_other_carrier.value,
         "carrier_contact": new_other_carrier_contact.value,
@@ -464,16 +484,8 @@ def update_new():
         "charge": float(new_other_charge.value), # the amount we're charging the customer
         "cost": float(new_other_cost.value), # cost to our company
 
-
         "date_ordered": new_other_date_ordered.value,
         "special_notes": new_other_special_notes.value,
-        "consignee_number": new_other_consignee_number.value,
-        "consignee_contact": new_other_consignee_contact.value,
-        "consignee_name": new_other_consignee_name.value,
-        "shipper_contact": new_other_shipper_contact.value,
-        "shipper_name": new_other_shipper_name.value,
-        "shipper_number": new_other_shipper_number.value,
-
 
         "commodity": new_commodity_commodity.value,
         "commodity_weight": float(new_commodity_weight.value),
@@ -481,7 +493,7 @@ def update_new():
         "commodity_skids":str(new_comm_dict),
         }
 
-        state = to_db_dict['delivery_state']
+        state = to_db_dict['del_state']
         tax_state = canada_tax_rates[state]
         tax_rate = sum([y/100 for x, y in tax_state.items() if y > 0])
         tax_type = '/'.join(sorted([x for x, y in tax_state.items() if y > 0]))
@@ -503,34 +515,34 @@ def update_new():
         ensure_some_numbers = [x.isnumeric() for x in to_db_dict['pickup_pc']]
         assert sum(ensure_some_numbers) >= 3, f"Not a valid Pickup ZIP / Postal Code ({to_db_dict['pickup_pc']})"
 
-        assert len(to_db_dict['delivery_pc']) >= 5, "Delivery PC too short"
-        assert len(to_db_dict['delivery_pc']) <= 7, "Delivery PC too long"
-        ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery_pc']]
-        assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery ZIP / Postal Code ({to_db_dict['delivery_pc']})"
+        assert len(to_db_dict['del_pc']) >= 5, "del PC too short"
+        assert len(to_db_dict['del_pc']) <= 7, "del PC too long"
+        ensure_some_numbers = [x.isnumeric() for x in to_db_dict['del_pc']]
+        assert sum(ensure_some_numbers) >= 3, f"Not a valid del ZIP / Postal Code ({to_db_dict['del_pc']})"
 
         # ensure that the fields have the required entries
-        assert len(to_db_dict['delivery_street_number']) > 1 , "Delivery Street Number  needs to be filled."
-        assert len(to_db_dict['delivery_city']) > 1 , "Delivery City needs to be filled."
-        assert len(to_db_dict['delivery_street_name']) > 1 , "Delivery Street Name needs to be filled."
+        assert len(to_db_dict['del_strt_number']) > 1 , "del Street Number  needs to be filled."
+        assert len(to_db_dict['del_city']) > 1 , "del City needs to be filled."
+        assert len(to_db_dict['del_strt_name']) > 1 , "del Street Name needs to be filled."
 
         # ensure that the fields have the required entries
-        if (to_db_dict["delivery2_unit_number"] or
-                to_db_dict["delivery2_city"] or
-                to_db_dict["delivery2_state"] or
-                to_db_dict["delivery2_street_name"] or
-                to_db_dict["delivery2_pc"] or
-                to_db_dict["delivery2_street_number"]):
-            assert len(to_db_dict['delivery2_street_number']) > 1 , "Delivery 2 Street Number  needs to be filled."
-            assert len(to_db_dict['delivery2_city']) > 1 , "Delivery 2 City needs to be filled."
-            assert len(to_db_dict['delivery2_street_name']) > 1 , "Delivery 2 Street Name needs to be filled."
-            assert len(to_db_dict['delivery2_pc']) >= 5, "Delivery 2 PC too short"
-            assert len(to_db_dict['delivery2_pc']) <= 7, "Delivery 2 PC too long"
-            ensure_some_numbers = [x.isnumeric() for x in to_db_dict['delivery2_pc']]
-            assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery 2 ZIP / Postal Code ({to_db_dict['delivery2_pc']})"
+        if (to_db_dict["del2_unit_number"] or
+                to_db_dict["del2_city"] or
+                to_db_dict["del2_state"] or
+                to_db_dict["del2_strt_name"] or
+                to_db_dict["del2_pc"] or
+                to_db_dict["del2_strt_number"]):
+            assert len(to_db_dict['del2_strt_number']) > 1 , "del 2 Street Number  needs to be filled."
+            assert len(to_db_dict['del2_city']) > 1 , "del 2 City needs to be filled."
+            assert len(to_db_dict['del2_strt_name']) > 1 , "del 2 Street Name needs to be filled."
+            assert len(to_db_dict['del2_pc']) >= 5, "del 2 PC too short"
+            assert len(to_db_dict['del2_pc']) <= 7, "del 2 PC too long"
+            ensure_some_numbers = [x.isnumeric() for x in to_db_dict['del2_pc']]
+            assert sum(ensure_some_numbers) >= 3, f"Not a valid del 2 ZIP / Postal Code ({to_db_dict['del2_pc']})"
 
-        assert len(to_db_dict['pickup_street_number']) > 1 , "Pickup Street Number  needs to be filled."
+        assert len(to_db_dict['pickup_strt_number']) > 1 , "Pickup Street Number  needs to be filled."
         assert len(to_db_dict['pickup_city']) > 1 , "Pickup City needs to be filled."
-        assert len(to_db_dict['pickup_street_name']) > 1 , "Pickup Street Name needs to be filled."
+        assert len(to_db_dict['pickup_strt_name']) > 1 , "Pickup Street Name needs to be filled."
 
         assert len(to_db_dict['carrier_contact']) > 1 , "Carrier Contact needs to be filled."
         assert len(to_db_dict['carrier']) > 1 , "Carrier needs to be filled."
@@ -555,8 +567,8 @@ def update_new():
         new_display_div.text = wrap_in_paragraphs(f"Data for {new_select_kc_id.value} passed to the database")
         time.sleep(2)
         # reset the database file, with the newest row added
-        database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv', dtype={"delivery_street_number": str,
-                                                                                        "pickup_street_number": str}).replace(
+        database = pd.read_csv(data_path + 'kc_logistics_corp_booking_data.csv', dtype={"del_strt_number": str,
+                                                                                        "pickup_strt_number": str}).replace(
             np.nan, '').drop_duplicates(subset=['kc_id'], keep='last')
         # find the next KC_ID value
         next_kc_id_ = 'KC' + str(max([int(x[2:]) for x in database['kc_id'].values]) + 1)
@@ -565,32 +577,35 @@ def update_new():
         edit_select_kc_id.options = database['kc_id'].to_list()
 
         # reset some fields so that a double tab doesn't add a second row of the same data
-        new_delivery_unit_number.value = ""
-        new_delivery_pc.value = ""
-        new_delivery_street_number.value = ""
-        new_delivery_street_name.value = ""
-        new_delivery_city.value = ""
-        new_delivery_date.value = ""
+        new_del_unit_number.value = ""
+        new_del_pc.value = ""
+        new_del_strt_number.value = ""
+        new_del_strt_name.value = ""
+        new_del_city.value = ""
+        new_del_date.value = ""
+        new_del_consignee_contact.value = ""
+        new_del_consignee_name.value = ""
+        new_del_consignee_number.value = ""
 
-        new_delivery2_unit_number.value = ""
-        new_delivery2_pc.value = ""
-        new_delivery2_street_number.value = ""
-        new_delivery2_street_name.value = ""
-        new_delivery2_city.value = ""
+        new_del2_unit_number.value = ""
+        new_del2_pc.value = ""
+        new_del2_strt_number.value = ""
+        new_del2_strt_name.value = ""
+        new_del2_city.value = ""
+        new_del2_consignee_contact.value = ""
+        new_del2_consignee_name.value = ""
+        new_del2_consignee_number.value = ""
 
-        new_pickup_street_number.value = ""
+        new_pickup_strt_number.value = ""
         new_pickup_pc.value = ""
         new_pickup_unit_number.value = ""
-        new_pickup_street_name.value = ""
+        new_pickup_strt_name.value = ""
         new_pickup_city.value = ""
         new_pickup_date.value = ""
+        new_pickup_shipper_name.value = ""
+        new_pickup_shipper_contact.value = ""
+        new_pickup_shipper_number.value = ""
 
-        new_other_consignee_contact.value = ""
-        new_other_consignee_name.value = ""
-        new_other_consignee_number.value = ""
-        new_other_shipper_name.value = ""
-        new_other_shipper_contact.value = ""
-        new_other_shipper_number.value = ""
         new_other_date_ordered.value = ""
         new_other_date_invoiced.value = ""
 
@@ -633,28 +648,37 @@ def update_create_invoice():
     info_dict = {
         "kc_id": edit_select_kc_id.value,
         "pickup_unit_number": edit_pickup_unit_number.value,
-        "pickup_street_number": edit_pickup_street_number.value,
+        "pickup_strt_number": edit_pickup_strt_number.value,
         "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
-        "pickup_street_name": edit_pickup_street_name.value,
+        "pickup_strt_name": edit_pickup_strt_name.value,
         "pickup_state": edit_select_pickup_state.value,
         "pickup_city": edit_pickup_city.value,
         "pickup_date": edit_pickup_date.value,
+        "pickup_shipper_name": edit_pickup_shipper_name.value,
+        "pickup_shipper_number": edit_pickup_shipper_number.value,
+        "pickup_shipper_contact": edit_pickup_shipper_contact.value,
 
-        "delivery_unit_number": edit_delivery_unit_number.value,
-        "delivery_street_number": edit_delivery_street_number.value,
-        "delivery_pc": edit_delivery_pc.value.replace(' ', ""),
-        "delivery_street_name": edit_delivery_street_name.value,
-        "delivery_state": edit_select_delivery_state.value,
-        "delivery_city": edit_delivery_city.value,
-        "delivery_date": edit_delivery_date.value,
+        "del_unit_number": edit_del_unit_number.value,
+        "del_strt_number": edit_del_strt_number.value,
+        "del_pc": edit_del_pc.value.replace(' ', ""),
+        "del_strt_name": edit_del_strt_name.value,
+        "del_state": edit_select_del_state.value,
+        "del_city": edit_del_city.value,
+        "del_date": edit_del_date.value,
+        "del_consignee_number": edit_del_consignee_number.value,
+        "del_consignee_name": edit_del_consignee_name.value,
+        "del_consignee_contact": edit_del_consignee_contact.value,
 
-        "delivery2_unit_number": edit_delivery2_unit_number.value,
-        "delivery2_street_number": edit_delivery2_street_number.value,
-        "delivery2_pc": edit_delivery2_pc.value.replace(' ', ""),
-        "delivery2_street_name": edit_delivery2_street_name.value,
-        "delivery2_state": edit_select_delivery2_state.value,
-        "delivery2_city": edit_delivery2_city.value,
-        "delivery2_date": edit_delivery2_date.value,
+        "del2_unit_number": edit_del2_unit_number.value,
+        "del2_strt_number": edit_del2_strt_number.value,
+        "del2_pc": edit_del2_pc.value.replace(' ', ""),
+        "del2_strt_name": edit_del2_strt_name.value,
+        "del2_state": edit_select_del2_state.value,
+        "del2_city": edit_del2_city.value,
+        "del2_date": edit_del2_date.value,
+        "del2_consignee_number": edit_del2_consignee_number.value,
+        "del2_consignee_name": edit_del2_consignee_name.value,
+        "del2_consignee_contact": edit_del2_consignee_contact.value,
 
         "carrier": edit_other_carrier.value,
         "carrier_contact": edit_other_carrier_contact.value,
@@ -672,12 +696,8 @@ def update_create_invoice():
         "special_notes": edit_other_special_notes.value,
         "date_ordered": edit_other_date_ordered.value,
 
-        "consignee_number": edit_other_consignee_number.value,
-        "consignee_name": edit_other_consignee_name.value,
-        "consignee_contact": edit_other_consignee_contact.value,
-        "shipper_name": edit_other_shipper_name.value,
-        "shipper_number": edit_other_shipper_number.value,
-        "shipper_contact": edit_other_shipper_contact.value,
+
+
 
         "commodity": edit_commodity_commodity.value,
         "commodity_weight": edit_commodity_weight.value,
@@ -700,19 +720,13 @@ def update_create_invoice():
     # use the Word doc template
     document = DocxTemplate(data_path + "invoice_template.docx")
     # add extra variables to the info_dict
-    context = {'charge': float(info_dict['charge']),
-               'tax': float(info_dict['tax']),
+    context = {
                'skids': skids,
                'number_of_skids': number_of_skids,
-               'invoice_total': float(info_dict['invoice_total']),
-               'tax_type': info_dict['tax_type'],
-               'consignee_name': info_dict['consignee_name'],
-               'date_ordered': info_dict['date_ordered'],
-               'date_invoiced': info_dict['date_invoiced'],
                'business_number': constants['business_number'],
                'terms': constants['terms'],
                'cstmr_reference': constants['customer_reference_#'],
-               'kc_id': info_dict['kc_id'],}
+                }
     pprint(context)
     context.update(info_dict)
     document.render(context)
@@ -738,28 +752,37 @@ def update_create_bol():
     info_dict = {
         "kc_id": edit_select_kc_id.value,
         "pickup_unit_number": edit_pickup_unit_number.value,
-        "pickup_street_number": edit_pickup_street_number.value,
+        "pickup_strt_number": edit_pickup_strt_number.value,
         "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
-        "pickup_street_name": edit_pickup_street_name.value,
+        "pickup_strt_name": edit_pickup_strt_name.value,
         "pickup_state": edit_select_pickup_state.value,
         "pickup_city": edit_pickup_city.value,
         "pickup_date": edit_pickup_date.value,
+        "pickup_shipper_name": edit_pickup_shipper_name.value,
+        "pickup_shipper_number": edit_pickup_shipper_number.value,
+        "pickup_shipper_contact": edit_pickup_shipper_contact.value,
 
-        "delivery_unit_number": edit_delivery_unit_number.value,
-        "delivery_street_number": edit_delivery_street_number.value,
-        "delivery_pc": edit_delivery_pc.value.replace(' ', ""),
-        "delivery_street_name": edit_delivery_street_name.value,
-        "delivery_state": edit_select_delivery_state.value,
-        "delivery_city": edit_delivery_city.value,
-        "delivery_date": edit_delivery_date.value,
+        "del_unit_number": edit_del_unit_number.value,
+        "del_strt_number": edit_del_strt_number.value,
+        "del_pc": edit_del_pc.value.replace(' ', ""),
+        "del_strt_name": edit_del_strt_name.value,
+        "del_state": edit_select_del_state.value,
+        "del_city": edit_del_city.value,
+        "del_date": edit_del_date.value,
+        "del_consignee_number": edit_del_consignee_number.value,
+        "del_consignee_name": edit_del_consignee_name.value,
+        "del_consignee_contact": edit_del_consignee_contact.value,
 
-        "delivery2_unit_number": edit_delivery2_unit_number.value,
-        "delivery2_street_number": edit_delivery2_street_number.value,
-        "delivery2_pc": edit_delivery2_pc.value.replace(' ', ""),
-        "delivery2_street_name": edit_delivery2_street_name.value,
-        "delivery2_state": edit_select_delivery2_state.value,
-        "delivery2_city": edit_delivery2_city.value,
-        "delivery2_date": edit_delivery2_date.value,
+        "del2_unit_number": edit_del2_unit_number.value,
+        "del2_strt_number": edit_del2_strt_number.value,
+        "del2_pc": edit_del2_pc.value.replace(' ', ""),
+        "del2_strt_name": edit_del2_strt_name.value,
+        "del2_state": edit_select_del2_state.value,
+        "del2_city": edit_del2_city.value,
+        "del2_date": edit_del2_date.value,
+        "del2_consignee_number": edit_del2_consignee_number.value,
+        "del2_consignee_name": edit_del2_consignee_name.value,
+        "del2_consignee_contact": edit_del2_consignee_contact.value,
 
         "carrier": edit_other_carrier.value,
         "carrier_contact": edit_other_carrier_contact.value,
@@ -777,12 +800,8 @@ def update_create_bol():
         "special_notes": edit_other_special_notes.value,
         "date_ordered": edit_other_date_ordered.value,
 
-        "consignee_number": edit_other_consignee_number.value,
-        "consignee_name": edit_other_consignee_name.value,
-        "consignee_contact": edit_other_consignee_contact.value,
-        "shipper_name": edit_other_shipper_name.value,
-        "shipper_number": edit_other_shipper_number.value,
-        "shipper_contact": edit_other_shipper_contact.value,
+
+
 
         "commodity": edit_commodity_commodity.value,
         "commodity_weight": edit_commodity_weight.value,
@@ -806,19 +825,13 @@ def update_create_bol():
     # use the Word doc template
     document = DocxTemplate(data_path + "BoL_template.docx")
     # add extra variables to the info_dict
-    context = {'charge': float(info_dict['charge']),
-               'tax': float(info_dict['tax']),
+    context = {
                'skids': skids,
                'number_of_skids': number_of_skids,
-               'invoice_total': float(info_dict['invoice_total']),
-               'tax_type': info_dict['tax_type'],
-               'consignee_name': info_dict['consignee_name'],
-               'date_ordered': info_dict['date_ordered'],
-               'date_invoiced': info_dict['date_invoiced'],
                'business_number': constants['business_number'],
                'terms': constants['terms'],
                'cstmr_reference': constants['customer_reference_#'],
-               'kc_id': info_dict['kc_id'],}
+                }
     pprint(context)
     context.update(info_dict)
     document.render(context)
@@ -844,28 +857,37 @@ def update_create_loadconf():
     info_dict = {
         "kc_id": edit_select_kc_id.value,
         "pickup_unit_number": edit_pickup_unit_number.value,
-        "pickup_street_number": edit_pickup_street_number.value,
+        "pickup_strt_number": edit_pickup_strt_number.value,
         "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
-        "pickup_street_name": edit_pickup_street_name.value,
+        "pickup_strt_name": edit_pickup_strt_name.value,
         "pickup_state": edit_select_pickup_state.value,
         "pickup_city": edit_pickup_city.value,
         "pickup_date": edit_pickup_date.value,
+        "pickup_shipper_name": edit_pickup_shipper_name.value,
+        "pickup_shipper_number": edit_pickup_shipper_number.value,
+        "pickup_shipper_contact": edit_pickup_shipper_contact.value,
 
-        "delivery_unit_number": edit_delivery_unit_number.value,
-        "delivery_street_number": edit_delivery_street_number.value,
-        "delivery_pc": edit_delivery_pc.value.replace(' ', ""),
-        "delivery_street_name": edit_delivery_street_name.value,
-        "delivery_state": edit_select_delivery_state.value,
-        "delivery_city": edit_delivery_city.value,
-        "delivery_date": edit_delivery_date.value,
+        "del_unit_number": edit_del_unit_number.value,
+        "del_strt_number": edit_del_strt_number.value,
+        "del_pc": edit_del_pc.value.replace(' ', ""),
+        "del_strt_name": edit_del_strt_name.value,
+        "del_state": edit_select_del_state.value,
+        "del_city": edit_del_city.value,
+        "del_date": edit_del_date.value,
+        "del_consignee_number": edit_del_consignee_number.value,
+        "del_consignee_name": edit_del_consignee_name.value,
+        "del_consignee_contact": edit_del_consignee_contact.value,
 
-        "delivery2_unit_number": edit_delivery2_unit_number.value,
-        "delivery2_street_number": edit_delivery2_street_number.value,
-        "delivery2_pc": edit_delivery2_pc.value.replace(' ', ""),
-        "delivery2_street_name": edit_delivery2_street_name.value,
-        "delivery2_state": edit_select_delivery2_state.value,
-        "delivery2_city": edit_delivery2_city.value,
-        "delivery2_date": edit_delivery2_date.value,
+        "del2_unit_number": edit_del2_unit_number.value,
+        "del2_strt_number": edit_del2_strt_number.value,
+        "del2_pc": edit_del2_pc.value.replace(' ', ""),
+        "del2_strt_name": edit_del2_strt_name.value,
+        "del2_state": edit_select_del2_state.value,
+        "del2_city": edit_del2_city.value,
+        "del2_date": edit_del2_date.value,
+        "del2_consignee_number": edit_del2_consignee_number.value,
+        "del2_consignee_name": edit_del2_consignee_name.value,
+        "del2_consignee_contact": edit_del2_consignee_contact.value,
 
         "carrier": edit_other_carrier.value,
         "carrier_contact": edit_other_carrier_contact.value,
@@ -883,12 +905,8 @@ def update_create_loadconf():
         "special_notes": edit_other_special_notes.value,
         "date_ordered": edit_other_date_ordered.value,
 
-        "consignee_number": edit_other_consignee_number.value,
-        "consignee_name": edit_other_consignee_name.value,
-        "consignee_contact": edit_other_consignee_contact.value,
-        "shipper_name": edit_other_shipper_name.value,
-        "shipper_number": edit_other_shipper_number.value,
-        "shipper_contact": edit_other_shipper_contact.value,
+
+
 
         "commodity": edit_commodity_commodity.value,
         "commodity_weight": edit_commodity_weight.value,
@@ -912,19 +930,13 @@ def update_create_loadconf():
     # use the Word doc template
     document = DocxTemplate(data_path + "load_confirmation_template.docx")
     # add extra variables to the info_dict
-    context = {'charge': float(info_dict['charge']),
-               'tax': float(info_dict['tax']),
+    context = {
                'skids': skids,
                'number_of_skids': number_of_skids,
-               'invoice_total': float(info_dict['invoice_total']),
-               'tax_type': info_dict['tax_type'],
-               'consignee_name': info_dict['consignee_name'],
-               'date_ordered': info_dict['date_ordered'],
-               'date_invoiced': info_dict['date_invoiced'],
                'business_number': constants['business_number'],
                'terms': constants['terms'],
                'cstmr_reference': constants['customer_reference_#'],
-               'kc_id': info_dict['kc_id'],}
+                }
     pprint(context)
     context.update(info_dict)
     document.render(context)
@@ -937,18 +949,16 @@ def update_create_loadconf():
 def update_kc_id_next(attkc_idr, old, new):
     pass
 
+def add_new_del_destination():
+    # There are 3 things normally, if only 3 now, add one more del. If there are 4, do not add another del.
+    if len(new_pickup_del_layout.children) < 4:
+        new_pickup_del_layout.children.append(new_del2_feature)
 
-def add_new_delivery_destination():
-    # There are 3 things normally, if only 3 now, add one more delivery. If there are 4, do not add another delivery.
-    if len(new_pickup_delivery_layout.children) < 4:
-        new_pickup_delivery_layout.children.append(new_delivery2_feature)
+def add_edit_del_destination():
+    # There are 3 things normally, if only 3 now, add one more del. If there are 4, do not add another del.
+    if len(edit_pickup_del_layout.children) < 4:
+        edit_pickup_del_layout.children.append(edit_del2_feature)
 
-def add_edit_delivery_destination():
-    # There are 3 things normally, if only 3 now, add one more delivery. If there are 4, do not add another delivery.
-    if len(edit_pickup_delivery_layout.children) < 4:
-        edit_pickup_delivery_layout.children.append(edit_delivery2_feature)
-
-width_number = 400
 
 title_div = Div(text=wrap_in_paragraphs('KC Logistics Data Input', 'black', size=5), width = width_number)
 new_info_div = Div(text=wrap_in_paragraphs("""New Data Input for KC Logistics Data """, 'black', size=3), width = 300)
@@ -971,14 +981,14 @@ new_div_pickup = Div(text=wrap_in_paragraphs("""Pickup""", 'black', size=3))
 new_pickup_unit_number = TextInput(value=str(""), title="Pickup Unit Number", width= width_number)
 new_pickup_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_pickup_street_number = TextInput(value=str(""), title="Pickup Street Number", width= width_number)
-new_pickup_street_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_pickup_strt_number = TextInput(value=str(""), title="Pickup Street Number", width= width_number)
+new_pickup_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_pickup_pc = TextInput(value=str(""), title="Pickup Postal Code/ZIP", width= width_number)
 new_pickup_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_pickup_street_name = TextInput(value=str(""), title="Pickup Street Name", width= width_number)
-new_pickup_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_pickup_strt_name = TextInput(value=str(""), title="Pickup Street Name", width= width_number)
+new_pickup_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_select_pickup_state = Select(title='Pickup State', value=str(""), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 new_select_pickup_state.on_change('value', update_kc_id)
@@ -990,67 +1000,93 @@ new_pickup_date = TextInput(value=str("Monday January 1, 2024"), title="Pickup D
 new_pickup_date.js_on_change("value",
                                 CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
+new_pickup_shipper_name = TextInput(value=str(""), title="Shipper Name", width= width_number)
+new_pickup_shipper_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-# DELIVERY
+new_pickup_shipper_contact = TextInput(value=str(""), title="Shipper Contact", width= width_number)
+new_pickup_shipper_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_pickup_shipper_number = TextInput(value=str(""), title="Shipper Number", width= width_number)
+new_pickup_shipper_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+
+# del
 ######################################
-new_div_delivery = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
-new_div_delivery2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
+new_div_del = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
+new_div_del2 = Div(text=wrap_in_paragraphs("""del 2""", 'black', size=3))
 
-new_delivery_unit_number = TextInput(value=str(""), title="Delivery Unit Number", width= width_number)
-new_delivery_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_del_unit_number = TextInput(value=str(""), title="Delivery Unit Number", width= width_number)
+new_del_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery_street_number = TextInput(value=str(""), title="Delivery Street Number", width= width_number)
-new_delivery_street_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_del_strt_number = TextInput(value=str(""), title="Delivery Street Number", width= width_number)
+new_del_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery_pc = TextInput(value=str(""), title="Delivery Postal Code/ZIP", width= width_number)
-new_delivery_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_del_pc = TextInput(value=str(""), title="Delivery Postal Code/ZIP", width= width_number)
+new_del_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery_street_name = TextInput(value=str(""), title="Delivery Street Name", width= width_number)
-new_delivery_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_del_strt_name = TextInput(value=str(""), title="Delivery Street Name", width= width_number)
+new_del_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_select_delivery_state = Select(title='Delivery State', value=str(sorted(list(canada_province_names.keys()))[0]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
-new_select_delivery_state.on_change('value', update_kc_id)
+new_select_del_state = Select(title='Delivery State', value=str(sorted(list(canada_province_names.keys()))[0]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
+new_select_del_state.on_change('value', update_kc_id)
 
-new_delivery_city = TextInput(value=str(""), title="Delivery City", width= width_number)
-new_delivery_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_del_city = TextInput(value=str(""), title="Delivery City", width= width_number)
+new_del_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery_date = TextInput(value=str("Monday January 1, 2024"), title="Delivery Date", width=width_number)
-new_delivery_date.js_on_change("value",
+new_del_date = TextInput(value=str("Monday January 1, 2024"), title="Delivery Date", width=width_number)
+new_del_date.js_on_change("value",
                                 CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
+new_del_consignee_name = TextInput(value=str(""), title="Consignee Name", width= width_number)
+new_del_consignee_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery2_unit_number = TextInput(value=str(""), title="Delivery 2 Unit Number", width=width_number)
-new_delivery2_unit_number.js_on_change("value", CustomJS(
+new_del_consignee_contact = TextInput(value=str(""), title="Consignee Contact", width= width_number)
+new_del_consignee_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_del_consignee_number = TextInput(value=str(""), title="Consignee Number", width= width_number)
+new_del_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+
+new_del2_unit_number = TextInput(value=str(""), title="Delivery 2 Unit Number", width=width_number)
+new_del2_unit_number.js_on_change("value", CustomJS(
     code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery2_street_number = TextInput(value=str(""), title="Delivery 2 Street Number", width=width_number)
-new_delivery2_street_number.js_on_change("value", CustomJS(
+new_del2_strt_number = TextInput(value=str(""), title="Delivery 2 Street Number", width=width_number)
+new_del2_strt_number.js_on_change("value", CustomJS(
     code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery2_pc = TextInput(value=str(""), title="Delivery 2 Postal Code/ZIP", width=width_number)
-new_delivery2_pc.js_on_change("value",
+new_del2_pc = TextInput(value=str(""), title="Delivery 2 Postal Code/ZIP", width=width_number)
+new_del2_pc.js_on_change("value",
                               CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery2_street_name = TextInput(value=str(""), title="Delivery 2 Street Name", width=width_number)
-new_delivery2_street_name.js_on_change("value", CustomJS(
+new_del2_strt_name = TextInput(value=str(""), title="Delivery 2 Street Name", width=width_number)
+new_del2_strt_name.js_on_change("value", CustomJS(
     code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_select_delivery2_state = Select(title='Delivery 2 State', value=str(""),
+new_select_del2_state = Select(title='Delivery 2 State', value=str(""),
                                     options=sorted(list(canada_province_names.keys()) + list(us_states.keys())),
                                     width=width_number)
-new_select_delivery2_state.on_change('value', update_kc_id)
+new_select_del2_state.on_change('value', update_kc_id)
 
-new_delivery2_city = TextInput(value=str(""), title="Delivery 2 City", width=width_number)
-new_delivery2_city.js_on_change("value",
+new_del2_city = TextInput(value=str(""), title="Delivery 2 City", width=width_number)
+new_del2_city.js_on_change("value",
                                 CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_delivery2_date = TextInput(value=str("Monday January 1, 2024"), title="Delivery 2 Date", width=width_number)
-new_delivery2_date.js_on_change("value",
+new_del2_date = TextInput(value=str("Monday January 1, 2024"), title="Delivery 2 Date", width=width_number)
+new_del2_date.js_on_change("value",
                                 CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
+new_del2_consignee_name = TextInput(value=str(""), title="Delivery 2 Consignee Name", width= width_number)
+new_del2_consignee_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_dest_button = Button(label="Add delivery destination", button_type="success")
-new_dest_button.on_click(add_new_delivery_destination)
+new_del2_consignee_contact = TextInput(value=str(""), title="Delivery 2 Consignee Contact", width= width_number)
+new_del2_consignee_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_del2_consignee_number = TextInput(value=str(""), title="Delivery 2 Consignee Number", width= width_number)
+new_del2_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_dest_button = Button(label="Add Delivery destination", button_type="success")
+new_dest_button.on_click(add_new_del_destination)
 
 
 # OTHER
@@ -1062,24 +1098,6 @@ new_other_carrier.js_on_change("value", CustomJS(code="""console.log('text_input
 
 new_other_carrier_contact = TextInput(value=str(""), title="Carrier Contact", width= width_number)
 new_other_carrier_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_other_shipper_name = TextInput(value=str(""), title="Shipper Name", width= width_number)
-new_other_shipper_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_other_shipper_contact = TextInput(value=str(""), title="Shipper Contact", width= width_number)
-new_other_shipper_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_other_shipper_number = TextInput(value=str(""), title="Shipper Number", width= width_number)
-new_other_shipper_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_other_consignee_name = TextInput(value=str(""), title="Consignee Name", width= width_number)
-new_other_consignee_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_other_consignee_contact = TextInput(value=str(""), title="Consignee Contact", width= width_number)
-new_other_consignee_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_other_consignee_number = TextInput(value=str(""), title="Consignee Number", width= width_number)
-new_other_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_other_date_invoiced = TextInput(value=str(""), title="Date Invoiced", width= width_number)
 new_other_date_invoiced.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1102,9 +1120,8 @@ new_other_cost.js_on_change("value", CustomJS(code="""console.log('text_input: v
 new_other_tax = TextInput(value=str(""), title="Tax (auto-generated)", width= width_number)
 new_other_tax.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_other_tax_type = Select(title='Tax Type (auto-generated)', value=str("This depends on delivery province"), options=["This depends on delivery province"], width=width_number)
+new_other_tax_type = Select(title='Tax Type (auto-generated)', value=str("This depends on del province"), options=["This depends on del province"], width=width_number)
 new_other_tax_type.on_change('value', update_new_tax_type)
-
 
 new_other_invoice_total = TextInput(value=str(""), title="Total Invoice (auto-generated)", width= width_number)
 new_other_invoice_total.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1186,8 +1203,8 @@ create_invoice_button = Button(label="Create Invoice", button_type="warning", wi
 create_invoice_button.on_click(update_create_invoice)
 
 
-edit_add_dest_button = Button(label="Add delivery destination", button_type="success")
-edit_add_dest_button.on_click(add_edit_delivery_destination)
+edit_add_dest_button = Button(label="Add del destination", button_type="success")
+edit_add_dest_button.on_click(add_edit_del_destination)
 
 ### PICKUP
 edit_div_pickup = Div(text=wrap_in_paragraphs("""Pickup""", 'black', size=3))
@@ -1195,14 +1212,14 @@ edit_div_pickup = Div(text=wrap_in_paragraphs("""Pickup""", 'black', size=3))
 edit_pickup_unit_number = TextInput(value=str(data_dict["pickup_unit_number"]), title="Pickup Unit Number", width= width_number)
 edit_pickup_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_pickup_street_number = TextInput(value=str(data_dict["pickup_street_number"]), title="Pickup Street Number", width= width_number)
-edit_pickup_street_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_pickup_strt_number = TextInput(value=str(data_dict["pickup_strt_number"]), title="Pickup Street Number", width= width_number)
+edit_pickup_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_pickup_pc = TextInput(value=str(data_dict["pickup_pc"]), title="Pickup Postal Code/ZIP", width= width_number)
 edit_pickup_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_pickup_street_name = TextInput(value=str(data_dict["pickup_street_name"]), title="Pickup Street Name", width= width_number)
-edit_pickup_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_pickup_strt_name = TextInput(value=str(data_dict["pickup_strt_name"]), title="Pickup Street Name", width= width_number)
+edit_pickup_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_select_pickup_state = Select(title='Pickup State', value=str(data_dict["pickup_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 edit_select_pickup_state.on_change('value', update_kc_id)
@@ -1213,55 +1230,82 @@ edit_pickup_city.js_on_change("value", CustomJS(code="""console.log('text_input:
 edit_pickup_date = TextInput(value=str(data_dict["pickup_date"]), title="Pickup Date", width= width_number)
 edit_pickup_date.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
+edit_pickup_shipper_name = TextInput(value=str(data_dict["pickup_shipper_name"]), title="Shipper Name", width= width_number)
+edit_pickup_shipper_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-# DELIVERY
+edit_pickup_shipper_contact = TextInput(value=str(data_dict["pickup_shipper_contact"]), title="Shipper Contact", width= width_number)
+edit_pickup_shipper_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_pickup_shipper_number = TextInput(value=str(data_dict["pickup_shipper_number"]), title="Shipper Number", width= width_number)
+edit_pickup_shipper_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+
+# del
 ######################################
-edit_div_delivery = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
-edit_div_delivery2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
+edit_div_del = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
+edit_div_del2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
 
-edit_delivery_unit_number = TextInput(value=str(data_dict["delivery_unit_number"]), title="Delivery Unit Number", width= width_number)
-edit_delivery_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del_unit_number = TextInput(value=str(data_dict["del_unit_number"]), title="Delivery Unit Number", width= width_number)
+edit_del_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery_street_number = TextInput(value=str(data_dict["delivery_street_number"]), title="Delivery Street Number", width= width_number)
-edit_delivery_street_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del_strt_number = TextInput(value=str(data_dict["del_strt_number"]), title="Delivery Street Number", width= width_number)
+edit_del_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery_pc = TextInput(value=str(data_dict["delivery_pc"]), title="Delivery Postal Code/ZIP", width= width_number)
-edit_delivery_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del_pc = TextInput(value=str(data_dict["del_pc"]), title="Delivery Postal Code/ZIP", width= width_number)
+edit_del_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery_street_name = TextInput(value=str(data_dict["delivery_street_name"]), title="Delivery Street Name", width= width_number)
-edit_delivery_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del_strt_name = TextInput(value=str(data_dict["del_strt_name"]), title="Delivery Street Name", width= width_number)
+edit_del_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_select_delivery_state = Select(title='Delivery State', value=str(data_dict["delivery_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
-edit_select_delivery_state.on_change('value', update_kc_id)
+edit_select_del_state = Select(title='del State', value=str(data_dict["del_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_select_del_state.on_change('value', update_kc_id)
 
-edit_delivery_city = TextInput(value=str(data_dict["delivery_city"]), title="Delivery City", width= width_number)
-edit_delivery_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del_city = TextInput(value=str(data_dict["del_city"]), title="Delivery City", width= width_number)
+edit_del_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery_date = TextInput(value=str(data_dict["delivery_date"]), title="Delivery Date", width= width_number)
-edit_delivery_date.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del_date = TextInput(value=str(data_dict["del_date"]), title="Delivery Date", width= width_number)
+edit_del_date.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_del_consignee_name = TextInput(value=str(data_dict["del_consignee_name"]), title="Delivery Consignee Name", width= width_number)
+edit_del_consignee_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_del_consignee_contact = TextInput(value=str(data_dict["del_consignee_contact"]), title="Delivery Consignee Contact", width= width_number)
+edit_del_consignee_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_del_consignee_number = TextInput(value=str(data_dict["del_consignee_number"]), title="Delivery Consignee Number", width= width_number)
+edit_del_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 
-edit_delivery2_unit_number = TextInput(value=str(data_dict["delivery2_unit_number"]), title="Delivery 2 Unit Number", width= width_number)
-edit_delivery2_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery2_street_number = TextInput(value=str(data_dict["delivery2_street_number"]), title="Delivery 2 Street Number", width= width_number)
-edit_delivery2_street_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del2_unit_number = TextInput(value=str(data_dict["del2_unit_number"]), title="Delivery 2 Unit Number", width= width_number)
+edit_del2_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery2_pc = TextInput(value=str(data_dict["delivery2_pc"]), title="Delivery 2 Postal Code/ZIP", width= width_number)
-edit_delivery2_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del2_strt_number = TextInput(value=str(data_dict["del2_strt_number"]), title="Delivery 2 Street Number", width= width_number)
+edit_del2_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery2_street_name = TextInput(value=str(data_dict["delivery2_street_name"]), title="Delivery 2 Street Name", width= width_number)
-edit_delivery2_street_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del2_pc = TextInput(value=str(data_dict["del2_pc"]), title="Delivery 2 Postal Code/ZIP", width= width_number)
+edit_del2_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_select_delivery2_state = Select(title='Delivery 2 State', value=str(data_dict["delivery2_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
-edit_select_delivery2_state.on_change('value', update_kc_id)
+edit_del2_strt_name = TextInput(value=str(data_dict["del2_strt_name"]), title="Delivery 2 Street Name", width= width_number)
+edit_del2_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_delivery2_city = TextInput(value=str(data_dict["delivery2_city"]), title="Delivery 2 City", width= width_number)
-edit_delivery2_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_select_del2_state = Select(title='Delivery 2 State', value=str(data_dict["del2_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_select_del2_state.on_change('value', update_kc_id)
 
-edit_delivery2_date = TextInput(value=str(data_dict["delivery2_date"]), title="Delivery 2 Date", width= width_number)
-edit_delivery2_date.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del2_city = TextInput(value=str(data_dict["del2_city"]), title="Delivery 2 City", width= width_number)
+edit_del2_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
+edit_del2_date = TextInput(value=str(data_dict["del2_date"]), title="Delivery 2 Date", width= width_number)
+edit_del2_date.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_del2_consignee_name = TextInput(value=str(data_dict["del2_consignee_name"]), title="Delivery 2 Consignee Name", width= width_number)
+edit_del2_consignee_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_del2_consignee_contact = TextInput(value=str(data_dict["del2_consignee_contact"]), title="Delivery 2 Consignee Contact", width= width_number)
+edit_del2_consignee_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_del2_consignee_number = TextInput(value=str(data_dict["del2_consignee_number"]), title="Delivery 2 Consignee Number", width= width_number)
+edit_del2_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 
 # OTHER
@@ -1298,34 +1342,14 @@ edit_other_special_notes.js_on_change("value", CustomJS(code="""console.log('tex
 edit_other_tax = TextInput(value=str(data_dict["tax"]), title="Tax", width= width_number)
 edit_other_tax.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_other_tax_type = Select(title='Tax Type', value=str(data_dict["tax_type"]), options=["This depends on delivery province","GST", "HST"], width=width_number)
+edit_other_tax_type = Select(title='Tax Type', value=str(data_dict["tax_type"]), options=["This depends on del province","GST", "HST"], width=width_number)
 edit_other_tax_type.on_change('value', update_new_tax_type)
-
 
 edit_other_invoice_total = TextInput(value=str(data_dict["invoice_total"]), title="Total Invoice", width= width_number)
 edit_other_invoice_total.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_other_date_ordered = TextInput(value=str(data_dict["date_ordered"]), title="Date Ordered", width= width_number)
 edit_other_date_ordered.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_other_shipper_name = TextInput(value=str(data_dict["shipper_name"]), title="Shipper Name", width= width_number)
-edit_other_shipper_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_other_shipper_contact = TextInput(value=str(data_dict["shipper_contact"]), title="Shipper Contact", width= width_number)
-edit_other_shipper_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_other_shipper_number = TextInput(value=str(data_dict["shipper_number"]), title="Shipper Number", width= width_number)
-edit_other_shipper_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_other_consignee_name = TextInput(value=str(data_dict["consignee_name"]), title="Consignee Name", width= width_number)
-edit_other_consignee_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_other_consignee_contact = TextInput(value=str(data_dict["consignee_contact"]), title="Consignee Contact", width= width_number)
-edit_other_consignee_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_other_consignee_number = TextInput(value=str(data_dict["consignee_number"]), title="Consignee Number", width= width_number)
-edit_other_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
 
 
 # COMMODITY
@@ -1362,60 +1386,66 @@ for x in range(1,19):
 
 # LAYOUT
 
-new_pickup_delivery_layout = row([
-                      column([new_div_pickup, new_pickup_street_number,
-                              new_pickup_street_name,
+new_pickup_del_layout = row([
+                      column([new_div_pickup, new_pickup_strt_number,
+                              new_pickup_strt_name,
                               new_pickup_unit_number,
                               new_pickup_city,
                               new_select_pickup_state,
                               new_pickup_pc,
-                              new_pickup_date, ]),
+                              new_pickup_date,
+                              new_pickup_shipper_name,
+                              new_pickup_shipper_contact,
+                              new_pickup_shipper_number,
+                              ]),
                       new_div_0,
-                      column([new_div_delivery, new_delivery_street_number,
-                              new_delivery_street_name,
-                              new_delivery_unit_number,
-                              new_delivery_city,
-                              new_select_delivery_state,
-                              new_delivery_pc,
-                              new_delivery_date, ]), ])
+                      column([new_div_del, new_del_strt_number,
+                              new_del_strt_name,
+                              new_del_unit_number,
+                              new_del_city,
+                              new_select_del_state,
+                              new_del_pc,
+                              new_del_date,
+                              new_del_consignee_name,
+                              new_del_consignee_contact,
+                              new_del_consignee_number,
+                              ]), ])
 
-new_delivery2_feature = column([new_div_delivery2, new_delivery2_street_number,
-                                new_delivery2_street_name,
-                                new_delivery2_unit_number,
-                                new_delivery2_city,
-                                new_select_delivery2_state,
-                                new_delivery2_pc,
-                                new_delivery2_date, ])
+new_del2_feature = column([new_div_del2, new_del2_strt_number,
+                                new_del2_strt_name,
+                                new_del2_unit_number,
+                                new_del2_city,
+                                new_select_del2_state,
+                                new_del2_pc,
+                                new_del2_date,
+                                new_del2_consignee_name,
+                                new_del2_consignee_contact,
+                                new_del2_consignee_number,
+                                ])
 
 new_tab = TabPanel(
     child=column([row([new_info_div, new_select_kc_id, new_button, new_dest_button]),
                   new_display_div,
-                    new_pickup_delivery_layout,
+                    new_pickup_del_layout,
                   new_div_2,
                   new_div_other,
                   row([
                       column([
                           new_other_carrier,
                               new_other_carrier_contact,
+                            new_other_date_ordered,
                               new_other_date_invoiced,
                               new_other_customer_invoice,
                               new_other_carrier_invoice,
-                              new_other_tax_type,
-                              new_other_cost,
-                              new_other_invoice_total,
-                              new_other_tax,
                               ]),
                       new_div_1,
                       column([
-                          new_other_shipper_name,
-                          new_other_shipper_contact,
-                          new_other_shipper_number,
-                          new_other_consignee_name,
-                          new_other_consignee_contact,
-                          new_other_consignee_number,
                           new_other_charge,
+                          new_other_cost,
+                          new_other_tax_type,
+                          new_other_tax,
+                          new_other_invoice_total,
                           new_other_profit,
-                        new_other_date_ordered,
                       ]),
                   ]),
                   new_other_special_notes,
@@ -1464,36 +1494,52 @@ new_tab = TabPanel(
     title="New",
 )
 
-edit_pickup_delivery_layout = row([
-                        column([edit_div_pickup, edit_pickup_street_number,
-                    edit_pickup_street_name,
+edit_pickup_del_layout = row([
+                        column([
+                            edit_div_pickup,
+                            edit_pickup_strt_number,
+                    edit_pickup_strt_name,
                     edit_pickup_unit_number,
                     edit_pickup_city,
                     edit_select_pickup_state,
                     edit_pickup_pc,
-                    edit_pickup_date,]),
+                    edit_pickup_date,
+                    edit_pickup_shipper_name,
+                    edit_pickup_shipper_contact,
+                    edit_pickup_shipper_number,
+                                ]),
                   edit_div_0,
-                  column([edit_div_delivery, edit_delivery_street_number,
-                  edit_delivery_street_name,
-                  edit_delivery_unit_number,
-                  edit_delivery_city,
-                  edit_select_delivery_state,
-                  edit_delivery_pc,
-                    edit_delivery_date,]),])
+                  column([
+                  edit_div_del,
+                  edit_del_strt_number,
+                  edit_del_strt_name,
+                  edit_del_unit_number,
+                  edit_del_city,
+                  edit_select_del_state,
+                  edit_del_pc,
+                  edit_del_date,
+                  edit_del_consignee_name,
+                  edit_del_consignee_contact,
+                  edit_del_consignee_number,
+                          ]),])
 
-edit_delivery2_feature = column([edit_div_delivery2, edit_delivery2_street_number,
-                                 edit_delivery2_street_name,
-                                 edit_delivery2_unit_number,
-                                 edit_delivery2_city,
-                                 edit_select_delivery2_state,
-                                 edit_delivery2_pc,
-                                 edit_delivery2_date, ])
+edit_del2_feature = column([edit_div_del2, edit_del2_strt_number,
+                                 edit_del2_strt_name,
+                                 edit_del2_unit_number,
+                                 edit_del2_city,
+                                 edit_select_del2_state,
+                                 edit_del2_pc,
+                                 edit_del2_date,
+                            edit_del2_consignee_name,
+                            edit_del2_consignee_contact,
+                            edit_del2_consignee_number,
+                            ])
 
 edit_tab = TabPanel(
     child=column([row([edit_info_div,edit_select_kc_id, column([row([search_button, edit_button,edit_add_dest_button,]),
                                                                 row([create_bol_button, create_invoice_button, create_loadconf_button])])]),
 edit_display_div,
-edit_pickup_delivery_layout,
+edit_pickup_del_layout,
 edit_div_2,
 edit_div_other,
 row([
@@ -1510,12 +1556,8 @@ edit_other_tax,
         ])    ,
 edit_div_1,
 column([
-    edit_other_shipper_name,
-    edit_other_shipper_contact,
-    edit_other_shipper_number,
-    edit_other_consignee_name,
-    edit_other_consignee_contact,
-    edit_other_consignee_number,
+
+
     edit_other_charge,
     edit_other_profit,
     edit_other_date_ordered,
