@@ -542,7 +542,7 @@ def update_new():
         assert float(to_db_dict['charge']) - float(to_db_dict['cost']) == float(to_db_dict['profit']), "Charge - Cost =/= Profit"
 
         # assert the commodity information (aside from skids that was already done)
-        assert str(to_db_dict['commodity_weight']).isnumeric(), "Commodity Weight is not a number"
+        assert is_number_tryexcept(to_db_dict['commodity_weight']), "Commodity Weight is not a number"
         assert len(to_db_dict['commodity']) > 1 , "Commodity needs to be filled."
         assert len(to_db_dict['commodity_skids']) > 6 , "Commodity Skids needs to be filled."
 
@@ -630,7 +630,111 @@ def update_create_invoice():
                           )
                       for x in range(1, 19)
                       }
-    pprint(edit_comm_dict)
+    info_dict = {
+        "kc_id": edit_select_kc_id.value,
+        "pickup_unit_number": edit_pickup_unit_number.value,
+        "pickup_street_number": edit_pickup_street_number.value,
+        "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
+        "pickup_street_name": edit_pickup_street_name.value,
+        "pickup_state": edit_select_pickup_state.value,
+        "pickup_city": edit_pickup_city.value,
+        "pickup_date": edit_pickup_date.value,
+
+        "delivery_unit_number": edit_delivery_unit_number.value,
+        "delivery_street_number": edit_delivery_street_number.value,
+        "delivery_pc": edit_delivery_pc.value.replace(' ', ""),
+        "delivery_street_name": edit_delivery_street_name.value,
+        "delivery_state": edit_select_delivery_state.value,
+        "delivery_city": edit_delivery_city.value,
+        "delivery_date": edit_delivery_date.value,
+
+        "delivery2_unit_number": edit_delivery2_unit_number.value,
+        "delivery2_street_number": edit_delivery2_street_number.value,
+        "delivery2_pc": edit_delivery2_pc.value.replace(' ', ""),
+        "delivery2_street_name": edit_delivery2_street_name.value,
+        "delivery2_state": edit_select_delivery2_state.value,
+        "delivery2_city": edit_delivery2_city.value,
+        "delivery2_date": edit_delivery2_date.value,
+
+        "carrier": edit_other_carrier.value,
+        "carrier_contact": edit_other_carrier_contact.value,
+        "date_invoiced": edit_other_date_invoiced.value,
+        "customer_invoice_status": edit_other_customer_invoice.value,
+        "carrier_invoice_status": edit_other_carrier_invoice.value,
+
+        "charge": edit_other_charge.value,
+        "profit": edit_other_profit.value,
+        "cost": edit_other_cost.value,
+        "tax": edit_other_tax.value,
+        "tax_type": edit_other_tax_type.value,
+        "invoice_total": edit_other_invoice_total.value,
+
+        "special_notes": edit_other_special_notes.value,
+        "date_ordered": edit_other_date_ordered.value,
+
+        "consignee_number": edit_other_consignee_number.value,
+        "consignee_name": edit_other_consignee_name.value,
+        "consignee_contact": edit_other_consignee_contact.value,
+        "shipper_name": edit_other_shipper_name.value,
+        "shipper_number": edit_other_shipper_number.value,
+        "shipper_contact": edit_other_shipper_contact.value,
+
+        "commodity": edit_commodity_commodity.value,
+        "commodity_weight": edit_commodity_weight.value,
+        "commodity_notes": edit_commodity_notes.value,
+        "commodity_skids": str(edit_comm_dict),
+    }
+    # only worry about 'active' skids
+    active_skids = {x:y for x,y in edit_comm_dict.items() if int(y[0]) > 0 }
+    # create the different skids
+    skids = ''
+    for x,y in active_skids.items():
+        if int(y[0]) > 1:
+            skids = skids + f"{y[1]}x{y[2]}x{y[3]} |" * int(y[0])
+        else:
+            skids = skids + f"{y[1]}x{y[2]}x{y[3]} |"
+    skids = skids[:-1].strip()
+    # count the number of skids
+    number_of_skids = sum([int(y[0]) for x,y in active_skids.items() if int(y[0]) > 0])
+
+    # use the Word doc template
+    document = DocxTemplate(data_path + "invoice_template.docx")
+    # add extra variables to the info_dict
+    context = {'charge': float(info_dict['charge']),
+               'tax': float(info_dict['tax']),
+               'skids': skids,
+               'number_of_skids': number_of_skids,
+               'invoice_total': float(info_dict['invoice_total']),
+               'tax_type': info_dict['tax_type'],
+               'consignee_name': info_dict['consignee_name'],
+               'date_ordered': info_dict['date_ordered'],
+               'date_invoiced': info_dict['date_invoiced'],
+               'business_number': constants['business_number'],
+               'terms': constants['terms'],
+               'cstmr_reference': constants['customer_reference_#'],
+               'kc_id': info_dict['kc_id'],}
+    pprint(context)
+    context.update(info_dict)
+    document.render(context)
+    save_path = data_path + f'{info_dict['kc_id']}/' + f"{info_dict['kc_id']}_invoice_{today.strftime('%F').replace('-','_')}.docx"
+    document.save(save_path)
+    text = f"{info_dict['kc_id']} INVOICE created at {datetime.datetime.now()}, saved to {save_path}"
+    print(text)
+    edit_display_div.text = wrap_in_paragraphs(f"""{text}<br>Now viewing {info_dict['kc_id']}""")
+
+def update_create_bol():
+    global skids_dict
+
+    if not check_folder(edit_select_kc_id.value):
+        create_folder(edit_select_kc_id.value)
+
+    edit_comm_dict = {x: (skids_dict[f"edit_commodity_skid_number{x}"].value,
+                          skids_dict[f"edit_commodity_skid_length{x}"].value,
+                          skids_dict[f"edit_commodity_skid_width{x}"].value,
+                          skids_dict[f"edit_commodity_skid_height{x}"].value,
+                          )
+                      for x in range(1, 19)
+                      }
     info_dict = {
         "kc_id": edit_select_kc_id.value,
         "pickup_unit_number": edit_pickup_unit_number.value,
@@ -686,9 +790,26 @@ def update_create_invoice():
         "commodity_skids": str(edit_comm_dict),
     }
 
-    doc = DocxTemplate(data_path + "invoice_template.docx")
+    # only worry about 'active' skids
+    active_skids = {x:y for x,y in edit_comm_dict.items() if int(y[0]) > 0 }
+    # create the different skids
+    skids = ''
+    for x,y in active_skids.items():
+        if int(y[0]) > 1:
+            skids = skids + f"{y[1]}x{y[2]}x{y[3]} |" * int(y[0])
+        else:
+            skids = skids + f"{y[1]}x{y[2]}x{y[3]} |"
+    skids = skids[:-1].strip()
+    # count the number of skids
+    number_of_skids = sum([int(y[0]) for x,y in active_skids.items() if int(y[0]) > 0])
+
+    # use the Word doc template
+    document = DocxTemplate(data_path + "BoL_template.docx")
+    # add extra variables to the info_dict
     context = {'charge': float(info_dict['charge']),
                'tax': float(info_dict['tax']),
+               'skids': skids,
+               'number_of_skids': number_of_skids,
                'invoice_total': float(info_dict['invoice_total']),
                'tax_type': info_dict['tax_type'],
                'consignee_name': info_dict['consignee_name'],
@@ -698,24 +819,120 @@ def update_create_invoice():
                'terms': constants['terms'],
                'cstmr_reference': constants['customer_reference_#'],
                'kc_id': info_dict['kc_id'],}
-    doc.render(context)
-    save_path = data_path + f'{info_dict['kc_id']}/' + f"{info_dict['kc_id']}_invoice_{today.strftime('%F').replace('-','_')}.docx"
-    doc.save(save_path)
-    text = f"{info_dict['kc_id']} INVOICE created at {datetime.datetime.now()}, saved to {save_path}"
+    pprint(context)
+    context.update(info_dict)
+    document.render(context)
+    save_path = data_path + f'{info_dict['kc_id']}/' + f"{info_dict['kc_id']}_BoL_{today.strftime('%F').replace('-','_')}.docx"
+    document.save(save_path)
+    text = f"{info_dict['kc_id']} Bill of Lading created at {datetime.datetime.now()}, saved to {save_path}"
     print(text)
-    edit_display_div.text = wrap_in_paragraphs(text)
-    time.sleep(3)
-    edit_display_div.text = wrap_in_paragraphs(f"""Now viewing {info_dict['kc_id']}""")
-
-def update_create_bol():
-    if not check_folder(edit_select_kc_id.value):
-        create_folder(edit_select_kc_id.value)
+    edit_display_div.text = wrap_in_paragraphs(f"""{text}<br>Now viewing {info_dict['kc_id']}""")
 
 def update_create_loadconf():
+    global skids_dict
+
     if not check_folder(edit_select_kc_id.value):
         create_folder(edit_select_kc_id.value)
 
+    edit_comm_dict = {x: (skids_dict[f"edit_commodity_skid_number{x}"].value,
+                          skids_dict[f"edit_commodity_skid_length{x}"].value,
+                          skids_dict[f"edit_commodity_skid_width{x}"].value,
+                          skids_dict[f"edit_commodity_skid_height{x}"].value,
+                          )
+                      for x in range(1, 19)
+                      }
+    info_dict = {
+        "kc_id": edit_select_kc_id.value,
+        "pickup_unit_number": edit_pickup_unit_number.value,
+        "pickup_street_number": edit_pickup_street_number.value,
+        "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
+        "pickup_street_name": edit_pickup_street_name.value,
+        "pickup_state": edit_select_pickup_state.value,
+        "pickup_city": edit_pickup_city.value,
+        "pickup_date": edit_pickup_date.value,
 
+        "delivery_unit_number": edit_delivery_unit_number.value,
+        "delivery_street_number": edit_delivery_street_number.value,
+        "delivery_pc": edit_delivery_pc.value.replace(' ', ""),
+        "delivery_street_name": edit_delivery_street_name.value,
+        "delivery_state": edit_select_delivery_state.value,
+        "delivery_city": edit_delivery_city.value,
+        "delivery_date": edit_delivery_date.value,
+
+        "delivery2_unit_number": edit_delivery2_unit_number.value,
+        "delivery2_street_number": edit_delivery2_street_number.value,
+        "delivery2_pc": edit_delivery2_pc.value.replace(' ', ""),
+        "delivery2_street_name": edit_delivery2_street_name.value,
+        "delivery2_state": edit_select_delivery2_state.value,
+        "delivery2_city": edit_delivery2_city.value,
+        "delivery2_date": edit_delivery2_date.value,
+
+        "carrier": edit_other_carrier.value,
+        "carrier_contact": edit_other_carrier_contact.value,
+        "date_invoiced": edit_other_date_invoiced.value,
+        "customer_invoice_status": edit_other_customer_invoice.value,
+        "carrier_invoice_status": edit_other_carrier_invoice.value,
+
+        "charge": edit_other_charge.value,
+        "profit": edit_other_profit.value,
+        "cost": edit_other_cost.value,
+        "tax": edit_other_tax.value,
+        "tax_type": edit_other_tax_type.value,
+        "invoice_total": edit_other_invoice_total.value,
+
+        "special_notes": edit_other_special_notes.value,
+        "date_ordered": edit_other_date_ordered.value,
+
+        "consignee_number": edit_other_consignee_number.value,
+        "consignee_name": edit_other_consignee_name.value,
+        "consignee_contact": edit_other_consignee_contact.value,
+        "shipper_name": edit_other_shipper_name.value,
+        "shipper_number": edit_other_shipper_number.value,
+        "shipper_contact": edit_other_shipper_contact.value,
+
+        "commodity": edit_commodity_commodity.value,
+        "commodity_weight": edit_commodity_weight.value,
+        "commodity_notes": edit_commodity_notes.value,
+        "commodity_skids": str(edit_comm_dict),
+    }
+
+    # only worry about 'active' skids
+    active_skids = {x:y for x,y in edit_comm_dict.items() if int(y[0]) > 0 }
+    # create the different skids
+    skids = ''
+    for x,y in active_skids.items():
+        if int(y[0]) > 1:
+            skids = skids + f"{y[1]}x{y[2]}x{y[3]} |" * int(y[0])
+        else:
+            skids = skids + f"{y[1]}x{y[2]}x{y[3]} |"
+    skids = skids[:-1].strip()
+    # count the number of skids
+    number_of_skids = sum([int(y[0]) for x,y in active_skids.items() if int(y[0]) > 0])
+
+    # use the Word doc template
+    document = DocxTemplate(data_path + "load_confirmation_template.docx")
+    # add extra variables to the info_dict
+    context = {'charge': float(info_dict['charge']),
+               'tax': float(info_dict['tax']),
+               'skids': skids,
+               'number_of_skids': number_of_skids,
+               'invoice_total': float(info_dict['invoice_total']),
+               'tax_type': info_dict['tax_type'],
+               'consignee_name': info_dict['consignee_name'],
+               'date_ordered': info_dict['date_ordered'],
+               'date_invoiced': info_dict['date_invoiced'],
+               'business_number': constants['business_number'],
+               'terms': constants['terms'],
+               'cstmr_reference': constants['customer_reference_#'],
+               'kc_id': info_dict['kc_id'],}
+    pprint(context)
+    context.update(info_dict)
+    document.render(context)
+    save_path = data_path + f'{info_dict['kc_id']}/' + f"{info_dict['kc_id']}_loadconf_{today.strftime('%F').replace('-','_')}.docx"
+    document.save(save_path)
+    text = f"{info_dict['kc_id']} LOAD CONFIRMATION created at {datetime.datetime.now()}, saved to {save_path}"
+    print(text)
+    edit_display_div.text = wrap_in_paragraphs(f"""{text}<br>Now viewing {info_dict['kc_id']}""")
 
 def update_kc_id_next(attkc_idr, old, new):
     pass
