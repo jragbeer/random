@@ -1000,20 +1000,20 @@ new_pickup_date = TextInput(value=str("Monday January 1, 2024"), title="Pickup D
 new_pickup_date.js_on_change("value",
                                 CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_pickup_shipper_name = TextInput(value=str(""), title="Shipper Name", width= width_number)
+new_pickup_shipper_name = TextInput(value=str(""), title="Pickup Shipper Name", width= width_number)
 new_pickup_shipper_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_pickup_shipper_contact = TextInput(value=str(""), title="Shipper Contact", width= width_number)
+new_pickup_shipper_contact = TextInput(value=str(""), title="Pickup Shipper Contact", width= width_number)
 new_pickup_shipper_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_pickup_shipper_number = TextInput(value=str(""), title="Shipper Number", width= width_number)
+new_pickup_shipper_number = TextInput(value=str(""), title="Pickup Shipper Number", width= width_number)
 new_pickup_shipper_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 
 # del
 ######################################
 new_div_del = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
-new_div_del2 = Div(text=wrap_in_paragraphs("""del 2""", 'black', size=3))
+new_div_del2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
 
 new_del_unit_number = TextInput(value=str(""), title="Delivery Unit Number", width= width_number)
 new_del_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1034,18 +1034,16 @@ new_del_city = TextInput(value=str(""), title="Delivery City", width= width_numb
 new_del_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_del_date = TextInput(value=str("Monday January 1, 2024"), title="Delivery Date", width=width_number)
-new_del_date.js_on_change("value",
-                                CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_del_date.js_on_change("value",  CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_del_consignee_name = TextInput(value=str(""), title="Consignee Name", width= width_number)
+new_del_consignee_name = TextInput(value=str(""), title="Delivery Consignee Name", width= width_number)
 new_del_consignee_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_del_consignee_contact = TextInput(value=str(""), title="Consignee Contact", width= width_number)
+new_del_consignee_contact = TextInput(value=str(""), title="Delivery Consignee Contact", width= width_number)
 new_del_consignee_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_del_consignee_number = TextInput(value=str(""), title="Consignee Number", width= width_number)
+new_del_consignee_number = TextInput(value=str(""), title="Delivery Consignee Number", width= width_number)
 new_del_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
 
 new_del2_unit_number = TextInput(value=str(""), title="Delivery 2 Unit Number", width=width_number)
 new_del2_unit_number.js_on_change("value", CustomJS(
@@ -1120,7 +1118,7 @@ new_other_cost.js_on_change("value", CustomJS(code="""console.log('text_input: v
 new_other_tax = TextInput(value=str(""), title="Tax (auto-generated)", width= width_number)
 new_other_tax.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_other_tax_type = Select(title='Tax Type (auto-generated)', value=str("This depends on del province"), options=["This depends on del province"], width=width_number)
+new_other_tax_type = Select(title='Tax Type (auto-generated)', value=str("This depends on Delivery province"), options=["This depends on del province"], width=width_number)
 new_other_tax_type.on_change('value', update_new_tax_type)
 
 new_other_invoice_total = TextInput(value=str(""), title="Total Invoice (auto-generated)", width= width_number)
@@ -1202,8 +1200,7 @@ create_bol_button.on_click(update_create_bol)
 create_invoice_button = Button(label="Create Invoice", button_type="warning", width=100)
 create_invoice_button.on_click(update_create_invoice)
 
-
-edit_add_dest_button = Button(label="Add del destination", button_type="success")
+edit_add_dest_button = Button(label="Add Delivery Destination", button_type="success")
 edit_add_dest_button.on_click(add_edit_del_destination)
 
 ### PICKUP
@@ -1431,12 +1428,12 @@ new_tab = TabPanel(
                   new_div_other,
                   row([
                       column([
-                          new_other_carrier,
-                              new_other_carrier_contact,
+                            new_other_carrier,
+                            new_other_carrier_contact,
                             new_other_date_ordered,
-                              new_other_date_invoiced,
-                              new_other_customer_invoice,
-                              new_other_carrier_invoice,
+                            new_other_date_invoiced,
+                            new_other_customer_invoice,
+                            new_other_carrier_invoice,
                               ]),
                       new_div_1,
                       column([
@@ -1544,23 +1541,21 @@ edit_div_2,
 edit_div_other,
 row([
 column([
-edit_other_carrier,
-edit_other_carrier_contact,
-edit_other_date_invoiced,
-edit_other_customer_invoice,
-edit_other_carrier_invoice,
-edit_other_tax_type,
-edit_other_cost,
-edit_other_invoice_total,
-edit_other_tax,
+    edit_other_carrier,
+    edit_other_carrier_contact,
+    edit_other_date_ordered,
+    edit_other_date_invoiced,
+    edit_other_customer_invoice,
+    edit_other_carrier_invoice,
         ])    ,
 edit_div_1,
 column([
-
-
     edit_other_charge,
+    edit_other_cost,
+    edit_other_tax_type,
+    edit_other_tax,
+    edit_other_invoice_total,
     edit_other_profit,
-    edit_other_date_ordered,
 ]),
 ]),
 edit_other_special_notes,
