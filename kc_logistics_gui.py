@@ -1262,7 +1262,7 @@ data_dict = database[database['kc_id'] == start_kc_id].iloc[0].to_dict()
 edit_info_div = Div(text=wrap_in_paragraphs("""Edit/View Data for KC Logistics Data""", 'black', size=4), width = 350)
 edit_display_div = Div(text=wrap_in_paragraphs(f"""Now viewing {start_kc_id}""",), width = 350)
 
-edit_select_kc_id = Select(title='KC_ID', value=start_kc_id, options=database['kc_id'].to_list(), width=150)
+edit_select_kc_id = Select(title='KC_ID', value=start_kc_id, options=sorted(database['kc_id'].to_list()), width=150)
 edit_select_kc_id.on_change('value', update_kc_id)
 
 search_button = Button(label="Search Info in Database", button_type="success", width=150)
