@@ -43,7 +43,7 @@ constants = {
 "my_email":"KCLogistics7@gmail.com",
 }
 
-canada_tax_rates = {
+tax_rates = {
 "AB": {"GST": 5, "PST": 0, "HST": 0},
 "BC": {"GST": 5, "PST": 7, "HST": 0},
 "MB":{"GST": 5, "PST": 7, "HST": 0},
@@ -57,6 +57,58 @@ canada_tax_rates = {
 "QC":{"GST": 5, "PST": 9.975, "HST": 0},
 "SK":{"GST": 5, "PST": 6},
 "YT":{"GST": 5, "PST": 0},
+
+'AK': {"No Tax": 0},
+'AL': {"No Tax": 0},
+'AR': {"No Tax": 0},
+'AZ': {"No Tax": 0},
+'CA': {"No Tax": 0},
+'CO': {"No Tax": 0},
+'CT': {"No Tax": 0},
+'DC': {"No Tax": 0},
+'DE': {"No Tax": 0},
+'FL': {"No Tax": 0},
+'GA': {"No Tax": 0},
+'HI': {"No Tax": 0},
+'IA': {"No Tax": 0},
+'ID': {"No Tax": 0},
+'IL': {"No Tax": 0},
+'IN': {"No Tax": 0},
+'KS': {"No Tax": 0},
+'KY': {"No Tax": 0},
+'LA': {"No Tax": 0},
+'MA': {"No Tax": 0},
+'MD': {"No Tax": 0},
+'ME': {"No Tax": 0},
+'MI': {"No Tax": 0},
+'MN': {"No Tax": 0},
+'MO': {"No Tax": 0},
+'MS': {"No Tax": 0},
+'MT': {"No Tax": 0},
+'NC': {"No Tax": 0},
+'ND': {"No Tax": 0},
+'NE': {"No Tax": 0},
+'NH': {"No Tax": 0},
+'NJ': {"No Tax": 0},
+'NM': {"No Tax": 0},
+'NV': {"No Tax": 0},
+'NY': {"No Tax": 0},
+'OH': {"No Tax": 0},
+'OK': {"No Tax": 0},
+'OR': {"No Tax": 0},
+'PA': {"No Tax": 0},
+'RI': {"No Tax": 0},
+'SC': {"No Tax": 0},
+'SD': {"No Tax": 0},
+'TN': {"No Tax": 0},
+'TX': {"No Tax": 0},
+'UT': {"No Tax": 0},
+'VA': {"No Tax": 0},
+'VT': {"No Tax": 0},
+'WA': {"No Tax": 0},
+'WI': {"No Tax": 0},
+'WV': {"No Tax": 0},
+'WY': {"No Tax": 0},
 }
 
 us_states = {
@@ -110,7 +162,7 @@ us_states = {
     'WA': 'Washington',
     'WI': 'Wisconsin',
     'WV': 'West Virginia',
-    'WY': 'Wyoming'
+    'WY': 'Wyoming',
 }
 
 canada_province_names = {
@@ -251,9 +303,9 @@ def update_edit():
             "customer_invoice_status": edit_other_customer_invoice.value,
             "carrier_invoice_status": edit_other_carrier_invoice.value,
 
-            "charge": edit_other_charge.value,
-            "profit": edit_other_profit.value,
-            "cost": edit_other_cost.value,
+            "charge": float(edit_other_charge.value),
+            "profit": float(edit_other_profit.value),
+            "cost": float(edit_other_cost.value),
             "tax": edit_other_tax.value,
             "tax_type": edit_other_tax_type.value,
             "invoice_total": edit_other_invoice_total.value,
@@ -266,6 +318,28 @@ def update_edit():
             "commodity_notes": edit_commodity_notes.value,
             "commodity_skids": str(edit_comm_dict),
         }
+
+        try:
+            state = to_db_dict['del_state']
+            tax_state = tax_rates[state]
+        except:
+            pprint(to_db_dict)
+            print('Delivery State not selected')
+            edit_display_div.text = wrap_in_paragraphs('Delivery State not selected')
+        tax_rate = sum([y/100 for x, y in tax_state.items() if y > 0])
+        tax_type = '/'.join(sorted([x for x, y in tax_state.items() if y > 0]))
+
+        calculated_vals = {
+            "profit": to_db_dict['charge'] - to_db_dict['cost'],
+            "tax": to_db_dict['charge'] * float(tax_rate),
+            "tax_type": tax_type,
+            "invoice_total": to_db_dict['charge'] + (to_db_dict['charge'] * tax_rate)
+        }
+        pprint(calculated_vals)
+        print(tax_rate, tax_state, tax_type, state, )
+        to_db_dict.update(calculated_vals)
+
+
         # ensure the postal code/zip codes are somewhat correct
         assert len(to_db_dict['pickup_pc']) >= 5, "Pickup PC too short"
         assert len(to_db_dict['pickup_pc']) <= 7, "Pickup PC too long"
@@ -284,26 +358,27 @@ def update_edit():
                 to_db_dict["del2_strt_name"] or
                 to_db_dict["del2_pc"] or
                 to_db_dict["del2_strt_number"]):
-            assert len(to_db_dict['del2_strt_number']) > 1 , "del 2 Street Number  needs to be filled."
-            assert len(to_db_dict['del2_city']) > 1 , "del 2 City needs to be filled."
-            assert len(to_db_dict['del2_strt_name']) > 1 , "del 2 Street Name needs to be filled."
-            assert len(to_db_dict['del2_pc']) >= 5, "del 2 PC too short"
-            assert len(to_db_dict['del2_pc']) <= 7, "del 2 PC too long"
-            assert to_db_dict['del2_state'] == to_db_dict['del_state'], "del States must be equal"
+            pprint(to_db_dict['del2_strt_number'])
+            assert len(to_db_dict['del2_strt_number']) > 1 , "Delivery 2 Street Number  needs to be filled."
+            assert len(to_db_dict['del2_city']) > 1 , "Delivery 2 City needs to be filled."
+            assert len(to_db_dict['del2_strt_name']) > 1 , "Delivery 2 Street Name needs to be filled."
+            assert len(to_db_dict['del2_pc']) >= 5, "Delivery 2 PC too short"
+            assert len(to_db_dict['del2_pc']) <= 7, "Delivery 2 PC too long"
+            if to_db_dict["del2_state"] != '':
+                assert to_db_dict['del2_state'] == to_db_dict['del_state'], f"Delivery States must be equal {to_db_dict['del_state']} =/= {to_db_dict['del2_state']}"
             ensure_some_numbers = [x.isnumeric() for x in to_db_dict['del2_pc']]
-            assert sum(ensure_some_numbers) >= 3, f"Not a valid del 2 ZIP / Postal Code ({to_db_dict['del2_pc']})"
+            assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery 2 ZIP / Postal Code ({to_db_dict['del2_pc']})"
 
         # ensure that the fields have the required entries
-        assert len(to_db_dict['del_strt_number']) > 1, "del Street Number  needs to be filled."
-        assert len(to_db_dict['del_city']) > 1, "del City needs to be filled."
-        assert len(to_db_dict['del_strt_name']) > 1, "del Street Name needs to be filled."
+        assert len(to_db_dict['del_strt_number']) > 1, "Delivery Street Number needs to be filled."
+        assert len(to_db_dict['del_city']) > 1, "Delivery City needs to be filled."
+        assert len(to_db_dict['del_strt_name']) > 1, "Delivery Street Name needs to be filled."
 
         assert len(to_db_dict['pickup_strt_number']) > 1, "Pickup Street Number  needs to be filled."
         assert len(to_db_dict['pickup_city']) > 1, "Pickup City needs to be filled."
         assert len(to_db_dict['pickup_strt_name']) > 1, "Pickup Street Name needs to be filled."
 
         assert len(to_db_dict['carrier_contact']) > 1, "Carrier Contact needs to be filled."
-        assert len(to_db_dict['customer_contact']) > 1, "Customer Contact needs to be filled."
         assert len(to_db_dict['carrier']) > 1, "Carrier needs to be filled."
 
         # ensure that only numbers are entered into Charge/Profit/Cost fields
@@ -314,12 +389,9 @@ def update_edit():
             to_db_dict['profit']), "Charge - Cost =/= Profit"
 
         # assert the commodity information (aside from skids that was already done)
-        assert str(to_db_dict['commodity_weight']).strip().isnumeric(), "Commodity Weight is not a number"
+        assert is_number_tryexcept(to_db_dict['commodity_weight']), "Commodity Weight is not a number"
         assert len(to_db_dict['commodity']) > 1, "Commodity needs to be filled."
         assert len(to_db_dict['commodity_skids']) > 6, "Commodity Skids needs to be filled."
-
-        # assert that the del date is after the pickup date
-        assert to_db_dict['del_date'] >= to_db_dict['pickup_date'], "Pickup Date must be before del Date"
 
         # add the new data to the database file and write it to disk
         database_modified = pd.concat([database, pd.DataFrame(to_db_dict, index=[0])], ignore_index=True)
@@ -334,7 +406,7 @@ def update_edit():
                                                                                         "pickup_strt_number": str}).replace(
             np.nan, '').drop_duplicates(subset=['kc_id'], keep='last')
     except Exception as iee:
-        print(iee)
+        print(error_handling())
         edit_display_div.text = wrap_in_paragraphs(f"Error: {iee}")
 
 def update_new_tax_type(attr, old, new):
@@ -441,73 +513,79 @@ def update_new():
         }
 
         to_db_dict = {
-        "kc_id": new_select_kc_id.value,
-        "pickup_unit_number": new_pickup_unit_number.value,
-        "pickup_strt_number": new_pickup_strt_number.value,
-        "pickup_pc": new_pickup_pc.value.replace(' ', ""),
-        "pickup_strt_name": new_pickup_strt_name.value,
-        "pickup_state": new_select_pickup_state.value,
-        "pickup_city": new_pickup_city.value,
-        "pickup_date": new_pickup_date.value,
-        "shipper_contact": new_pickup_shipper_contact.value,
-        "shipper_name": new_pickup_shipper_name.value,
-        "shipper_number": new_pickup_shipper_number.value,
+            "kc_id": new_select_kc_id.value,
+            "pickup_unit_number": new_pickup_unit_number.value,
+            "pickup_strt_number": new_pickup_strt_number.value,
+            "pickup_pc": new_pickup_pc.value.replace(' ', ""),
+            "pickup_strt_name": new_pickup_strt_name.value,
+            "pickup_state": new_select_pickup_state.value,
+            "pickup_city": new_pickup_city.value,
+            "pickup_date": new_pickup_date.value,
+            "pickup_shipper_name": new_pickup_shipper_name.value,
+            "pickup_shipper_number": new_pickup_shipper_number.value,
+            "pickup_shipper_contact": new_pickup_shipper_contact.value,
 
-        "del_unit_number": new_del_unit_number.value,
-        "del_strt_number": new_del_strt_number.value,
-        "del_pc": new_del_pc.value.replace(' ', ""),
-        "del_strt_name": new_del_strt_name.value,
-        "del_state": new_select_del_state.value,
-        "del_city": new_del_city.value,
-        "del_date": new_del_date.value,
-        "del_consignee_number": new_del_consignee_number.value,
-        "del_consignee_contact": new_del_consignee_contact.value,
-        "del_consignee_name": new_del_consignee_name.value,
+            "del_unit_number": new_del_unit_number.value,
+            "del_strt_number": new_del_strt_number.value,
+            "del_pc": new_del_pc.value.replace(' ', ""),
+            "del_strt_name": new_del_strt_name.value,
+            "del_state": new_select_del_state.value,
+            "del_city": new_del_city.value,
+            "del_date": new_del_date.value,
+            "del_consignee_number": new_del_consignee_number.value,
+            "del_consignee_name": new_del_consignee_name.value,
+            "del_consignee_contact": new_del_consignee_contact.value,
 
-        "del2_unit_number": new_del2_unit_number.value,
-        "del2_strt_number": new_del2_strt_number.value,
-        "del2_pc": new_del2_pc.value.replace(' ', ""),
-        "del2_strt_name": new_del2_strt_name.value,
-        "del2_state": new_select_del2_state.value,
-        "del2_city": new_del2_city.value,
-        "del2_date": new_del2_date.value,
-        "del2_consignee_number": new_del2_consignee_number.value,
-        "del2_consignee_contact": new_del2_consignee_contact.value,
-        "del2_consignee_name": new_del2_consignee_name.value,
+            "del2_unit_number": new_del2_unit_number.value,
+            "del2_strt_number": new_del2_strt_number.value,
+            "del2_pc": new_del2_pc.value.replace(' ', ""),
+            "del2_strt_name": new_del2_strt_name.value,
+            "del2_state": new_select_del2_state.value,
+            "del2_city": new_del2_city.value,
+            "del2_date": new_del2_date.value,
+            "del2_consignee_number": new_del2_consignee_number.value,
+            "del2_consignee_name": new_del2_consignee_name.value,
+            "del2_consignee_contact": new_del2_consignee_contact.value,
 
-        "carrier": new_other_carrier.value,
-        "carrier_contact": new_other_carrier_contact.value,
-        "date_invoiced": new_other_date_invoiced.value,
-        "customer_invoice_status": new_other_customer_invoice.value,
-        "carrier_invoice_status": new_other_carrier_invoice.value,
+            "carrier": new_other_carrier.value,
+            "carrier_contact": new_other_carrier_contact.value,
+            "date_invoiced": new_other_date_invoiced.value,
+            "customer_invoice_status": new_other_customer_invoice.value,
+            "carrier_invoice_status": new_other_carrier_invoice.value,
 
-        "charge": float(new_other_charge.value), # the amount we're charging the customer
-        "cost": float(new_other_cost.value), # cost to our company
+            "charge": float(new_other_charge.value),
+            "cost": float(new_other_cost.value),
 
-        "date_ordered": new_other_date_ordered.value,
-        "special_notes": new_other_special_notes.value,
+            "special_notes": new_other_special_notes.value,
+            "date_ordered": new_other_date_ordered.value,
 
-        "commodity": new_commodity_commodity.value,
-        "commodity_weight": float(new_commodity_weight.value),
-        "commodity_notes": new_commodity_notes.value,
-        "commodity_skids":str(new_comm_dict),
+            "commodity": new_commodity_commodity.value,
+            "commodity_weight": new_commodity_weight.value,
+            "commodity_notes": new_commodity_notes.value,
+            "commodity_skids": str(new_comm_dict),
         }
 
-        state = to_db_dict['del_state']
-        tax_state = canada_tax_rates[state]
+        try:
+            state = to_db_dict['del_state']
+            tax_state = tax_rates[state]
+        except:
+            pprint(to_db_dict)
+            print('Delivery State not selected')
+            edit_display_div.text = wrap_in_paragraphs('Delivery State not selected')
         tax_rate = sum([y/100 for x, y in tax_state.items() if y > 0])
         tax_type = '/'.join(sorted([x for x, y in tax_state.items() if y > 0]))
+        if not tax_type:
+            tax_type = 'No Tax'
 
         calculated_vals = {
-            "profit": float(to_db_dict['charge']) - float(to_db_dict['cost']),
-            "tax": float(to_db_dict['charge']) * float(tax_rate),
+            "profit": to_db_dict['charge'] - to_db_dict['cost'],
+            "tax": to_db_dict['charge'] * float(tax_rate),
             "tax_type": tax_type,
-            "invoice_total": float(to_db_dict['charge']) + (to_db_dict['charge'] * tax_rate)
+            "invoice_total": to_db_dict['charge'] + (to_db_dict['charge'] * tax_rate)
         }
         pprint(calculated_vals)
-        print(tax_rate, tax_state, tax_type, state, )
+        print(tax_rate, tax_state, tax_type, state)
         to_db_dict.update(calculated_vals)
-
 
         # ensure the postal code/zip codes are somewhat correct
         assert len(to_db_dict['pickup_pc']) >= 5, "Pickup PC too short"
@@ -515,15 +593,15 @@ def update_new():
         ensure_some_numbers = [x.isnumeric() for x in to_db_dict['pickup_pc']]
         assert sum(ensure_some_numbers) >= 3, f"Not a valid Pickup ZIP / Postal Code ({to_db_dict['pickup_pc']})"
 
-        assert len(to_db_dict['del_pc']) >= 5, "del PC too short"
-        assert len(to_db_dict['del_pc']) <= 7, "del PC too long"
+        assert len(to_db_dict['del_pc']) >= 5, "Delivery PC too short"
+        assert len(to_db_dict['del_pc']) <= 7, "Delivery PC too long"
         ensure_some_numbers = [x.isnumeric() for x in to_db_dict['del_pc']]
-        assert sum(ensure_some_numbers) >= 3, f"Not a valid del ZIP / Postal Code ({to_db_dict['del_pc']})"
+        assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery ZIP / Postal Code ({to_db_dict['del_pc']})"
 
         # ensure that the fields have the required entries
-        assert len(to_db_dict['del_strt_number']) > 1 , "del Street Number  needs to be filled."
-        assert len(to_db_dict['del_city']) > 1 , "del City needs to be filled."
-        assert len(to_db_dict['del_strt_name']) > 1 , "del Street Name needs to be filled."
+        assert len(to_db_dict['del_strt_number']) > 1 , "Delivery Street Number  needs to be filled."
+        assert len(to_db_dict['del_city']) > 1 , "Delivery City needs to be filled."
+        assert len(to_db_dict['del_strt_name']) > 1 , "Delivery Street Name needs to be filled."
 
         # ensure that the fields have the required entries
         if (to_db_dict["del2_unit_number"] or
@@ -532,13 +610,13 @@ def update_new():
                 to_db_dict["del2_strt_name"] or
                 to_db_dict["del2_pc"] or
                 to_db_dict["del2_strt_number"]):
-            assert len(to_db_dict['del2_strt_number']) > 1 , "del 2 Street Number  needs to be filled."
-            assert len(to_db_dict['del2_city']) > 1 , "del 2 City needs to be filled."
-            assert len(to_db_dict['del2_strt_name']) > 1 , "del 2 Street Name needs to be filled."
-            assert len(to_db_dict['del2_pc']) >= 5, "del 2 PC too short"
-            assert len(to_db_dict['del2_pc']) <= 7, "del 2 PC too long"
+            assert len(to_db_dict['del2_strt_number']) > 1 , "Delivery 2 Street Number  needs to be filled."
+            assert len(to_db_dict['del2_city']) > 1 , "Delivery 2 City needs to be filled."
+            assert len(to_db_dict['del2_strt_name']) > 1 , "Delivery 2 Street Name needs to be filled."
+            assert len(to_db_dict['del2_pc']) >= 5, "Delivery 2 PC too short"
+            assert len(to_db_dict['del2_pc']) <= 7, "Delivery 2 PC too long"
             ensure_some_numbers = [x.isnumeric() for x in to_db_dict['del2_pc']]
-            assert sum(ensure_some_numbers) >= 3, f"Not a valid del 2 ZIP / Postal Code ({to_db_dict['del2_pc']})"
+            assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery 2 ZIP / Postal Code ({to_db_dict['del2_pc']})"
 
         assert len(to_db_dict['pickup_strt_number']) > 1 , "Pickup Street Number  needs to be filled."
         assert len(to_db_dict['pickup_city']) > 1 , "Pickup City needs to be filled."
@@ -564,6 +642,8 @@ def update_new():
         database_modified.to_csv(data_path + 'kc_logistics_corp_booking_data.csv', index=False)
 
         # confirm that data for the KC_ID was added to the database file.
+        print(f"Data for {new_select_kc_id.value} passed to the database at {data_path + 'kc_logistics_corp_booking_data.csv'}")
+        pprint(to_db_dict)
         new_display_div.text = wrap_in_paragraphs(f"Data for {new_select_kc_id.value} passed to the database")
         time.sleep(2)
         # reset the database file, with the newest row added
@@ -946,7 +1026,7 @@ def update_create_loadconf():
     print(text)
     edit_display_div.text = wrap_in_paragraphs(f"""{text}<br>Now viewing {info_dict['kc_id']}""")
 
-def update_kc_id_next(attkc_idr, old, new):
+def update_kc_id_next(attr, old, new):
     pass
 
 def add_new_del_destination():
@@ -1254,7 +1334,7 @@ edit_del_pc.js_on_change("value", CustomJS(code="""console.log('text_input: valu
 edit_del_strt_name = TextInput(value=str(data_dict["del_strt_name"]), title="Delivery Street Name", width= width_number)
 edit_del_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_select_del_state = Select(title='del State', value=str(data_dict["del_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_select_del_state = Select( value=str(data_dict["del_state"]), title='Delivery State',options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 edit_select_del_state.on_change('value', update_kc_id)
 
 edit_del_city = TextInput(value=str(data_dict["del_city"]), title="Delivery City", width= width_number)
@@ -1286,7 +1366,7 @@ edit_del2_pc.js_on_change("value", CustomJS(code="""console.log('text_input: val
 edit_del2_strt_name = TextInput(value=str(data_dict["del2_strt_name"]), title="Delivery 2 Street Name", width= width_number)
 edit_del2_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_select_del2_state = Select(title='Delivery 2 State', value=str(data_dict["del2_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_select_del2_state = Select(value=str(data_dict["del2_state"]), title='Delivery 2 State',options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 edit_select_del2_state.on_change('value', update_kc_id)
 
 edit_del2_city = TextInput(value=str(data_dict["del2_city"]), title="Delivery 2 City", width= width_number)
@@ -1339,7 +1419,7 @@ edit_other_special_notes.js_on_change("value", CustomJS(code="""console.log('tex
 edit_other_tax = TextInput(value=str(data_dict["tax"]), title="Tax", width= width_number)
 edit_other_tax.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_other_tax_type = Select(title='Tax Type', value=str(data_dict["tax_type"]), options=["This depends on del province","GST", "HST"], width=width_number)
+edit_other_tax_type = Select(title='Tax Type', value=str(data_dict["tax_type"]), options=["This depends on del province","GST", "HST", "No Tax"], width=width_number)
 edit_other_tax_type.on_change('value', update_new_tax_type)
 
 edit_other_invoice_total = TextInput(value=str(data_dict["invoice_total"]), title="Total Invoice", width= width_number)
