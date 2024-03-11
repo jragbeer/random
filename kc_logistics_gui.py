@@ -324,10 +324,10 @@ def update_edit():
         tax_type = '/'.join(sorted([x for x, y in tax_state.items() if y > 0]))
 
         calculated_vals = {
-            "profit": to_db_dict['charge'] - to_db_dict['cost'],
-            "tax": to_db_dict['charge'] * float(tax_rate),
+            "profit": float(to_db_dict['charge']) - float(to_db_dict['cost']),
+            "tax": float(to_db_dict['charge']) * float(tax_rate),
             "tax_type": tax_type,
-            "invoice_total": to_db_dict['charge'] + (to_db_dict['charge'] * tax_rate)
+            "invoice_total": float(to_db_dict['charge']) + (float(to_db_dict['charge']) * tax_rate)
         }
         pprint(calculated_vals)
         print(tax_rate, tax_state, tax_type, state, )
@@ -346,16 +346,14 @@ def update_edit():
         assert sum(ensure_some_numbers) >= 3, f"Not a valid del ZIP / Postal Code ({to_db_dict['del_pc']})"
 
         # ensure that the fields have the required entries
-        if (to_db_dict["del2_unit_number"] or
+        if (
                 to_db_dict["del2_city"] or
                 to_db_dict["del2_state"] or
-                to_db_dict["del2_strt_name"] or
-                to_db_dict["del2_pc"] or
-                to_db_dict["del2_strt_number"]):
-            pprint(to_db_dict['del2_strt_number'])
-            assert len(to_db_dict['del2_strt_number']) > 1 , "Delivery 2 Street Number  needs to be filled."
+                to_db_dict["del2_address"] or
+                to_db_dict["del2_pc"] ):
+            pprint(to_db_dict['del2_address'])
+            assert len(to_db_dict['del2_address']) > 1 , "Delivery 2 Address needs to be filled."
             assert len(to_db_dict['del2_city']) > 1 , "Delivery 2 City needs to be filled."
-            assert len(to_db_dict['del2_strt_name']) > 1 , "Delivery 2 Street Name needs to be filled."
             assert len(to_db_dict['del2_pc']) >= 5, "Delivery 2 PC too short"
             assert len(to_db_dict['del2_pc']) <= 7, "Delivery 2 PC too long"
             if to_db_dict["del2_state"] != '':
@@ -364,13 +362,11 @@ def update_edit():
             assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery 2 ZIP / Postal Code ({to_db_dict['del2_pc']})"
 
         # ensure that the fields have the required entries
-        assert len(to_db_dict['del_strt_number']) > 1, "Delivery Street Number needs to be filled."
         assert len(to_db_dict['del_city']) > 1, "Delivery City needs to be filled."
-        assert len(to_db_dict['del_strt_name']) > 1, "Delivery Street Name needs to be filled."
+        assert len(to_db_dict['del_address']) > 1, "Delivery Address needs to be filled."
 
-        assert len(to_db_dict['pickup_strt_number']) > 1, "Pickup Street Number  needs to be filled."
+        assert len(to_db_dict['pickup_address']) > 1, "Pickup Address  needs to be filled."
         assert len(to_db_dict['pickup_city']) > 1, "Pickup City needs to be filled."
-        assert len(to_db_dict['pickup_strt_name']) > 1, "Pickup Street Name needs to be filled."
 
         assert len(to_db_dict['carrier_contact']) > 1, "Carrier Contact needs to be filled."
         assert len(to_db_dict['carrier']) > 1, "Carrier needs to be filled."
@@ -513,10 +509,8 @@ def update_new():
             "pickup_shipper_number": new_pickup_shipper_number.value,
             "pickup_shipper_contact": new_pickup_shipper_contact.value,
 
-            "del_unit_number": new_del_unit_number.value,
-            "del_strt_number": new_del_strt_number.value,
+            "del_address": new_del_address.value,
             "del_pc": new_del_pc.value.replace(' ', ""),
-            "del_strt_name": new_del_strt_name.value,
             "del_state": new_del_state.value,
             "del_city": new_del_city.value,
             "del_date": new_del_date.value,
@@ -639,10 +633,8 @@ def update_new():
         edit_select_kc_id.options = database['kc_id'].to_list()
 
         # reset some fields so that a double tab doesn't add a second row of the same data
-        new_del_unit_number.value = ""
+        new_del_address.value = ""
         new_del_pc.value = ""
-        new_del_strt_number.value = ""
-        new_del_strt_name.value = ""
         new_del_city.value = ""
         new_del_date.value = ""
         new_del_consignee_contact.value = ""
@@ -1076,17 +1068,8 @@ new_div_del2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
 new_del_address = TextInput(value=str(""), title="Delivery Address", width= width_number)
 new_del_address.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_del_unit_number = TextInput(value=str(""), title="Delivery Unit Number", width= width_number)
-new_del_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_del_strt_number = TextInput(value=str(""), title="Delivery Street Number", width= width_number)
-new_del_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
 new_del_pc = TextInput(value=str(""), title="Delivery Postal Code/ZIP", width= width_number)
 new_del_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_del_strt_name = TextInput(value=str(""), title="Delivery Street Name", width= width_number)
-new_del_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_del_state = Select(title='Delivery State', value=str(sorted(list(canada_province_names.keys()))[0]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 new_del_state.on_change('value', update_kc_id)
