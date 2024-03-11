@@ -411,9 +411,9 @@ def update_search():
     if (data_dict_["del2_unit_number"] or
         data_dict_["del2_city"] or
         data_dict_["del2_state"] or
-        data_dict_["del2_strt_name"] or
         data_dict_["del2_pc"] or
-        data_dict_["del2_strt_number"]):
+        data_dict_["del2_strt_number"]
+    ):
 
         edit_pickup_del_layout.children.append(edit_del2_feature)
     else:
