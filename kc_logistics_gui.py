@@ -1058,17 +1058,11 @@ new_div_3 = Div(text = '_'*130)
 ### PICKUP
 new_div_pickup = Div(text=wrap_in_paragraphs("""Pickup""", 'black', size=3))
 
-new_pickup_unit_number = TextInput(value=str(""), title="Pickup Unit Number", width= width_number)
-new_pickup_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_pickup_strt_number = TextInput(value=str(""), title="Pickup Street Number", width= width_number)
-new_pickup_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_pickup_address = TextInput(value=str(""), title="Pickup Address", width= width_number)
+new_pickup_address.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_pickup_pc = TextInput(value=str(""), title="Pickup Postal Code/ZIP", width= width_number)
 new_pickup_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_pickup_strt_name = TextInput(value=str(""), title="Pickup Street Name", width= width_number)
-new_pickup_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_select_pickup_state = Select(title='Pickup State', value=str(""), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 new_select_pickup_state.on_change('value', update_kc_id)
@@ -1095,6 +1089,9 @@ new_pickup_shipper_number.js_on_change("value", CustomJS(code="""console.log('te
 new_div_del = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
 new_div_del2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
 
+new_del_address = TextInput(value=str(""), title="Delivery Address", width= width_number)
+new_del_address.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 new_del_unit_number = TextInput(value=str(""), title="Delivery Unit Number", width= width_number)
 new_del_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
@@ -1107,8 +1104,8 @@ new_del_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value
 new_del_strt_name = TextInput(value=str(""), title="Delivery Street Name", width= width_number)
 new_del_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_select_del_state = Select(title='Delivery State', value=str(sorted(list(canada_province_names.keys()))[0]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
-new_select_del_state.on_change('value', update_kc_id)
+new_del_state = Select(title='Delivery State', value=str(sorted(list(canada_province_names.keys()))[0]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
+new_del_state.on_change('value', update_kc_id)
 
 new_del_city = TextInput(value=str(""), title="Delivery City", width= width_number)
 new_del_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1125,26 +1122,17 @@ new_del_consignee_contact.js_on_change("value", CustomJS(code="""console.log('te
 new_del_consignee_number = TextInput(value=str(""), title="Delivery Consignee Number", width= width_number)
 new_del_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_del2_unit_number = TextInput(value=str(""), title="Delivery 2 Unit Number", width=width_number)
-new_del2_unit_number.js_on_change("value", CustomJS(
-    code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_del2_strt_number = TextInput(value=str(""), title="Delivery 2 Street Number", width=width_number)
-new_del2_strt_number.js_on_change("value", CustomJS(
-    code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_del2_address = TextInput(value=str(""), title="Delivery 2 Address", width= width_number)
+new_del2_address.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_del2_pc = TextInput(value=str(""), title="Delivery 2 Postal Code/ZIP", width=width_number)
 new_del2_pc.js_on_change("value",
                               CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_del2_strt_name = TextInput(value=str(""), title="Delivery 2 Street Name", width=width_number)
-new_del2_strt_name.js_on_change("value", CustomJS(
-    code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_select_del2_state = Select(title='Delivery 2 State', value=str(""),
+new_del2_state = Select(title='Delivery 2 State', value=str(""),
                                     options=sorted(list(canada_province_names.keys()) + list(us_states.keys())),
                                     width=width_number)
-new_select_del2_state.on_change('value', update_kc_id)
+new_del2_state.on_change('value', update_kc_id)
 
 new_del2_city = TextInput(value=str(""), title="Delivery 2 City", width=width_number)
 new_del2_city.js_on_change("value",
@@ -1170,6 +1158,9 @@ new_dest_button.on_click(add_new_del_destination)
 # OTHER
 ################
 new_div_other = Div(text=wrap_in_paragraphs("""Other""", 'black', size=3))
+
+new_other_bill_to = TextInput(value=str(""), title="Bill To", width= width_number)
+new_other_bill_to.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_other_carrier = TextInput(value=str(""), title="Carrier", width= width_number)
 new_other_carrier.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1204,9 +1195,14 @@ new_other_tax_type.on_change('value', update_new_tax_type)
 new_other_invoice_total = TextInput(value=str(""), title="Total Invoice (auto-generated)", width= width_number)
 new_other_invoice_total.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
+new_other_bol_notes = TextInput(value=str(""), title="Bill of Lading Notes", width= 900)
+new_other_bol_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-new_other_special_notes = TextInput(value=str(""), title="Special Notes", width= 900)
-new_other_special_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+new_other_invoice_notes = TextInput(value=str(""), title="Invoice Notes", width= 900)
+new_other_invoice_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+new_other_loadconf_notes = TextInput(value=str(""), title="Load Confirmation Notes", width= 900)
+new_other_loadconf_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString()"""))
 
 new_other_date_ordered = TextInput(value=str(""), title="Date Ordered", width= width_number)
 new_other_date_ordered.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1215,17 +1211,13 @@ new_other_date_ordered.js_on_change("value", CustomJS(code="""console.log('text_
 
 # COMMODITY
 ##################
-new_div_commodity = Div(text=wrap_in_paragraphs("""Commodity""", 'black', size=3))
+new_div_commodity = Div(text=wrap_in_paragraphs("""Shipment Description""", 'black', size=3))
 
 new_commodity_commodity = TextInput(value=str(""), title="Commodity", width= width_number)
 new_commodity_commodity.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 new_commodity_weight = TextInput(value=str(""), title="Weight (LBS)", width= 200)
 new_commodity_weight.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-new_commodity_notes = TextInput(value=str(""), title="Notes", width= 900)
-new_commodity_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
 
 new_skids = {x:(0,0,0,0) for x in range(1,19)}
 
@@ -1286,17 +1278,11 @@ edit_add_dest_button.on_click(add_edit_del_destination)
 ### PICKUP
 edit_div_pickup = Div(text=wrap_in_paragraphs("""Pickup""", 'black', size=3))
 
-edit_pickup_unit_number = TextInput(value=str(data_dict["pickup_unit_number"]), title="Pickup Unit Number", width= width_number)
-edit_pickup_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_pickup_strt_number = TextInput(value=str(data_dict["pickup_strt_number"]), title="Pickup Street Number", width= width_number)
-edit_pickup_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_pickup_address = TextInput(value=str(data_dict["pickup_address"]), title="Pickup Address", width= width_number)
+edit_pickup_address.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_pickup_pc = TextInput(value=str(data_dict["pickup_pc"]), title="Pickup Postal Code/ZIP", width= width_number)
 edit_pickup_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_pickup_strt_name = TextInput(value=str(data_dict["pickup_strt_name"]), title="Pickup Street Name", width= width_number)
-edit_pickup_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_select_pickup_state = Select(title='Pickup State', value=str(data_dict["pickup_state"]), options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
 edit_select_pickup_state.on_change('value', update_kc_id)
@@ -1320,22 +1306,15 @@ edit_pickup_shipper_number.js_on_change("value", CustomJS(code="""console.log('t
 # del
 ######################################
 edit_div_del = Div(text=wrap_in_paragraphs("""Delivery""", 'black', size=3))
-edit_div_del2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
 
-edit_del_unit_number = TextInput(value=str(data_dict["del_unit_number"]), title="Delivery Unit Number", width= width_number)
-edit_del_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_del_strt_number = TextInput(value=str(data_dict["del_strt_number"]), title="Delivery Street Number", width= width_number)
-edit_del_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del_address = TextInput(value=str(data_dict["del_address"]), title="Delivery Address", width= width_number)
+edit_del_address.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_del_pc = TextInput(value=str(data_dict["del_pc"]), title="Delivery Postal Code/ZIP", width= width_number)
 edit_del_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_del_strt_name = TextInput(value=str(data_dict["del_strt_name"]), title="Delivery Street Name", width= width_number)
-edit_del_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_select_del_state = Select( value=str(data_dict["del_state"]), title='Delivery State',options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
-edit_select_del_state.on_change('value', update_kc_id)
+edit_del_state = Select( value=str(data_dict["del_state"]), title='Delivery State',options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_del_state.on_change('value', update_kc_id)
 
 edit_del_city = TextInput(value=str(data_dict["del_city"]), title="Delivery City", width= width_number)
 edit_del_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1353,21 +1332,16 @@ edit_del_consignee_number = TextInput(value=str(data_dict["del_consignee_number"
 edit_del_consignee_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 
+edit_div_del2 = Div(text=wrap_in_paragraphs("""Delivery 2""", 'black', size=3))
 
-edit_del2_unit_number = TextInput(value=str(data_dict["del2_unit_number"]), title="Delivery 2 Unit Number", width= width_number)
-edit_del2_unit_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_del2_strt_number = TextInput(value=str(data_dict["del2_strt_number"]), title="Delivery 2 Street Number", width= width_number)
-edit_del2_strt_number.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_del2_address = TextInput(value=str(data_dict["del2_address"]), title="Delivery 2 Address", width= width_number)
+edit_del2_address.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_del2_pc = TextInput(value=str(data_dict["del2_pc"]), title="Delivery 2 Postal Code/ZIP", width= width_number)
 edit_del2_pc.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_del2_strt_name = TextInput(value=str(data_dict["del2_strt_name"]), title="Delivery 2 Street Name", width= width_number)
-edit_del2_strt_name.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_select_del2_state = Select(value=str(data_dict["del2_state"]), title='Delivery 2 State',options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
-edit_select_del2_state.on_change('value', update_kc_id)
+edit_del2_state = Select(value=str(data_dict["del2_state"]), title='Delivery 2 State',options=sorted(list(canada_province_names.keys()) + list(us_states.keys())), width=width_number)
+edit_del2_state.on_change('value', update_kc_id)
 
 edit_del2_city = TextInput(value=str(data_dict["del2_city"]), title="Delivery 2 City", width= width_number)
 edit_del2_city.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1392,6 +1366,9 @@ edit_div_other = Div(text=wrap_in_paragraphs("""Other""", 'black', size=3))
 edit_other_carrier = TextInput(value=str(data_dict["carrier"]), title="Carrier", width= width_number)
 edit_other_carrier.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
+edit_other_bill_to = TextInput(value=str(data_dict["bill_to"]), title="Bill To", width= width_number)
+edit_other_bill_to.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
 edit_other_carrier_contact = TextInput(value=str(data_dict["carrier_contact"]), title="Carrier Contact", width= width_number)
 edit_other_carrier_contact.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
@@ -1413,8 +1390,14 @@ edit_other_profit.js_on_change("value", CustomJS(code="""console.log('text_input
 edit_other_cost = TextInput(value=str(data_dict["cost"]), title="Cost", width= width_number)
 edit_other_cost.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
-edit_other_special_notes = TextInput(value=str(data_dict["special_notes"]), title="Special Notes", width= 900)
-edit_other_special_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+edit_other_bol_notes = TextInput(value=str(data_dict["bol_notes"]), title="Bill of Lading Notes", width= 900)
+edit_other_bol_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_invoice_notes = TextInput(value=str(data_dict["invoice_notes"]), title="Invoice Notes", width= 900)
+edit_other_invoice_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
+
+edit_other_loadconf_notes = TextInput(value=str(data_dict["loadconf_notes"]), title="Load Confirmation Notes", width= 900)
+edit_other_loadconf_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 edit_other_tax = TextInput(value=str(data_dict["tax"]), title="Tax", width= width_number)
 edit_other_tax.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1431,7 +1414,7 @@ edit_other_date_ordered.js_on_change("value", CustomJS(code="""console.log('text
 
 # COMMODITY
 ##################
-edit_div_commodity = Div(text=wrap_in_paragraphs("""Commodity""", 'black', size=3))
+edit_div_commodity = Div(text=wrap_in_paragraphs("""Shipment Description""", 'black', size=3))
 
 edit_commodity_commodity = TextInput(value=str(data_dict["commodity"]), title="Commodity", width= width_number)
 edit_commodity_commodity.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
@@ -1464,41 +1447,38 @@ for x in range(1,19):
 # LAYOUT
 
 new_pickup_del_layout = row([
-                      column([new_div_pickup, new_pickup_strt_number,
-                              new_pickup_strt_name,
-                              new_pickup_unit_number,
+                      column([new_div_pickup,
+                              new_pickup_date,
+                              new_pickup_shipper_name,
+                              new_pickup_address,
                               new_pickup_city,
                               new_select_pickup_state,
                               new_pickup_pc,
-                              new_pickup_date,
-                              new_pickup_shipper_name,
                               new_pickup_shipper_contact,
                               new_pickup_shipper_number,
                               ]),
                       new_div_0,
-                      column([new_div_del, new_del_strt_number,
-                              new_del_strt_name,
-                              new_del_unit_number,
-                              new_del_city,
-                              new_select_del_state,
-                              new_del_pc,
+                      column([new_div_del,
                               new_del_date,
                               new_del_consignee_name,
+                              new_del_address,
+                              new_del_city,
+                              new_del_state,
+                              new_del_pc,
                               new_del_consignee_contact,
                               new_del_consignee_number,
                               ]), ])
 
-new_del2_feature = column([new_div_del2, new_del2_strt_number,
-                                new_del2_strt_name,
-                                new_del2_unit_number,
-                                new_del2_city,
-                                new_select_del2_state,
-                                new_del2_pc,
-                                new_del2_date,
-                                new_del2_consignee_name,
-                                new_del2_consignee_contact,
-                                new_del2_consignee_number,
-                                ])
+new_del2_feature = column([new_div_del2,
+                           new_del2_date,
+                           new_del2_consignee_name,
+                           new_del2_address,
+                            new_del2_city,
+                            new_del2_state,
+                            new_del2_pc,
+                            new_del2_consignee_contact,
+                            new_del2_consignee_number,
+                            ])
 
 new_tab = TabPanel(
     child=column([row([new_info_div, new_select_kc_id, new_button, new_dest_button]),
@@ -1525,12 +1505,14 @@ new_tab = TabPanel(
                           new_other_profit,
                       ]),
                   ]),
-                  new_other_special_notes,
+                  new_other_bill_to,
+                  new_other_bol_notes,
+                  new_other_loadconf_notes,
+                  new_other_invoice_notes,
                   new_div_3,
                   new_div_commodity,
                   new_commodity_commodity,
                   new_commodity_weight,
-                  new_commodity_notes,
                   row([new_skids_dict[f"new_commodity_skid_number1"], new_skids_dict[f"new_commodity_skid_length1"],
                        new_skids_dict[f"new_commodity_skid_width1"], new_skids_dict[f"new_commodity_skid_height1"]]),
                   row([new_skids_dict[f"new_commodity_skid_number2"], new_skids_dict[f"new_commodity_skid_length2"],
@@ -1574,42 +1556,38 @@ new_tab = TabPanel(
 edit_pickup_del_layout = row([
                         column([
                             edit_div_pickup,
-                            edit_pickup_strt_number,
-                    edit_pickup_strt_name,
-                    edit_pickup_unit_number,
+                            edit_pickup_date,
+                            edit_pickup_shipper_name,
+                            edit_pickup_address,
                     edit_pickup_city,
                     edit_select_pickup_state,
                     edit_pickup_pc,
-                    edit_pickup_date,
-                    edit_pickup_shipper_name,
                     edit_pickup_shipper_contact,
                     edit_pickup_shipper_number,
                                 ]),
                   edit_div_0,
                   column([
-                  edit_div_del,
-                  edit_del_strt_number,
-                  edit_del_strt_name,
-                  edit_del_unit_number,
-                  edit_del_city,
-                  edit_select_del_state,
-                  edit_del_pc,
-                  edit_del_date,
-                  edit_del_consignee_name,
-                  edit_del_consignee_contact,
-                  edit_del_consignee_number,
+                      edit_div_del,
+                      edit_del_date,
+                      edit_del_consignee_name,
+                      edit_del_address,
+                      edit_del_city,
+                      edit_del_state,
+                      edit_del_pc,
+                      edit_del_consignee_contact,
+                      edit_del_consignee_number,
                           ]),])
 
-edit_del2_feature = column([edit_div_del2, edit_del2_strt_number,
-                                 edit_del2_strt_name,
-                                 edit_del2_unit_number,
-                                 edit_del2_city,
-                                 edit_select_del2_state,
-                                 edit_del2_pc,
-                                 edit_del2_date,
-                            edit_del2_consignee_name,
-                            edit_del2_consignee_contact,
-                            edit_del2_consignee_number,
+edit_del2_feature = column([
+                edit_div_del2,
+                edit_del2_date,
+                edit_del2_consignee_name,
+                edit_del2_address,
+                edit_del2_city,
+                edit_del2_state,
+                edit_del2_pc,
+                edit_del2_consignee_contact,
+                edit_del2_consignee_number,
                             ])
 
 edit_tab = TabPanel(
@@ -1638,12 +1616,15 @@ column([
     edit_other_profit,
 ]),
 ]),
-edit_other_special_notes,
+edit_other_bill_to,
+edit_other_bol_notes,
+edit_other_loadconf_notes,
+edit_other_invoice_notes,
 edit_div_3,
 edit_div_commodity,
 edit_commodity_commodity,
 edit_commodity_weight,
-edit_commodity_notes,
+
 row([skids_dict[f"edit_commodity_skid_number1"], skids_dict[f"edit_commodity_skid_length1"], skids_dict[f"edit_commodity_skid_width1"], skids_dict[f"edit_commodity_skid_height1"]]),
 row([skids_dict[f"edit_commodity_skid_number2"], skids_dict[f"edit_commodity_skid_length2"], skids_dict[f"edit_commodity_skid_width2"], skids_dict[f"edit_commodity_skid_height2"]]),
 row([skids_dict[f"edit_commodity_skid_number3"], skids_dict[f"edit_commodity_skid_length3"], skids_dict[f"edit_commodity_skid_width3"], skids_dict[f"edit_commodity_skid_height3"]]),
