@@ -264,10 +264,8 @@ def update_edit():
 
         to_db_dict = {
             "kc_id": edit_select_kc_id.value,
-            "pickup_unit_number": edit_pickup_unit_number.value,
-            "pickup_strt_number": edit_pickup_strt_number.value,
+            "pickup_address": edit_pickup_address.value,
             "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
-            "pickup_strt_name": edit_pickup_strt_name.value,
             "pickup_state": edit_select_pickup_state.value,
             "pickup_city": edit_pickup_city.value,
             "pickup_date": edit_pickup_date.value,
@@ -275,22 +273,18 @@ def update_edit():
             "pickup_shipper_number": edit_pickup_shipper_number.value,
             "pickup_shipper_contact": edit_pickup_shipper_contact.value,
 
-            "del_unit_number": edit_del_unit_number.value,
-            "del_strt_number": edit_del_strt_number.value,
+            "del_address": edit_del_address.value,
             "del_pc": edit_del_pc.value.replace(' ', ""),
-            "del_strt_name": edit_del_strt_name.value,
-            "del_state": edit_select_del_state.value,
+            "del_state": edit_del_state.value,
             "del_city": edit_del_city.value,
             "del_date": edit_del_date.value,
             "del_consignee_number": edit_del_consignee_number.value,
             "del_consignee_name": edit_del_consignee_name.value,
             "del_consignee_contact": edit_del_consignee_contact.value,
 
-            "del2_unit_number": edit_del2_unit_number.value,
-            "del2_strt_number": edit_del2_strt_number.value,
+            "del2_address": edit_del2_address.value,
             "del2_pc": edit_del2_pc.value.replace(' ', ""),
-            "del2_strt_name": edit_del2_strt_name.value,
-            "del2_state": edit_select_del2_state.value,
+            "del2_state": edit_del2_state.value,
             "del2_city": edit_del2_city.value,
             "del2_date": edit_del2_date.value,
             "del2_consignee_number": edit_del2_consignee_number.value,
@@ -303,19 +297,19 @@ def update_edit():
             "customer_invoice_status": edit_other_customer_invoice.value,
             "carrier_invoice_status": edit_other_carrier_invoice.value,
 
-            "charge": float(edit_other_charge.value),
-            "profit": float(edit_other_profit.value),
-            "cost": float(edit_other_cost.value),
+            "charge": edit_other_charge.value,
+            "profit": edit_other_profit.value,
+            "cost": edit_other_cost.value,
             "tax": edit_other_tax.value,
             "tax_type": edit_other_tax_type.value,
             "invoice_total": edit_other_invoice_total.value,
-
-            "special_notes": edit_other_special_notes.value,
+            "invoice_notes": edit_other_invoice_notes.value,
+            "loadconf_notes": edit_other_loadconf_notes.value,
+            "bol_notes": edit_other_bol_notes.value,
             "date_ordered": edit_other_date_ordered.value,
 
             "commodity": edit_commodity_commodity.value,
             "commodity_weight": edit_commodity_weight.value,
-            "commodity_notes": edit_commodity_notes.value,
             "commodity_skids": str(edit_comm_dict),
         }
 
@@ -435,30 +429,24 @@ def update_search():
     edit_display_div.text = wrap_in_paragraphs(f"""Now viewing {new_kc_id}""")
 
     # pickup
-    edit_pickup_unit_number.value=str(data_dict_["pickup_unit_number"])
-    edit_pickup_strt_number.value=str(data_dict_["pickup_strt_number"])
+    edit_pickup_address.value=str(data_dict_["pickup_address"])
     edit_pickup_pc.value=str(data_dict_["pickup_pc"])
-    edit_pickup_strt_name.value=str(data_dict_["pickup_strt_name"])
     edit_select_pickup_state.value=str(data_dict_["pickup_state"])
     edit_pickup_city.value=str(data_dict_["pickup_city"])
     edit_pickup_date.value = str(data_dict_['pickup_date'])
     # del
-    edit_del_unit_number.value=str(data_dict_["del_unit_number"])
-    edit_del_strt_number.value=str(data_dict_["del_strt_number"])
+    edit_del_address.value=str(data_dict_["del_address"])
     edit_del_pc.value=str(data_dict_["del_pc"])
-    edit_del_strt_name.value=str(data_dict_["del_strt_name"])
-    edit_select_del_state.value=str(data_dict_["del_state"])
+    edit_del_state.value=str(data_dict_["del_state"])
     edit_del_city.value=str(data_dict_["del_city"])
     edit_del_date.value = str(data_dict_['del_date'])
     edit_del_consignee_name.value = str(data_dict_['del_consignee_name'])
     edit_del_consignee_number.value = str(data_dict_['del_consignee_number'])
     edit_del_consignee_contact.value = str(data_dict_['del_consignee_contact'])
 
-    edit_del2_unit_number.value=str(data_dict_["del2_unit_number"])
-    edit_del2_strt_number.value=str(data_dict_["del2_strt_number"])
+    edit_del2_address.value=str(data_dict_["del2_address"])
     edit_del2_pc.value=str(data_dict_["del2_pc"])
-    edit_del2_strt_name.value=str(data_dict_["del2_strt_name"])
-    edit_select_del2_state.value=str(data_dict_["del2_state"])
+    edit_del2_state.value=str(data_dict_["del2_state"])
     edit_del2_city.value=str(data_dict_["del2_city"])
     edit_del2_date.value = str(data_dict_['del2_date'])
     edit_del2_consignee_name.value = str(data_dict_['del2_consignee_name'])
@@ -469,13 +457,15 @@ def update_search():
     edit_other_charge.value=str(data_dict_["charge"])
     edit_other_cost.value=str(data_dict_["cost"])
     edit_other_profit.value=str(data_dict_["profit"])
-    edit_other_special_notes.value=str(data_dict_["special_notes"])
+    edit_other_loadconf_notes.value=str(data_dict_["loadconf_notes"])
+    edit_other_invoice_notes.value=str(data_dict_["invoice_notes"])
+    edit_other_bol_notes.value=str(data_dict_["bol_notes"])
     edit_other_carrier_invoice.value=str(data_dict_["carrier_invoice_status"])
     edit_other_carrier.value = str(data_dict_['carrier'])
     edit_other_carrier_contact.value = str(data_dict_['carrier_contact'])
     edit_other_date_invoiced.value = str(data_dict_['date_invoiced'])
     edit_other_customer_invoice.value = str(data_dict_['customer_invoice_status'])
-
+    edit_other_bill_to.value = str(data_dict_['bill_to'])
 
 
     edit_other_tax.value = str(data_dict_['tax'])
@@ -514,10 +504,8 @@ def update_new():
 
         to_db_dict = {
             "kc_id": new_select_kc_id.value,
-            "pickup_unit_number": new_pickup_unit_number.value,
-            "pickup_strt_number": new_pickup_strt_number.value,
+            "pickup_address": new_pickup_address.value,
             "pickup_pc": new_pickup_pc.value.replace(' ', ""),
-            "pickup_strt_name": new_pickup_strt_name.value,
             "pickup_state": new_select_pickup_state.value,
             "pickup_city": new_pickup_city.value,
             "pickup_date": new_pickup_date.value,
@@ -529,18 +517,16 @@ def update_new():
             "del_strt_number": new_del_strt_number.value,
             "del_pc": new_del_pc.value.replace(' ', ""),
             "del_strt_name": new_del_strt_name.value,
-            "del_state": new_select_del_state.value,
+            "del_state": new_del_state.value,
             "del_city": new_del_city.value,
             "del_date": new_del_date.value,
             "del_consignee_number": new_del_consignee_number.value,
             "del_consignee_name": new_del_consignee_name.value,
             "del_consignee_contact": new_del_consignee_contact.value,
 
-            "del2_unit_number": new_del2_unit_number.value,
-            "del2_strt_number": new_del2_strt_number.value,
+            "del2_address": new_del2_address.value,
             "del2_pc": new_del2_pc.value.replace(' ', ""),
-            "del2_strt_name": new_del2_strt_name.value,
-            "del2_state": new_select_del2_state.value,
+            "del2_state": new_del2_state.value,
             "del2_city": new_del2_city.value,
             "del2_date": new_del2_date.value,
             "del2_consignee_number": new_del2_consignee_number.value,
@@ -555,13 +541,14 @@ def update_new():
 
             "charge": float(new_other_charge.value),
             "cost": float(new_other_cost.value),
-
-            "special_notes": new_other_special_notes.value,
+            "loadconf_notes": new_other_loadconf_notes.value,
+            "bol_notes": new_other_bol_notes.value,
+            "invoice_notes": new_other_invoice_notes.value,
             "date_ordered": new_other_date_ordered.value,
+            "bill_to": new_other_bill_to.value,
 
             "commodity": new_commodity_commodity.value,
             "commodity_weight": new_commodity_weight.value,
-            "commodity_notes": new_commodity_notes.value,
             "commodity_skids": str(new_comm_dict),
         }
 
@@ -599,28 +586,23 @@ def update_new():
         assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery ZIP / Postal Code ({to_db_dict['del_pc']})"
 
         # ensure that the fields have the required entries
-        assert len(to_db_dict['del_strt_number']) > 1 , "Delivery Street Number  needs to be filled."
+        assert len(to_db_dict['del_address']) > 1 , "Delivery Address needs to be filled."
         assert len(to_db_dict['del_city']) > 1 , "Delivery City needs to be filled."
-        assert len(to_db_dict['del_strt_name']) > 1 , "Delivery Street Name needs to be filled."
 
         # ensure that the fields have the required entries
-        if (to_db_dict["del2_unit_number"] or
-                to_db_dict["del2_city"] or
+        if (to_db_dict["del2_city"] or
                 to_db_dict["del2_state"] or
-                to_db_dict["del2_strt_name"] or
-                to_db_dict["del2_pc"] or
-                to_db_dict["del2_strt_number"]):
-            assert len(to_db_dict['del2_strt_number']) > 1 , "Delivery 2 Street Number  needs to be filled."
+                to_db_dict["del2_address"] or
+                to_db_dict["del2_pc"] ):
             assert len(to_db_dict['del2_city']) > 1 , "Delivery 2 City needs to be filled."
-            assert len(to_db_dict['del2_strt_name']) > 1 , "Delivery 2 Street Name needs to be filled."
+            assert len(to_db_dict['del2_address']) > 1 , "Delivery 2 Address needs to be filled."
             assert len(to_db_dict['del2_pc']) >= 5, "Delivery 2 PC too short"
             assert len(to_db_dict['del2_pc']) <= 7, "Delivery 2 PC too long"
             ensure_some_numbers = [x.isnumeric() for x in to_db_dict['del2_pc']]
             assert sum(ensure_some_numbers) >= 3, f"Not a valid Delivery 2 ZIP / Postal Code ({to_db_dict['del2_pc']})"
 
-        assert len(to_db_dict['pickup_strt_number']) > 1 , "Pickup Street Number  needs to be filled."
         assert len(to_db_dict['pickup_city']) > 1 , "Pickup City needs to be filled."
-        assert len(to_db_dict['pickup_strt_name']) > 1 , "Pickup Street Name needs to be filled."
+        assert len(to_db_dict['pickup_address']) > 1 , "Pickup Address needs to be filled."
 
         assert len(to_db_dict['carrier_contact']) > 1 , "Carrier Contact needs to be filled."
         assert len(to_db_dict['carrier']) > 1 , "Carrier needs to be filled."
@@ -667,19 +649,15 @@ def update_new():
         new_del_consignee_name.value = ""
         new_del_consignee_number.value = ""
 
-        new_del2_unit_number.value = ""
+        new_del2_address.value = ""
         new_del2_pc.value = ""
-        new_del2_strt_number.value = ""
-        new_del2_strt_name.value = ""
         new_del2_city.value = ""
         new_del2_consignee_contact.value = ""
         new_del2_consignee_name.value = ""
         new_del2_consignee_number.value = ""
 
-        new_pickup_strt_number.value = ""
+        new_pickup_address.value = ""
         new_pickup_pc.value = ""
-        new_pickup_unit_number.value = ""
-        new_pickup_strt_name.value = ""
         new_pickup_city.value = ""
         new_pickup_date.value = ""
         new_pickup_shipper_name.value = ""
@@ -688,6 +666,11 @@ def update_new():
 
         new_other_date_ordered.value = ""
         new_other_date_invoiced.value = ""
+
+        new_other_bol_notes.value = ""
+        new_other_invoice_notes.value = ""
+        new_other_loadconf_notes.value = ""
+        new_other_bill_to.value = ""
 
         new_other_profit.value = ""
         new_other_cost.value = ""
@@ -698,7 +681,6 @@ def update_new():
 
         new_commodity_commodity.value = ""
         new_commodity_weight.value = ""
-        new_commodity_notes.value = ""
 
     except Exception as eee:
         print(error_handling())
@@ -727,10 +709,8 @@ def update_create_invoice():
                       }
     info_dict = {
         "kc_id": edit_select_kc_id.value,
-        "pickup_unit_number": edit_pickup_unit_number.value,
-        "pickup_strt_number": edit_pickup_strt_number.value,
+        "pickup_address": edit_pickup_address.value,
         "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
-        "pickup_strt_name": edit_pickup_strt_name.value,
         "pickup_state": edit_select_pickup_state.value,
         "pickup_city": edit_pickup_city.value,
         "pickup_date": edit_pickup_date.value,
@@ -738,22 +718,18 @@ def update_create_invoice():
         "pickup_shipper_number": edit_pickup_shipper_number.value,
         "pickup_shipper_contact": edit_pickup_shipper_contact.value,
 
-        "del_unit_number": edit_del_unit_number.value,
-        "del_strt_number": edit_del_strt_number.value,
+        "del_address": edit_del_address.value,
         "del_pc": edit_del_pc.value.replace(' ', ""),
-        "del_strt_name": edit_del_strt_name.value,
-        "del_state": edit_select_del_state.value,
+        "del_state": edit_del_state.value,
         "del_city": edit_del_city.value,
         "del_date": edit_del_date.value,
         "del_consignee_number": edit_del_consignee_number.value,
         "del_consignee_name": edit_del_consignee_name.value,
         "del_consignee_contact": edit_del_consignee_contact.value,
 
-        "del2_unit_number": edit_del2_unit_number.value,
-        "del2_strt_number": edit_del2_strt_number.value,
+        "del2_address": edit_del2_address.value,
         "del2_pc": edit_del2_pc.value.replace(' ', ""),
-        "del2_strt_name": edit_del2_strt_name.value,
-        "del2_state": edit_select_del2_state.value,
+        "del2_state": edit_del2_state.value,
         "del2_city": edit_del2_city.value,
         "del2_date": edit_del2_date.value,
         "del2_consignee_number": edit_del2_consignee_number.value,
@@ -772,16 +748,14 @@ def update_create_invoice():
         "tax": edit_other_tax.value,
         "tax_type": edit_other_tax_type.value,
         "invoice_total": edit_other_invoice_total.value,
-
-        "special_notes": edit_other_special_notes.value,
+        "invoice_notes": edit_other_invoice_notes.value,
+        "loadconf_notes": edit_other_loadconf_notes.value,
+        "bol_notes": edit_other_bol_notes.value,
         "date_ordered": edit_other_date_ordered.value,
-
-
-
+        "bill_to": edit_other_bill_to.value,
 
         "commodity": edit_commodity_commodity.value,
         "commodity_weight": edit_commodity_weight.value,
-        "commodity_notes": edit_commodity_notes.value,
         "commodity_skids": str(edit_comm_dict),
     }
     # only worry about 'active' skids
@@ -831,10 +805,8 @@ def update_create_bol():
                       }
     info_dict = {
         "kc_id": edit_select_kc_id.value,
-        "pickup_unit_number": edit_pickup_unit_number.value,
-        "pickup_strt_number": edit_pickup_strt_number.value,
+        "pickup_address": edit_pickup_address.value,
         "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
-        "pickup_strt_name": edit_pickup_strt_name.value,
         "pickup_state": edit_select_pickup_state.value,
         "pickup_city": edit_pickup_city.value,
         "pickup_date": edit_pickup_date.value,
@@ -842,22 +814,18 @@ def update_create_bol():
         "pickup_shipper_number": edit_pickup_shipper_number.value,
         "pickup_shipper_contact": edit_pickup_shipper_contact.value,
 
-        "del_unit_number": edit_del_unit_number.value,
-        "del_strt_number": edit_del_strt_number.value,
+        "del_address": edit_del_address.value,
         "del_pc": edit_del_pc.value.replace(' ', ""),
-        "del_strt_name": edit_del_strt_name.value,
-        "del_state": edit_select_del_state.value,
+        "del_state": edit_del_state.value,
         "del_city": edit_del_city.value,
         "del_date": edit_del_date.value,
         "del_consignee_number": edit_del_consignee_number.value,
         "del_consignee_name": edit_del_consignee_name.value,
         "del_consignee_contact": edit_del_consignee_contact.value,
 
-        "del2_unit_number": edit_del2_unit_number.value,
-        "del2_strt_number": edit_del2_strt_number.value,
+        "del2_address": edit_del2_address.value,
         "del2_pc": edit_del2_pc.value.replace(' ', ""),
-        "del2_strt_name": edit_del2_strt_name.value,
-        "del2_state": edit_select_del2_state.value,
+        "del2_state": edit_del2_state.value,
         "del2_city": edit_del2_city.value,
         "del2_date": edit_del2_date.value,
         "del2_consignee_number": edit_del2_consignee_number.value,
@@ -876,16 +844,14 @@ def update_create_bol():
         "tax": edit_other_tax.value,
         "tax_type": edit_other_tax_type.value,
         "invoice_total": edit_other_invoice_total.value,
-
-        "special_notes": edit_other_special_notes.value,
+        "invoice_notes": edit_other_invoice_notes.value,
+        "loadconf_notes": edit_other_loadconf_notes.value,
+        "bol_notes": edit_other_bol_notes.value,
         "date_ordered": edit_other_date_ordered.value,
-
-
-
+        "bill_to": edit_other_bill_to.value,
 
         "commodity": edit_commodity_commodity.value,
         "commodity_weight": edit_commodity_weight.value,
-        "commodity_notes": edit_commodity_notes.value,
         "commodity_skids": str(edit_comm_dict),
     }
 
@@ -936,10 +902,8 @@ def update_create_loadconf():
                       }
     info_dict = {
         "kc_id": edit_select_kc_id.value,
-        "pickup_unit_number": edit_pickup_unit_number.value,
-        "pickup_strt_number": edit_pickup_strt_number.value,
+        "pickup_address": edit_pickup_address.value,
         "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
-        "pickup_strt_name": edit_pickup_strt_name.value,
         "pickup_state": edit_select_pickup_state.value,
         "pickup_city": edit_pickup_city.value,
         "pickup_date": edit_pickup_date.value,
@@ -947,22 +911,18 @@ def update_create_loadconf():
         "pickup_shipper_number": edit_pickup_shipper_number.value,
         "pickup_shipper_contact": edit_pickup_shipper_contact.value,
 
-        "del_unit_number": edit_del_unit_number.value,
-        "del_strt_number": edit_del_strt_number.value,
+        "del_address": edit_del_address.value,
         "del_pc": edit_del_pc.value.replace(' ', ""),
-        "del_strt_name": edit_del_strt_name.value,
-        "del_state": edit_select_del_state.value,
+        "del_state": edit_del_state.value,
         "del_city": edit_del_city.value,
         "del_date": edit_del_date.value,
         "del_consignee_number": edit_del_consignee_number.value,
         "del_consignee_name": edit_del_consignee_name.value,
         "del_consignee_contact": edit_del_consignee_contact.value,
 
-        "del2_unit_number": edit_del2_unit_number.value,
-        "del2_strt_number": edit_del2_strt_number.value,
+        "del2_address": edit_del2_address.value,
         "del2_pc": edit_del2_pc.value.replace(' ', ""),
-        "del2_strt_name": edit_del2_strt_name.value,
-        "del2_state": edit_select_del2_state.value,
+        "del2_state": edit_del2_state.value,
         "del2_city": edit_del2_city.value,
         "del2_date": edit_del2_date.value,
         "del2_consignee_number": edit_del2_consignee_number.value,
@@ -981,16 +941,14 @@ def update_create_loadconf():
         "tax": edit_other_tax.value,
         "tax_type": edit_other_tax_type.value,
         "invoice_total": edit_other_invoice_total.value,
-
-        "special_notes": edit_other_special_notes.value,
+        "invoice_notes": edit_other_invoice_notes.value,
+        "loadconf_notes": edit_other_loadconf_notes.value,
+        "bol_notes": edit_other_bol_notes.value,
         "date_ordered": edit_other_date_ordered.value,
-
-
-
+        "bill_to": edit_other_bill_to.value,
 
         "commodity": edit_commodity_commodity.value,
         "commodity_weight": edit_commodity_weight.value,
-        "commodity_notes": edit_commodity_notes.value,
         "commodity_skids": str(edit_comm_dict),
     }
 
@@ -1039,6 +997,32 @@ def add_edit_del_destination():
     if len(edit_pickup_del_layout.children) < 4:
         edit_pickup_del_layout.children.append(edit_del2_feature)
 
+
+def add_from_pickup():
+    new_pickup_address.value = edit_pickup_address.value
+    new_pickup_pc.value = edit_pickup_pc.value
+    new_pickup_city.value = edit_pickup_city.value
+    new_pickup_date.value = edit_pickup_date.value
+    new_pickup_shipper_name.value = edit_pickup_shipper_name.value
+    new_pickup_shipper_contact.value = edit_pickup_shipper_contact.value
+    new_pickup_shipper_number.value = edit_pickup_shipper_number.value
+
+def add_from_delivery():
+    # reset some fields so that a double tab doesn't add a second row of the same data
+    new_del_address.value = edit_del_address.value
+    new_del_pc.value = edit_del_pc.value
+    new_del_city.value = edit_del_city.value
+    new_del_date.value = edit_del_date.value
+    new_del_consignee_contact.value = edit_del_consignee_contact.value
+    new_del_consignee_name.value = edit_del_consignee_name.value
+    new_del_consignee_number.value = edit_del_consignee_number.value
+    if len(edit_pickup_del_layout.children) >= 4:
+        new_del2_address.value = edit_del2_address.value
+        new_del2_pc.value = edit_del2_pc.value
+        new_del2_city.value = edit_del2_city.value
+        new_del2_consignee_contact.value = edit_del2_consignee_contact.value
+        new_del2_consignee_name.value = edit_del2_consignee_name.value
+        new_del2_consignee_number.value = edit_del2_consignee_number.value
 
 title_div = Div(text=wrap_in_paragraphs('KC Logistics Data Input', 'black', size=5), width = width_number)
 new_info_div = Div(text=wrap_in_paragraphs("""New Data Input for KC Logistics Data """, 'black', size=3), width = 300)
@@ -1154,6 +1138,11 @@ new_del2_consignee_number.js_on_change("value", CustomJS(code="""console.log('te
 new_dest_button = Button(label="Add Delivery destination", button_type="success")
 new_dest_button.on_click(add_new_del_destination)
 
+new_add_from_pickup_button = Button(label="Add Info from Edit/View Pickup", button_type="success")
+new_add_from_pickup_button.on_click(add_from_pickup)
+
+new_add_from_del_button = Button(label="Add Info from Edit/View Delivery", button_type="success")
+new_add_from_del_button.on_click(add_from_delivery)
 
 # OTHER
 ################
@@ -1481,7 +1470,9 @@ new_del2_feature = column([new_div_del2,
                             ])
 
 new_tab = TabPanel(
-    child=column([row([new_info_div, new_select_kc_id, new_button, new_dest_button]),
+    child=column([row([new_info_div, new_select_kc_id,column([row([new_button, new_dest_button,]),
+                                                                row([new_add_from_pickup_button, new_add_from_del_button])])
+                        ]),
                   new_display_div,
                     new_pickup_del_layout,
                   new_div_2,
