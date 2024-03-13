@@ -408,11 +408,11 @@ def update_search():
     empty_skids_ = {x: (0, 0, 0, 0) for x in range(1, 19)}
     skids_ = {**empty_skids_, **skids_}
 
-    if (data_dict_["del2_unit_number"] or
+    if (
         data_dict_["del2_city"] or
         data_dict_["del2_state"] or
         data_dict_["del2_pc"] or
-        data_dict_["del2_strt_number"]
+        data_dict_["del2_address"]
     ):
 
         edit_pickup_del_layout.children.append(edit_del2_feature)
@@ -474,7 +474,6 @@ def update_search():
     edit_pickup_shipper_contact.value = str(data_dict_['pickup_shipper_contact'])
 
     # commodity
-    edit_commodity_notes.value=str(data_dict_["commodity_notes"])
     edit_commodity_weight.value=str(data_dict_["commodity_weight"])
     edit_commodity_commodity.value=str(data_dict_["commodity"])
     for y in range(1,19):
@@ -1219,7 +1218,7 @@ edit_div_1 = Div(text = '_'*15)
 edit_div_2 = Div(text = '_'*130)
 edit_div_3 = Div(text = '_'*130)
 
-start_kc_id = 'KC10'
+start_kc_id = 'KC304'
 
 data_dict = database[database['kc_id'] == start_kc_id].iloc[0].to_dict()
 
@@ -1393,9 +1392,6 @@ edit_commodity_commodity.js_on_change("value", CustomJS(code="""console.log('tex
 
 edit_commodity_weight = TextInput(value=str(data_dict["commodity_weight"]), title="Weight (LBS)", width= 200)
 edit_commodity_weight.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
-
-edit_commodity_notes = TextInput(value=str(data_dict["commodity_notes"]), title="Notes", width= 900)
-edit_commodity_notes.js_on_change("value", CustomJS(code="""console.log('text_input: value=' + this.value, this.toString())"""))
 
 skids = ast.literal_eval(data_dict["commodity_skids"])
 empty_skids = {x:(0,0,0,0) for x in range(1,19)}
