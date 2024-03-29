@@ -315,7 +315,11 @@ def update_edit():
 
         try:
             state = to_db_dict['del_state']
-            tax_state = tax_rates[state]
+            state2 = to_db_dict['pickup_state']
+            if state2 not in canada_province_names.keys():
+                tax_state = tax_rates[state2]
+            else:
+                tax_state = tax_rates[state]
         except:
             pprint(to_db_dict)
             print('Delivery State not selected')
@@ -547,11 +551,16 @@ def update_new():
 
         try:
             state = to_db_dict['del_state']
-            tax_state = tax_rates[state]
+            state2 = to_db_dict['pickup_state']
+            if state2 not in canada_province_names.keys():
+                tax_state = tax_rates[state2]
+            else:
+                tax_state = tax_rates[state]
         except:
             pprint(to_db_dict)
             print('Delivery State not selected')
             edit_display_div.text = wrap_in_paragraphs('Delivery State not selected')
+
         tax_rate = sum([y/100 for x, y in tax_state.items() if y > 0])
         tax_type = '/'.join(sorted([x for x, y in tax_state.items() if y > 0]))
         if not tax_type:
