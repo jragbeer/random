@@ -693,7 +693,103 @@ def error_handling() -> str:
     :return: string with the error information
     """
     return traceback.format_exc()
-    
+
+
+def update_create_booking_sheet():
+    global skids_dict
+
+    if not check_folder(edit_select_jc_id.value):
+        create_folder(edit_select_jc_id.value)
+
+    edit_comm_dict = {x: (skids_dict[f"edit_commodity_skid_number{x}"].value,
+                          skids_dict[f"edit_commodity_skid_length{x}"].value,
+                          skids_dict[f"edit_commodity_skid_width{x}"].value,
+                          skids_dict[f"edit_commodity_skid_height{x}"].value,
+                          )
+                      for x in range(1, 19)
+                      }
+    info_dict = {
+        "jc_id": edit_select_jc_id.value,
+        "pickup_address": edit_pickup_address.value,
+        "pickup_pc": edit_pickup_pc.value.replace(' ', ""),
+        "pickup_state": edit_select_pickup_state.value,
+        "pickup_city": edit_pickup_city.value,
+        "pickup_date": edit_pickup_date.value,
+        "pickup_shipper_name": edit_pickup_shipper_name.value,
+        "pickup_shipper_number": edit_pickup_shipper_number.value,
+        "pickup_shipper_contact": edit_pickup_shipper_contact.value,
+
+        "del_address": edit_del_address.value,
+        "del_pc": edit_del_pc.value.replace(' ', ""),
+        "del_state": edit_del_state.value,
+        "del_city": edit_del_city.value,
+        "del_date": edit_del_date.value,
+        "del_consignee_number": edit_del_consignee_number.value,
+        "del_consignee_name": edit_del_consignee_name.value,
+        "del_consignee_contact": edit_del_consignee_contact.value,
+
+        "del2_address": edit_del2_address.value,
+        "del2_pc": edit_del2_pc.value.replace(' ', ""),
+        "del2_state": edit_del2_state.value,
+        "del2_city": edit_del2_city.value,
+        "del2_date": edit_del2_date.value,
+        "del2_consignee_number": edit_del2_consignee_number.value,
+        "del2_consignee_name": edit_del2_consignee_name.value,
+        "del2_consignee_contact": edit_del2_consignee_contact.value,
+
+        "carrier": edit_other_carrier.value,
+        "carrier_contact": edit_other_carrier_contact.value,
+        "date_invoiced": edit_other_date_invoiced.value,
+        "customer_invoice_status": edit_other_customer_invoice.value,
+        "carrier_invoice_status": edit_other_carrier_invoice.value,
+
+        "charge": edit_other_charge.value,
+        "profit": edit_other_profit.value,
+        "cost": edit_other_cost.value,
+        "tax": edit_other_tax.value,
+        "tax_type": edit_other_tax_type.value,
+        "invoice_total": edit_other_invoice_total.value,
+        "invoice_notes": edit_other_invoice_notes.value,
+        "loadconf_notes": edit_other_loadconf_notes.value,
+        "bol_notes": edit_other_bol_notes.value,
+        "date_ordered": edit_other_date_ordered.value,
+        "bill_to": edit_other_bill_to.value,
+
+        "commodity": edit_commodity_commodity.value,
+        "commodity_weight": edit_commodity_weight.value,
+        "commodity_skids": str(edit_comm_dict),
+    }
+    # only worry about 'active' skids
+    active_skids = {x:y for x,y in edit_comm_dict.items() if int(y[0]) > 0 }
+    # create the different skids
+    skids = ''
+    for x,y in active_skids.items():
+        if int(y[0]) > 1:
+            skids = skids + f"{y[1]}x{y[2]}x{y[3]} |" * int(y[0])
+        else:
+            skids = skids + f"{y[1]}x{y[2]}x{y[3]} |"
+    skids = skids[:-1].strip()
+    # count the number of skids
+    number_of_skids = sum([int(y[0]) for x,y in active_skids.items() if int(y[0]) > 0])
+
+    # use the Word doc template
+    document = DocxTemplate(data_path + "jc_booking_sheet_template.docx")
+    # add extra variables to the info_dict
+    context = {
+               'skids': skids,
+               'number_of_skids': number_of_skids,
+               'business_number': constants['business_number'],
+               'terms': constants['terms'],
+               'cstmr_reference': constants['customer_reference_#'],
+                }
+    pprint(context)
+    context.update(info_dict)
+    document.render(context)
+    save_path = data_path + f'{info_dict['jc_id']}/' + f"{info_dict['jc_id']}_booking_sheet_{today.strftime('%F').replace('-','_')}.docx"
+    document.save(save_path)
+    text = f"{info_dict['jc_id']} Booking Sheet created at {datetime.datetime.now()}, saved to {save_path}"
+    print(text)
+    edit_display_div.text = wrap_in_paragraphs(f"""{text}<br>Now viewing {info_dict['jc_id']}""")
 def update_create_invoice():
     global skids_dict
 
@@ -772,7 +868,7 @@ def update_create_invoice():
     number_of_skids = sum([int(y[0]) for x,y in active_skids.items() if int(y[0]) > 0])
 
     # use the Word doc template
-    document = DocxTemplate(data_path + "invoice_template.docx")
+    document = DocxTemplate(data_path + "jc_invoice_template.docx")
     # add extra variables to the info_dict
     context = {
                'skids': skids,
@@ -869,7 +965,7 @@ def update_create_bol():
     number_of_skids = sum([int(y[0]) for x,y in active_skids.items() if int(y[0]) > 0])
 
     # use the Word doc template
-    document = DocxTemplate(data_path + "BoL_template.docx")
+    document = DocxTemplate(data_path + "jc_BoL_template.docx")
     # add extra variables to the info_dict
     context = {
                'skids': skids,
@@ -966,7 +1062,7 @@ def update_create_loadconf():
     number_of_skids = sum([int(y[0]) for x,y in active_skids.items() if int(y[0]) > 0])
 
     # use the Word doc template
-    document = DocxTemplate(data_path + "load_confirmation_template.docx")
+    document = DocxTemplate(data_path + "jc_load_confirmation_template.docx")
     # add extra variables to the info_dict
     context = {
                'skids': skids,
@@ -1251,6 +1347,9 @@ create_bol_button.on_click(update_create_bol)
 
 create_invoice_button = Button(label="Create Invoice", button_type="warning", width=100)
 create_invoice_button.on_click(update_create_invoice)
+
+create_booking_sheet_button = Button(label="Create Booking Sheet", button_type="warning", width=100)
+create_booking_sheet_button.on_click(update_create_booking_sheet)
 
 edit_add_dest_button = Button(label="Add Delivery Destination", button_type="success")
 edit_add_dest_button.on_click(add_edit_del_destination)
@@ -1571,7 +1670,9 @@ edit_del2_feature = column([
 
 edit_tab = TabPanel(
     child=column([row([edit_info_div,edit_select_jc_id, column([row([search_button, edit_button,edit_add_dest_button,]),
-                                                                row([create_bol_button, create_invoice_button, create_loadconf_button])])]),
+                                                                row([create_bol_button, create_invoice_button, create_loadconf_button]),
+                                                                row([create_booking_sheet_button])],
+                                                               )], ),
 edit_display_div,
 edit_pickup_del_layout,
 edit_div_2,
