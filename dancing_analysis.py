@@ -23,6 +23,8 @@ def filter_df(xdf, filters_to_use=None):
         for x in filters_to_use:
             if x == 'first_month':
                 xdf = xdf[xdf['payment_method']=="one month pass - promo for new students only"]
+            if x == 'not_first_month':
+                xdf = xdf[(xdf['payment_method'] != "one month pass - promo for new students only")]
             if x == 'attended':
                 xdf = xdf[xdf['status']=='signed in']
             if x == 'salsa':
@@ -86,7 +88,7 @@ idf['class_type'] = extract_dance_style(idf['class_type'])
 print(idf.head().to_string())
 
 # ANALYSIS
-
+not_first_month_df = filter_df(idf, ['not_first_month'])
 first_month_df = filter_df(idf, ['first_month'])
 first_month_salsa_df = filter_df(idf, ['first_month', 'salsa'])
 first_month_bachata_df = filter_df(idf, ['first_month', 'bachata'])
@@ -96,6 +98,13 @@ print("\r\rOverall: " + pp)
 print(filter_df(idf, ['attended'])['class_type'].value_counts())
 print(filter_df(idf, ['attended'])['teacher'].value_counts())
 print(filter_df(idf, ['attended'])['class_level'].value_counts())
+
+pp = info_string(first_month_df)
+print("\r\rNot First Month: " + pp)
+print(filter_df(idf, ['not_first_month', 'attended'])['class_type'].value_counts())
+print(filter_df(idf, ['not_first_month', 'attended'])['teacher'].value_counts())
+print(filter_df(idf, ['not_first_month', 'attended'])['class_level'].value_counts())
+
 
 pp = info_string(first_month_df)
 print("\r\rFirst Month: " + pp)
