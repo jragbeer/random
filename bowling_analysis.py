@@ -35,7 +35,7 @@ app_version_number = "0.1"
 logging.info(f"Version:  {app_version_number}")
 
 # parameters for the simulation
-num_games_to_simulate = 50_000
+num_games_to_simulate = 5_000_000
 compare_column = 'ball_score'
 # compare_column = "pins_hit"
 
@@ -188,7 +188,7 @@ def first_attempt(game_template: pd.DataFrame, compare_column:str = compare_colu
         each_game = get_scores(find_marks(simulate_game(game_template))).copy()
         for k in list(games.keys()):
             # if the game is unique (by comparing game against every other game already simulated), add it to the game
-            # dictionay
+            # dictionary
             if not each_game[compare_column].equals(games[k][compare_column]):
                 games[game_no] = each_game
     # quickly find the best game, and how many games had a strike in them
@@ -347,10 +347,10 @@ def find_best_game(games: dict) -> tuple[int, int, int]:
 # each pin for easier analysis, and it's # of points as the value
 balls = {"PIN"+str(x): 1 for x in range(1,11)}
 base_game_template = create_game_template()
-
+# print(base_game_template)
 # first_attempt(base_game_template)
-# second_attempt(base_game_template)
-# third_attempt()
+second_attempt(base_game_template)
+third_attempt()
 fourth_attempt()
 
 end_time = datetime.datetime.now()
