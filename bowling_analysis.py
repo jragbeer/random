@@ -345,20 +345,24 @@ def fifth_attempt(games_by_score: dict,
     for game_no in tqdm(range(2, num_games_to_simulate + 1)):
         # run a simulation and find it's final score
         each_game = get_scores(find_marks(simulate_game(game_template))).copy()
-        score = each_game['running_score'].max()
-
-        g_s = games_by_score[score]
+        each_game_max_score = each_game['running_score'].max()
+        games_database[game_no] = each_game
+        g_s = games_by_score[each_game_max_score]
+        g_s.append(game_no)
         # iterate through each game
         for index, sub_each in enumerate(g_s):
-            # find the latest game to compare current with
-            compare_game = games_database[g_s[index]]
-            counter = 0
-            if not each_game[compare_column].equals(compare_game[compare_column]):
-                counter = counter + 1
-            # if each_game is unique, then add it to the game database and score database
-            if counter == len(g_s):
-                games_database[game_no] = each_game
-                g_s.append(game_no)
+            try:
+                # find the latest game to compare current with
+                compare_game = games_database[g_s[index]]
+                counter = 0
+                if not each_game[compare_column].equals(compare_game[compare_column]):
+                    counter = counter + 1
+                # if each_game is unique, then add it to the game database and score database
+                if counter == len(g_s):
+                    games_database[game_no] = each_game
+                    g_s.append(game_no)
+            except Exception as eee:
+                pass
 
     pprint(games_by_score)
     best_game, number_strikes, c = find_best_game(games_database)
@@ -384,13 +388,14 @@ def find_best_game(games: dict) -> tuple[int, int, int]:
     number_of_games_with_strike = 0
     game_with_a_strike = None
     for k,v in games.items():
-        tmp = v["running_score"].max()
-        if tmp > best_score:
-            best_score = tmp
-            index_of_best_game = k
-        if 'STRIKE' in [pp for pp in v['special'].tolist()]:
-            number_of_games_with_strike = number_of_games_with_strike + 1
-            game_with_a_strike = k
+        if not v.empty:
+            tmp = v["running_score"].max()
+            if tmp > best_score:
+                best_score = tmp
+                index_of_best_game = k
+            if 'STRIKE' in [pp for pp in v['special'].tolist()]:
+                number_of_games_with_strike = number_of_games_with_strike + 1
+                game_with_a_strike = k
     return index_of_best_game, number_of_games_with_strike, game_with_a_strike
 
 
@@ -399,7 +404,7 @@ base_game_template = create_game_template()
 
 
 
-fifth_attempt(base_games_by_score, base_game_template, num_games_to_simulate=1000)
+fifth_attempt(base_games_by_score, base_game_template, num_games_to_simulate=100)
 # print(base_game_template)
 # first_attempt(base_game_template)
 # second_attempt(base_game_template)
