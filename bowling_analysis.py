@@ -35,8 +35,12 @@ app_version_number = "0.1"
 logging.info(f"Version:  {app_version_number}")
 
 # parameters for the simulation
-num_games_to_simulate = 5_000_000
+num_games_to_simulate = 10_000_000
 compare_column = 'ball_score'
+# each pin for easier analysis, and it's # of points as the value
+balls = {"PIN"+str(x): 1 for x in range(1,11)}
+base_games_by_score = {x:[] for x in range(301)}
+
 # compare_column = "pins_hit"
 
 # simulate game funcs
@@ -328,6 +332,51 @@ def fourth_attempt():
     # 4.18 quintillion games possible
     print(kdf)
 
+
+def fifth_attempt(games_by_score: dict,
+                  game_template: pd.DataFrame,
+                  compare_column:str = compare_column,
+                  games_start_index: int = 0,
+                  num_games_to_simulate:int = num_games_to_simulate,
+                  ) -> None:
+    num_games_simulate = range(games_start_index, games_start_index + num_games_to_simulate + 1)
+    games_database = {x: pd.DataFrame() for x in num_games_simulate}
+
+    for game_no in tqdm(range(2, num_games_to_simulate + 1)):
+        # run a simulation and find it's final score
+        each_game = get_scores(find_marks(simulate_game(game_template))).copy()
+        score = each_game['running_score'].max()
+
+        g_s = games_by_score[score]
+        # iterate through each game
+        for index, sub_each in enumerate(g_s):
+            # find the latest game to compare current with
+            compare_game = games_database[g_s[index]]
+            counter = 0
+            if not each_game[compare_column].equals(compare_game[compare_column]):
+                counter = counter + 1
+            # if each_game is unique, then add it to the game database and score database
+            if counter == len(g_s):
+                games_database[game_no] = each_game
+                g_s.append(game_no)
+
+    pprint(games_by_score)
+    best_game, number_strikes, c = find_best_game(games_database)
+
+    # save the simulations
+    pickle_out = open("latest_bowling_games_dict1.pickle", "wb")
+    pickle.dump({"games": games_database, 'scores': games_by_score}, pickle_out)
+    pickle_out.close()
+
+    # log the info to a log file
+    logging.info(f"Number of games simulated: {num_games_to_simulate}")
+    logging.info(f"Number of unique games: {len(games_database.keys())}")
+    logging.info(f"Number of games with a strike: {number_strikes}")
+    logging.info(f"Compare Column: {compare_column}")
+    logging.info("Best game: ")
+    logging.info(f"\n{games_database[best_game]}")
+
+
 # post-simulation stats funcs
 def find_best_game(games: dict) -> tuple[int, int, int]:
     best_score = 0
@@ -344,14 +393,18 @@ def find_best_game(games: dict) -> tuple[int, int, int]:
             game_with_a_strike = k
     return index_of_best_game, number_of_games_with_strike, game_with_a_strike
 
-# each pin for easier analysis, and it's # of points as the value
-balls = {"PIN"+str(x): 1 for x in range(1,11)}
+
 base_game_template = create_game_template()
+
+
+
+
+fifth_attempt(base_games_by_score, base_game_template, num_games_to_simulate=1000)
 # print(base_game_template)
 # first_attempt(base_game_template)
-second_attempt(base_game_template)
-third_attempt()
-fourth_attempt()
+# second_attempt(base_game_template)
+# third_attempt()
+# fourth_attempt()
 
 end_time = datetime.datetime.now()
 logging.info(end_time-today)
