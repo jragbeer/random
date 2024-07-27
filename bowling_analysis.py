@@ -53,8 +53,9 @@ dagster_logger.info(f"Version:  {app_version_number}")
 
 
 # parameters for the simulation
-num_games_to_simulate = 10_000_000
-compare_column = 'ball_score'
+num_games_to_simulate = 50_000_000
+compare_column = 'ball_score'  # ball_score or pins_hit
+
 # each pin for easier analysis, and it's # of points as the value
 balls = {"PIN"+str(x): 1 for x in range(1,11)}
 base_games_by_score = {x:[] for x in range(301)}
@@ -62,6 +63,7 @@ base_games_by_score = {x:[] for x in range(301)}
 # compare_column = "pins_hit"
 
 # simulate game funcs
+
 
 def create_game_template() -> pd.DataFrame:
     # setting up the game totals dataframe
@@ -356,11 +358,11 @@ def simulate_multiple_games(games_by_score: dict,
                   compare_column:str = compare_column,
                   games_start_index: int = 0,
                   num_games_to_simulate:int = num_games_to_simulate,
-                  ) -> tuple:
+                            ) -> tuple:
     num_games_simulate = range(games_start_index, games_start_index + num_games_to_simulate + 1)
     games_database = {x: pd.DataFrame() for x in num_games_simulate}
 
-    for game_no in tqdm(range(1, num_games_to_simulate + 1)):
+    for game_no in range(1, num_games_to_simulate + 1):
         # run a simulation and find it's final score
         each_game = get_scores(find_marks(simulate_game(game_template))).copy()
         each_game_max_score = each_game['running_score'].max()
@@ -383,61 +385,31 @@ def simulate_multiple_games(games_by_score: dict,
                 pass
     return games_database, games_by_score
 def fifth_attempt():
-    num_splits = 10
-    input_list = list(range(1_000))
-
-    cluster = "distributed"
+    num_splits = 3000
+    input_list = list(range(num_games_to_simulate))
     # Calculate the size of each split
     split_size = len(input_list) // num_splits
     split_size = max(1, split_size)
 
     # Create the splits using Dask
-    splits = [input_list[i:i + split_size] for i in range(0, len(input_list), split_size)]
-
     dagster_logger.info(f"{num_splits} splits each of around {split_size} size made. {len(input_list)} in total.")
-    print(os.getenv('home_connection_string'))
-    if cluster == 'distributed':
-        running_cluster_location = pd.read_sql("""SELECT var, value FROM
-         environment_variables WHERE 
-         var = 'distributed_dask_cluster'""",  sqlalchemy.create_engine(os.getenv('home_connection_string')))['value'].values[0]
-        client = dask.distributed.get_client(running_cluster_location)
-        dagster_logger.info(str(running_cluster_location))
-        dagster_logger.info(f"Using Distributed Dask Cluster : {str(client)}")
+    running_cluster_location = pd.read_sql("""SELECT var, value FROM
+     environment_variables WHERE 
+     var = 'distributed_dask_cluster'""",  sqlalchemy.create_engine(os.getenv('home_connection_string')))['value'].values[0]
+    client = dask.distributed.get_client(running_cluster_location)
+    dagster_logger.info(str(running_cluster_location))
+    dagster_logger.info(f"Using Distributed Dask Cluster : {str(client)}")
 
-    elif cluster == 'local':
-
-        try:
-            dagster_logger.info("Checking for Running Local Dask Cluster")
-            client = dask.distributed.get_client(f"tcp://{os.getenv('local_db_address')}:8786")
-            dagster_logger.info(f"Client acquired at tcp://{os.getenv('local_db_address')}:8786")
-            client.shutdown()
-            dagster_logger.info("Client shutdown")
-            time.sleep(15)
-        except:
-            dagster_logger.info(error_handling())
-            dagster_logger.info("No Client found")
-
-        dagster_logger.info('Creating Local Dask Cluster')
-        abc = execute_script_with_cmd(path + "finance_launch_dask_cluster.py")
-        dagster_logger.info(str(abc))
-
-        running_cluster_location = pd.read_sql("""SELECT var, value FROM
-         environment_variables WHERE 
-         var = 'local_dask_cluster'""",  sqlalchemy.create_engine(os.getenv('home_connection_string')))['value'].values[0]
-        client = dask.distributed.get_client(running_cluster_location)
-        dagster_logger.info(str(running_cluster_location))
-        dagster_logger.info(f"Using Local Dask Cluster : {str(client)}")
 
     # Create Dask delayed objects for each split and apply the provided function
     delayed_results = []
-    for split in splits:
-        print(split)
+    for split in range(num_splits):
         delayed_results.append(
             dask.delayed(simulate_multiple_games)(games_by_score= base_games_by_score,
                       game_template= base_game_template,
                       compare_column= compare_column,
                       games_start_index = 0,
-                      num_games_to_simulate= len(split),)
+                      num_games_to_simulate= split_size,)
         )
 
     with sqlalchemy.create_engine(os.getenv('home_connection_string')).begin() as conn:
@@ -449,24 +421,31 @@ def fifth_attempt():
     # Compute the results using Dask's parallel processing capabilities
     output = dask.compute(*delayed_results, priority=1, )
 
-    return output
-
-    pprint(games_by_score)
-    best_game, number_strikes, c = find_best_game(games_database)
-
     # save the simulations
-    pickle_out = open("latest_bowling_games_dict1.pickle", "wb")
-    pickle.dump({"games": games_database, 'scores': games_by_score}, pickle_out)
+    pickle_out = open("new_bowling_output.pickle", "wb")
+    pickle.dump(output, pickle_out)
     pickle_out.close()
 
-    # log the info to a log file
-    logging.info(f"Number of games simulated: {num_games_to_simulate}")
-    logging.info(f"Number of unique games: {len(games_database.keys())}")
-    logging.info(f"Number of games with a strike: {number_strikes}")
-    logging.info(f"Compare Column: {compare_column}")
-    logging.info("Best game: ")
-    logging.info(f"\n{games_database[best_game]}")
+    gdb_list = []
+    scores_list = []
+    for x in output:
+        gdb_list.append(x[0])
+        scores_list.append(x[1])
+    print(gdb_list[0])
+    print(scores_list[12])
+    new_games_database = {}
+    for x in gdb_list:
+        new_games_database.update(x)
+    best_game, number_strikes, c = find_best_game(new_games_database)
 
+    # log the info to a log file
+    dagster_logger.info(f"Number of games simulated: {num_games_to_simulate}")
+    dagster_logger.info(f"Number of unique games: {len(new_games_database.keys())}")
+    dagster_logger.info(f"Number of games with a strike: {number_strikes}")
+    dagster_logger.info(f"Compare Column: {compare_column}")
+    dagster_logger.info("Best game: ")
+    dagster_logger.info(f"\n{new_games_database[best_game]}")
+    dagster_logger.info(f"{datetime.datetime.now()-today}")
 
 # post-simulation stats funcs
 def find_best_game(games: dict) -> tuple[int, int, int]:
@@ -486,9 +465,25 @@ def find_best_game(games: dict) -> tuple[int, int, int]:
     return index_of_best_game, number_of_games_with_strike, game_with_a_strike
 
 
+# pickle_in = open("new_bowling_output.pickle","rb")
+# exx = pickle.load(pickle_in)
+
+kill_and_redeploy_dask_home_setup()
+
+move_secrets_to_remote_env(os.getenv('cluster_server_1_address'),
+                           os.getenv('cluster_server_1_username'),
+                           os.getenv('cluster_server_1_password'),
+                           )
+
+move_secrets_to_remote_env(os.getenv('cluster_server_2_address'),
+                           os.getenv('cluster_server_2_username'),
+                           os.getenv('cluster_server_2_password'),
+                           )
+
+
 base_game_template = create_game_template()
 fifth_attempt()
-# print(base_game_template)
+
 # first_attempt(base_game_template)
 # second_attempt(base_game_template)
 # third_attempt()
