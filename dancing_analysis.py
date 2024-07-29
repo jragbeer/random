@@ -85,7 +85,7 @@ temp_df = idf[idf['class_level'].str.contains('all')]
 idf.loc[temp_df.index,'class_level'] = "1-2-3-4-5"
 idf['class_level'] = idf['class_level'].str.extract(r'(\d)')
 idf['class_type'] = extract_dance_style(idf['class_type'])
-print(idf.head().to_string())
+print(idf.tail(15).to_string())
 
 # ANALYSIS
 not_first_month_df = filter_df(idf, ['not_first_month'])
@@ -98,28 +98,32 @@ print("\r\rOverall: " + pp)
 print(filter_df(idf, ['attended'])['class_type'].value_counts())
 print(filter_df(idf, ['attended'])['teacher'].value_counts())
 print(filter_df(idf, ['attended'])['class_level'].value_counts())
-
+print("")
 pp = info_string(first_month_df)
 print("\r\rNot First Month: " + pp)
 print(filter_df(idf, ['not_first_month', 'attended'])['class_type'].value_counts())
 print(filter_df(idf, ['not_first_month', 'attended'])['teacher'].value_counts())
 print(filter_df(idf, ['not_first_month', 'attended'])['class_level'].value_counts())
-
+print("")
 
 pp = info_string(first_month_df)
 print("\r\rFirst Month: " + pp)
 print(filter_df(idf, ['first_month', 'attended'])['class_type'].value_counts())
 print(filter_df(idf, ['first_month', 'attended'])['teacher'].value_counts())
 print(filter_df(idf, ['first_month', 'attended'])['class_level'].value_counts())
-
+print("")
 pp = info_string(first_month_salsa_df)
 print("\r\rFirst Month + Salsa: " + pp)
 print(filter_df(idf, ['first_month', 'attended', 'salsa'])['class_type'].value_counts())
 print(filter_df(idf, ['first_month', 'attended', 'salsa'])['teacher'].value_counts())
 print(filter_df(idf, ['first_month', 'attended', 'salsa'])['class_level'].value_counts())
-
+print("")
 pp = info_string(first_month_bachata_df)
 print("\r\rFirst Month + Bachata: " + pp)
 print(filter_df(idf, ['first_month', 'attended', 'bachata'])['class_type'].value_counts())
 print(filter_df(idf, ['first_month', 'attended', 'bachata'])['teacher'].value_counts())
 print(filter_df(idf, ['first_month', 'attended', 'bachata'])['class_level'].value_counts())
+
+print("")
+print(datetime.datetime.now()-today)
+
