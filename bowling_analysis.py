@@ -53,7 +53,7 @@ dagster_logger.info(f"Version:  {app_version_number}")
 
 
 # parameters for the simulation
-num_games_to_simulate = 50_000_000
+num_games_to_simulate = 10000
 compare_column = 'ball_score'  # ball_score or pins_hit
 
 # each pin for easier analysis, and it's # of points as the value
@@ -67,12 +67,12 @@ base_games_by_score = {x:[] for x in range(301)}
 
 def create_game_template() -> pd.DataFrame:
     # setting up the game totals dataframe
-    game_output_df_template = pd.DataFrame({'a':range(1, 21+1)}) # max number of balls that can be thrown in 1 game
+    game_output_df_template = pd.DataFrame({'a':range(1, 22)}) # max number of balls that can be thrown in 1 game
     game_output_df_template['frame'] = (game_output_df_template['a']%2 + game_output_df_template['a'])/2
     game_output_df_template['ball_in_frame'] = (game_output_df_template['a'] + 1)%2 + 1
     # last ball of the game, special case
-    game_output_df_template['frame'].iloc[max(game_output_df_template.index)] = 10
-    game_output_df_template['ball_in_frame'].iloc[max(game_output_df_template.index)] = 3
+    game_output_df_template.loc[max(game_output_df_template.index), 'frame'] = 10
+    game_output_df_template.loc[max(game_output_df_template.index), 'ball_in_frame'] = 3
     game_output_df_template['frame'] = game_output_df_template['frame'].astype(int)
     return game_output_df_template.drop(columns=['a'])
 def simulate_game(game_template_df: pd.DataFrame) -> pd.DataFrame:
@@ -385,7 +385,7 @@ def simulate_multiple_games(games_by_score: dict,
                 pass
     return games_database, games_by_score
 def fifth_attempt():
-    num_splits = 3000
+    num_splits = 100
     input_list = list(range(num_games_to_simulate))
     # Calculate the size of each split
     split_size = len(input_list) // num_splits
