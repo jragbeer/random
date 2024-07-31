@@ -384,8 +384,7 @@ def simulate_multiple_games(games_by_score: dict,
             except Exception as eee:
                 pass
     return games_database, games_by_score
-def fifth_attempt():
-    num_splits = 100
+def dask_attempt(num_splits = 10):
     input_list = list(range(num_games_to_simulate))
     # Calculate the size of each split
     split_size = len(input_list) // num_splits
@@ -468,21 +467,21 @@ def find_best_game(games: dict) -> tuple[int, int, int]:
 # pickle_in = open("new_bowling_output.pickle","rb")
 # exx = pickle.load(pickle_in)
 
-kill_and_redeploy_dask_home_setup()
-
-move_secrets_to_remote_env(os.getenv('cluster_server_1_address'),
-                           os.getenv('cluster_server_1_username'),
-                           os.getenv('cluster_server_1_password'),
-                           )
-
-move_secrets_to_remote_env(os.getenv('cluster_server_2_address'),
-                           os.getenv('cluster_server_2_username'),
-                           os.getenv('cluster_server_2_password'),
-                           )
+# kill_and_redeploy_dask_home_setup()
+#
+# move_secrets_to_remote_env(os.getenv('cluster_server_1_address'),
+#                            os.getenv('cluster_server_1_username'),
+#                            os.getenv('cluster_server_1_password'),
+#                            )
+#
+# move_secrets_to_remote_env(os.getenv('cluster_server_2_address'),
+#                            os.getenv('cluster_server_2_username'),
+#                            os.getenv('cluster_server_2_password'),
+#                            )
 
 
 base_game_template = create_game_template()
-fifth_attempt()
+dask_attempt()
 
 # first_attempt(base_game_template)
 # second_attempt(base_game_template)
