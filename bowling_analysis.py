@@ -462,6 +462,7 @@ def dask_attempt(num_splits = 1000, parallel = 'distributed'):
 
         else:
             from dask.distributed import Client
+            print('wow')
             client = Client(n_workers=8, threads_per_worker=1)  # set up local cluster on your laptop
             dagster_logger.info(f"Using Local Dask Cluster : {str(client)}")
 
