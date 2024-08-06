@@ -41,7 +41,8 @@ dagster_logger.info(f"Version:  {app_version_number}")
 
 
 # parameters for the simulation
-num_games_to_simulate = 10000
+num_games_to_simulate = 3000000
+
 compare_column = 'ball_score'  # ball_score or pins_hit
 
 # each pin for easier analysis, and it's # of points as the value
@@ -141,6 +142,7 @@ def find_marks(game_df: pd.DataFrame) -> pd.DataFrame:
                     special_score.append('STRIKE')
                     special_score.append('')
                 elif tmp[tmp['ball_in_frame'] <= 2]['ball_score'].sum() == 10:
+
                     # if not just the first ball, it's a SPARE
                     special_score.append('')
                     special_score.append('SPARE')
@@ -372,7 +374,7 @@ def simulate_multiple_games(games_by_score: dict,
                 pass
     return games_database, games_by_score
 
-@ray.remote
+@ray.remote(num_gpus = max(0.001,1/num_games_to_simulate))
 def ray_simulate_multiple_games(games_by_score: dict,
                   game_template: pd.DataFrame,
                   compare_column:str = compare_column,
@@ -405,6 +407,9 @@ def ray_simulate_multiple_games(games_by_score: dict,
     return games_database, games_by_score
 
 def ray_attempt(num_splits = 100):
+
+    ray.init(_node_ip_address="192.168.2.13")
+
     input_list = list(range(num_games_to_simulate))
     # Calculate the size of each split
     split_size = len(input_list) // num_splits
@@ -453,18 +458,24 @@ def dask_attempt(num_splits = 1000, parallel = 'distributed'):
         dagster_logger.info(f"{num_splits} splits each of around {split_size} size made. {len(input_list)} in total.")
 
         if parallel == 'distributed':
-            running_cluster_location = pd.read_sql("""SELECT var, value FROM
-             environment_variables WHERE 
-             var = 'distributed_dask_cluster'""",  sqlalchemy.create_engine(os.getenv('home_connection_string')))['value'].values[0]
-            client = dask.distributed.get_client(running_cluster_location)
+            with sqlalchemy.create_engine(os.getenv('home_connection_string')).begin() as conn:
+                running_cluster_location = pd.read_sql("""SELECT var, value FROM
+                 environment_variables WHERE
+                 var = 'distributed_dask_cluster'""", conn)['value'].values[0]
+                client = dask.distributed.get_client(running_cluster_location)
             dagster_logger.info(str(running_cluster_location))
             dagster_logger.info(f"Using Distributed Dask Cluster : {str(client)}")
 
-        else:
-            from dask.distributed import Client
-            print('wow')
-            client = Client(n_workers=8, threads_per_worker=1)  # set up local cluster on your laptop
+        elif parallel == 'local':
+            from dask.distributed import Client, LocalCluster
+            client = LocalCluster(n_workers=8, threads_per_worker=1).get_client()  # set up local cluster on your laptop
             dagster_logger.info(f"Using Local Dask Cluster : {str(client)}")
+        elif parallel == 'local_gpu':
+            from dask_cuda import LocalCUDACluster
+            from dask.distributed import Client
+            cluster = LocalCUDACluster()
+            client = Client(cluster)
+            dagster_logger.info(f"Using Local GPU Dask Cluster : {str(client)}")
 
         # Create Dask delayed objects for each split and apply the provided function
         delayed_results = []
@@ -475,12 +486,6 @@ def dask_attempt(num_splits = 1000, parallel = 'distributed'):
                           compare_column= compare_column,
                           num_games_to_simulate= split_size,)
             )
-
-        with sqlalchemy.create_engine(os.getenv('home_connection_string')).begin() as conn:
-            running_cluster_location = pd.read_sql("""SELECT var, value FROM
-             environment_variables WHERE
-             var = 'distributed_dask_cluster'""",  conn)['value'].values[0]
-            client = dask.distributed.get_client(running_cluster_location)
 
         # Compute the results using Dask's parallel processing capabilities
         output = dask.compute(*delayed_results, priority=1, )
@@ -531,8 +536,6 @@ def find_best_game(games: dict) -> tuple[int, int, int]:
     return index_of_best_game, number_of_games_with_strike, game_with_a_strike
 
 
-# pickle_in = open("new_bowling_output.pickle","rb")
-# exx = pickle.load(pickle_in)
 
 # kill_and_redeploy_dask_home_setup()
 #
@@ -548,9 +551,9 @@ def find_best_game(games: dict) -> tuple[int, int, int]:
 
 
 base_game_template = create_game_template()
-ray_attempt()
-# dask_attempt(num_splits=100, parallel='distributed')
-# dask_attempt(num_splits=100, parallel='local')
+# ray_attempt()
+dask_attempt(num_splits=100, parallel='distributed')
+# dask_attempt(num_splits=1000, parallel='local')
 
 
 end_time = datetime.datetime.now()
