@@ -8,14 +8,16 @@ from io import StringIO
 import datetime
 import os
 
+
+def extract_style(text):
+    if 'salsa' in text:
+        return 'salsa'
+    elif 'bachata' in text:
+        return 'bachata'
+    else:
+        return text
+
 def extract_dance_style(df_series):
-    def extract_style(text):
-        if 'salsa' in text:
-            return 'salsa'
-        elif 'bachata' in text:
-            return 'bachata'
-        else:
-            return text
     return df_series.apply(extract_style)
 
 def filter_df(xdf, filters_to_use=None):
@@ -27,6 +29,8 @@ def filter_df(xdf, filters_to_use=None):
                 xdf = xdf[(xdf['payment_method'] != "one month pass - promo for new students only")]
             if x == 'attended':
                 xdf = xdf[xdf['status']=='signed in']
+            if x == 'cancelled':
+                xdf = xdf[xdf['status'] =='late cancel']
             if x == 'salsa':
                 xdf = xdf[xdf['class_type'].str.contains('salsa')]
             if x == 'bachata':
@@ -34,7 +38,7 @@ def filter_df(xdf, filters_to_use=None):
     return xdf
 
 def info_string(xdf):
-    return f"""I've attended {len(filter_df(xdf, ['attended']).index)} classes out of {len(xdf.index)} that I signed up for."""
+    return f"""I've attended {len(filter_df(xdf, ['attended']).index)} classes out of {len(xdf.index)} that I signed up for. {len(filter_df(xdf, ['cancelled']).index)} I cancelled late."""
 
 
 today = datetime.datetime.now()
@@ -88,10 +92,10 @@ idf['class_type'] = extract_dance_style(idf['class_type'])
 print(idf.tail(15).to_string())
 
 # ANALYSIS
-not_first_month_df = filter_df(idf, ['not_first_month'])
-first_month_df = filter_df(idf, ['first_month'])
-first_month_salsa_df = filter_df(idf, ['first_month', 'salsa'])
-first_month_bachata_df = filter_df(idf, ['first_month', 'bachata'])
+not_first_month_df = filter_df(idf, ['not_first_month', 'attended'])
+first_month_df = filter_df(idf, ['first_month', 'attended'])
+first_month_salsa_df = filter_df(idf, ['first_month', 'salsa', 'attended'])
+first_month_bachata_df = filter_df(idf, ['first_month', 'bachata', 'attended'])
 
 pp = info_string(idf)
 print("\r\rOverall: " + pp)
@@ -99,30 +103,30 @@ print(filter_df(idf, ['attended'])['class_type'].value_counts())
 print(filter_df(idf, ['attended'])['teacher'].value_counts())
 print(filter_df(idf, ['attended'])['class_level'].value_counts())
 print("")
-pp = info_string(first_month_df)
+pp = info_string(not_first_month_df)
 print("\r\rNot First Month: " + pp)
-print(filter_df(idf, ['not_first_month', 'attended'])['class_type'].value_counts())
-print(filter_df(idf, ['not_first_month', 'attended'])['teacher'].value_counts())
-print(filter_df(idf, ['not_first_month', 'attended'])['class_level'].value_counts())
+print(not_first_month_df['class_type'].value_counts())
+print(not_first_month_df['teacher'].value_counts())
+print(not_first_month_df['class_level'].value_counts())
 print("")
 
 pp = info_string(first_month_df)
 print("\r\rFirst Month: " + pp)
-print(filter_df(idf, ['first_month', 'attended'])['class_type'].value_counts())
-print(filter_df(idf, ['first_month', 'attended'])['teacher'].value_counts())
-print(filter_df(idf, ['first_month', 'attended'])['class_level'].value_counts())
+print(first_month_df['class_type'].value_counts())
+print(first_month_df['teacher'].value_counts())
+print(first_month_df['class_level'].value_counts())
 print("")
 pp = info_string(first_month_salsa_df)
 print("\r\rFirst Month + Salsa: " + pp)
-print(filter_df(idf, ['first_month', 'attended', 'salsa'])['class_type'].value_counts())
-print(filter_df(idf, ['first_month', 'attended', 'salsa'])['teacher'].value_counts())
-print(filter_df(idf, ['first_month', 'attended', 'salsa'])['class_level'].value_counts())
+print(first_month_salsa_df['class_type'].value_counts())
+print(first_month_salsa_df['teacher'].value_counts())
+print(first_month_salsa_df['class_level'].value_counts())
 print("")
 pp = info_string(first_month_bachata_df)
 print("\r\rFirst Month + Bachata: " + pp)
-print(filter_df(idf, ['first_month', 'attended', 'bachata'])['class_type'].value_counts())
-print(filter_df(idf, ['first_month', 'attended', 'bachata'])['teacher'].value_counts())
-print(filter_df(idf, ['first_month', 'attended', 'bachata'])['class_level'].value_counts())
+print(first_month_bachata_df['class_type'].value_counts())
+print(first_month_bachata_df['teacher'].value_counts())
+print(first_month_bachata_df['class_level'].value_counts())
 
 print("")
 print(datetime.datetime.now()-today)
