@@ -9,7 +9,7 @@ import datetime
 import os
 
 
-def extract_style(text):
+def extract_style(text:str) -> str:
     if 'salsa' in text:
         return 'salsa'
     elif 'bachata' in text:
